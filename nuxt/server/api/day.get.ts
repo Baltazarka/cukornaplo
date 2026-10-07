@@ -16,7 +16,7 @@ export default defineEventHandler((event) => {
   const rangeStart = startOfDayTs(addDaysYmd(day, -13))
 
   const rows = db()
-    .prepare('SELECT type, ts, value, subtype, source FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
+    .prepare('SELECT id, type, ts, value, subtype, source FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
     .all(rangeStart, dayEnd) as any[]
 
   const dayRows = { glucose: [] as any[], insulin: [] as any[], carbs: [] as any[] }
@@ -37,7 +37,7 @@ export default defineEventHandler((event) => {
     } else {
       daily[key].carbs += v
     }
-    if (ts >= dayStart) dayRows[r.type as 'glucose' | 'insulin' | 'carbs'].push({ ts, v, sub: r.subtype, src: r.source })
+    if (ts >= dayStart) dayRows[r.type as 'glucose' | 'insulin' | 'carbs'].push({ id: Number(r.id), ts, v, sub: r.subtype, src: r.source })
   }
 
   const dayStats = glucoseStats(dayRows.glucose.map((g) => g.v), low, high)
@@ -86,6 +86,7 @@ export default defineEventHandler((event) => {
     prev: addDaysYmd(day, -1),
     next: addDaysYmd(day, 1),
     label: day.replaceAll('-', '. ') + '., ' + huWeekday(day),
+    basalDose: setting('basal_dose', null) === null ? null : Number(setting('basal_dose')),
     dayStartMs: dayStart * 1000,
     dayEndMs: dayEnd * 1000,
     range: { veryLow: RANGE_VERY_LOW, low, high, veryHigh: RANGE_VERY_HIGH },
@@ -93,7 +94,7 @@ export default defineEventHandler((event) => {
     insulin: dayRows.insulin.map((e) => [e.ts * 1000, e.v, e.sub]),
     carbs: dayRows.carbs.map((e) => [e.ts * 1000, e.v]),
     events: events.map((e) => ({
-      ts: e.ts * 1000, time: hmInTz(e.ts), type: e.type, sub: e.sub ?? null, v: e.v, glucose: nearestGlucose(e.ts),
+      id: e.id, ts: e.ts * 1000, time: hmInTz(e.ts), type: e.type, sub: e.sub ?? null, v: e.v, glucose: nearestGlucose(e.ts),
     })),
     stats: { day: dayStats, range14: rangeStats },
     totals: { insulin: dayInsulin, carbs: dayCarbs },

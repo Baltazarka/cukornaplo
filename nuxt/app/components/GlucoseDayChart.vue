@@ -49,6 +49,16 @@ function buildOption() {
   const basal = d.insulin.filter((p: any[]) => p[2] === 'basal').map((p: any[]) => [p[0], p[1]])
   const carbs = d.carbs.map((p: any[]) => [p[0], p[1]])
 
+  // Szár + pont: a vércukor pontjaihoz hasonlóan pontosan az időpontnál áll, nincs oszlopszélesség-eltolás.
+  const stem = (name: string, idx: number, data: any[], color: string) => [
+    {
+      name, type: 'line', xAxisIndex: idx, yAxisIndex: idx, data, silent: true, z: 2,
+      symbol: 'circle', symbolSize: 7, itemStyle: { color }, lineStyle: { width: 0, color },
+      markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color, width: 2, type: 'solid' },
+        data: data.map((p: any[]) => [{ coord: [p[0], 0] }, { coord: [p[0], p[1]] }]) },
+    },
+  ]
+
   const fmtTooltip = (params: any) => {
     const x = Array.isArray(params) ? params[0]?.axisValue : params.axisValue
     if (x == null) return ''
@@ -81,15 +91,17 @@ function buildOption() {
   const axisLine = { lineStyle: { color: C.axis } }
   // Mindhárom panel azonos bal margóval és időtengellyel → az időpontok pontosan egymás alá esnek.
   const GRID_LEFT = 52
+  // Érték-tengely (ms): a min/max szigorúan érvényes, így a három panel tengelye pixelre azonos.
   const xAxisFor = (gridIndex: number) => ({
-    type: 'time' as const,
+    type: 'value' as const,
     gridIndex,
     min: d.dayStartMs,
     max: d.dayEndMs,
-    axisLabel: { ...axisLabel, formatter: { hour: '{HH}:{mm}' } as any },
+    interval: 4 * 3600000,
+    axisLabel: { ...axisLabel, hideOverlap: false, formatter: (v: number) => hm(v) },
     axisLine,
     axisTick: { show: true },
-    splitLine: { show: false },
+    splitLine: { show: true, lineStyle: { color: C.grid } },
   })
   const panelTitle = (name: string, unit: string, top: number) => ({
     text: `{a|${name}}  {b|${unit}}`,
@@ -167,9 +179,9 @@ function buildOption() {
         data: d.glucose.filter((pt: [number, number]) => pt[1] > d.range.high),
         tooltip: { show: false }, legendHoverLink: false,
       },
-      { name: 'Bólus', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: bolus, barWidth: 6, barMinHeight: 2, itemStyle: { color: C.insulin, borderRadius: [3, 3, 0, 0] } },
-      { name: 'Bázis', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: basal, barWidth: 6, barMinHeight: 2, itemStyle: { color: C.basal, borderRadius: [3, 3, 0, 0] } },
-      { name: 'Szénhidrát', type: 'bar', xAxisIndex: 2, yAxisIndex: 2, data: carbs, barWidth: 6, barMinHeight: 2, itemStyle: { color: C.carbs, borderRadius: [3, 3, 0, 0] } },
+      ...stem('Bólus', 1, bolus, C.insulin),
+      ...stem('Bázis', 1, basal, C.basal),
+      ...stem('Szénhidrát', 2, carbs, C.carbs),
     ],
   }
 }

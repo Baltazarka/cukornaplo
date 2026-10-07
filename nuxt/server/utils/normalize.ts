@@ -1,6 +1,11 @@
 // A lib.php adatfeldolgozó részének átírása: típus/dátum/érték értelmezése és egységesítése.
 import type { Row } from './db'
 
+/** A bázisadag (E): a típus nélkül pontosan ekkora adagként érkező inzulin bázis. null = nincs beállítva. */
+let basalDose: number | null = null
+export function setBasalDose(n: number | null): void {
+  basalDose = n !== null && Number.isFinite(n) && n > 0 ? n : null
+}
 export const MGDL_PER_MMOL = 18.0182
 
 const TYPE_MAP: Record<string, Row['type']> = {
@@ -110,10 +115,13 @@ export function normalizeRow(
 
   let sub: string | null = null
   if (t === 'insulin' && subtype !== '') {
-    const st = subtype.toLowerCase()
-    if (st.includes('bas') || st === '1') sub = 'basal'
+    const st = stripAccents(subtype).toLowerCase()
+    if (st.includes('bas') || st.includes('alap') || st === '1') sub = 'basal'
     else if (st.includes('bol') || st === '2') sub = 'bolus'
   }
+
+  // A Parancsok nem küldi az adag típusát: típus nélkül a beállított bázisadaggal egyező érték = bázis, minden más bólus.
+  if (t === 'insulin' && sub === null && basalDose !== null && Math.abs(v - basalDose) < 0.05) sub = 'basal'
 
   return { type: t, ts, value: v, subtype: sub, source: source.trim() !== '' ? source.trim().slice(0, 80) : null }
 }

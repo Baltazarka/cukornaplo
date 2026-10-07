@@ -47,6 +47,24 @@ async function saveRange() {
   }
 }
 
+// Bázis-küszöb és az inzulinsorok típusának utólagos állítása.
+const basalDose = ref<number | null>(null)
+const basalLoaded = ref(false)
+watchEffect(() => {
+  if (data.value && !basalLoaded.value) {
+    basalDose.value = data.value.basalDose
+    basalLoaded.value = true
+  }
+})
+async function saveBasal() {
+  await $fetch('/api/basal', { method: 'POST', body: { basal_dose: basalDose.value || null } })
+  await refresh()
+}
+async function setSub(e: any, v: string) {
+  await $fetch('/api/entry-subtype', { method: 'POST', body: { id: e.id, subtype: v } })
+  await refresh()
+}
+
 const lowPct = (s: any) => (s?.n ? s.pct.low + s.pct.veryLow : null)
 
 const eventLabel = (e: any) =>
@@ -100,13 +118,28 @@ const eventDot = (e: any) =>
     <div class="grid2">
       <section class="card">
         <h2>Napló</h2>
+        <form class="range-edit" @submit.prevent="saveBasal">
+          <span class="muted">Bázisadagom:</span>
+          <input v-model.number="basalDose" type="number" step="0.5" min="0" max="100" placeholder="pl. 52" aria-label="Bázisadag (E)">
+          <span class="muted">E</span>
+          <button type="submit" class="ghost sm">Mentés</button>
+        </form>
+        <p class="muted small">Minden adag bólus, kivéve a pontosan ekkora újonnan érkezőt (üresen hagyva kikapcsolva). Egy sor típusát a legördülővel javíthatod.</p>
         <div v-if="data.events.length" class="table-wrap">
           <table class="table">
             <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num">Glükóz</th></tr></thead>
             <tbody>
               <tr v-for="(e, i) in data.events" :key="i">
                 <td class="num">{{ e.time }}</td>
-                <td><span class="dot" :class="'dot-' + eventDot(e)" />{{ eventLabel(e) }}</td>
+                <td>
+                  <span class="dot" :class="'dot-' + eventDot(e)" />
+                  <select v-if="e.type === 'insulin'" :value="e.sub ?? ''" class="sub-select" aria-label="Típus" @change="setSub(e, ($event.target as HTMLSelectElement).value)">
+                    <option value="">Inzulin</option>
+                    <option value="bolus">Bólus</option>
+                    <option value="basal">Bázis</option>
+                  </select>
+                  <template v-else>{{ eventLabel(e) }}</template>
+                </td>
                 <td class="num">{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : fmt(e.v) + ' E' }}</td>
                 <td class="num">{{ e.glucose != null ? fmt(e.glucose) : '–' }}</td>
               </tr>

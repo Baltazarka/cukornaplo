@@ -1,7 +1,7 @@
 // Közös ingest-logika az api/ingest.php átírásából. Az /api/ingest és a régi /api/ingest.php is ezt hívja.
 import { timingSafeEqual } from 'node:crypto'
 import type { H3Event } from 'h3'
-import { parseTextLines, parseJsonPayload, recordIngest, type Parsed } from './normalize'
+import { parseTextLines, parseJsonPayload, recordIngest, setBasalDose, type Parsed } from './normalize'
 import { storeRows } from './db'
 
 function safeEqual(a: string, b: string): boolean {
@@ -33,12 +33,12 @@ export async function handleIngest(event: H3Event) {
       if (p.filename) {
         if (p.name === 'data' || fileText === null) fileText = p.data.toString('utf8')
       } else if (p.name) {
-        fields[p.name] = p.data.toString('utf8')
+        fields[p.name.trim()] = p.data.toString('utf8')
       }
     }
   } else if (ct.includes('application/x-www-form-urlencoded')) {
     const body = (await readBody(event)) ?? {}
-    for (const k of Object.keys(body)) if (typeof body[k] === 'string') fields[k] = body[k]
+    for (const k of Object.keys(body)) if (typeof body[k] === 'string') fields[k.trim()] = body[k]
   } else {
     rawText = (await readRawBody(event, 'utf8')) ?? null
   }
@@ -50,6 +50,8 @@ export async function handleIngest(event: H3Event) {
     setResponseStatus(event, 401)
     return { ok: false, error: 'Hibás vagy hiányzó kulcs (X-Token).' }
   }
+
+  setBasalDose(setting('basal_dose', null) === null ? null : Number(setting('basal_dose')))
 
   const formFields = { ...fields }
   delete formFields.token
@@ -64,7 +66,10 @@ export async function handleIngest(event: H3Event) {
       setResponseStatus(event, 400)
       return { ok: false, error: `A dátumok (${dates.length}) és az értékek (${values.length}) száma nem egyezik.` }
     }
-    text = dates.map((d, i) => `${type};${d};${values[i]}`).join('\n')
+    // Opcionális "subtypes" mező (soronként bólus/bázis, azonos sorrendben), vagy egy "subtype" az egész csomagra.
+    const subs = typeof fields.subtypes === 'string' ? splitLines(fields.subtypes) : []
+    const oneSub = fields.subtype?.trim() ?? ''
+    text = dates.map((d, i) => `${type};${d};${values[i]};;;${subs.length === dates.length ? subs[i] : oneSub}`).join('\n')
     for (const k of Object.keys(formFields)) delete formFields[k]
   } else if (typeof fields.data === 'string') {
     text = fields.data

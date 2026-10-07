@@ -43,6 +43,10 @@ export function storeRows(rows: Row[]): [number, number] {
   const stmt = d.prepare(
     'INSERT OR IGNORE INTO entries (type, ts, value, subtype, source, created_at) VALUES (?, ?, ?, ?, ?, ?)',
   )
+  // Ha a sor már megvan típus nélkül, az újra beküldött típus kitölti (kézzel beállított típust nem ír felül).
+  const fill = d.prepare(
+    'UPDATE entries SET subtype = ? WHERE type = ? AND ts = ? AND value = ? AND subtype IS NULL',
+  )
   const now = Math.floor(Date.now() / 1000)
   let inserted = 0
   d.exec('BEGIN')
@@ -50,6 +54,7 @@ export function storeRows(rows: Row[]): [number, number] {
     for (const r of rows) {
       const info = stmt.run(r.type, r.ts, r.value, r.subtype, r.source, now)
       inserted += Number(info.changes)
+      if (Number(info.changes) === 0 && r.subtype !== null) fill.run(r.subtype, r.type, r.ts, r.value)
     }
     d.exec('COMMIT')
   } catch (e) {

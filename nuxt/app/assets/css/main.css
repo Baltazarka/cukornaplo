@@ -302,3 +302,9 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
   .filters h1 { margin-left: 0; width: 100%; font-size: 18px; }
   .facts { grid-template-columns: minmax(0, 1fr); }
 }
+
+.sub-select {
+  font: inherit; padding: 2px 4px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-primary);
+}
+.sub-select option { background: var(--surface-2); color: var(--text-primary); }
