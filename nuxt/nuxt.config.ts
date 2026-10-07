@@ -1,0 +1,45 @@
+import { fileURLToPath } from 'node:url'
+
+// A meglévő adatmappa (ugyanaz az SQLite + settings.json, amit a PHP is használ).
+// Dockerben DATA_DIR=/data; helyben a projekt melletti ../data.
+const dataDir = process.env.DATA_DIR || fileURLToPath(new URL('../data', import.meta.url))
+
+export default defineNuxtConfig({
+  compatibilityDate: '2025-01-01',
+  // Személyes dashboard, nincs SEO-igény: SPA mód. Az API-k Nitro alatt szerveroldalon futnak.
+  ssr: false,
+  devtools: { enabled: true },
+  css: ['~/assets/css/main.css'],
+  runtimeConfig: {
+    dataDir,
+    // 0 = kikapcsolva. Alapból 5 perc; a háttér-poller a Nitroban fut.
+    carelinkInterval: Number(process.env.CARELINK_INTERVAL ?? 300),
+    appTz: process.env.APP_TZ || 'Europe/Budapest',
+  },
+  nitro: {
+    // A node:sqlite a Node beépített modulja, nem kell natív fordítás.
+    externals: { inline: [] },
+  },
+  // Biztonsági fejlécek minden válaszra (a PHP lib.php megfelelője).
+  routeRules: {
+    '/**': {
+      headers: {
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Referrer-Policy': 'same-origin',
+      },
+    },
+  },
+  app: {
+    head: {
+      htmlAttrs: { lang: 'hu' },
+      title: 'Cukornapló',
+      meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
+      // A mentett témát még a Vue betöltése előtt beállítjuk (nincs villanás).
+      script: [{
+        innerHTML: "try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}",
+        tagPosition: 'head',
+      }],
+    },
+  },
+})

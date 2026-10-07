@@ -1,0 +1,5 @@
+data
+.git
+.gitignore
+.claude
+docker-compose*.yml

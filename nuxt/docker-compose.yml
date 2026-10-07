@@ -1,0 +1,21 @@
+# A Nuxt verzió éles futtatása (pl. a Pi-n), a PHP compose mintájára.
+# Indítás:  docker compose up --build -d
+services:
+  cukornaplo-nuxt:
+    build: .
+    image: baltazarka/cukornaplo-nuxt:latest
+    container_name: cukornaplo-nuxt
+    hostname: cukornaplo-nuxt
+    environment:
+      - TZ=Europe/Budapest
+      - APP_TZ=Europe/Budapest
+      - DATA_DIR=/data
+      # CareLink háttér-lekérés másodpercben (0 = ki). Alapból 5 perc.
+      - CARELINK_INTERVAL=300
+    volumes:
+      # Ugyanaz az adatmappa, amit a PHP is használt (jelszó, kulcs, CareLink, adatbázis átvihető).
+      - /home/dietpi/docker/cukornaplo/data:/data
+    ports:
+      # A reverse proxy (Caddy) felől maradhat az 5478-as port → a konténer 3000-ére.
+      - "5478:3000"
+    restart: unless-stopped
