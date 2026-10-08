@@ -1,5 +1,5 @@
-# A Nuxt verzió éles futtatása (pl. a Pi-n), a PHP compose mintájára.
-# Indítás:  docker compose up --build -d
+# Cukornapló éles futtatása (pl. a Pi-n). Az image-et előtte buildeld és told fel (lásd README).
+# Indítás:  docker compose up -d
 services:
   cukornaplo-nuxt:
     build: .
@@ -18,7 +18,7 @@ services:
       # Cloudflare nélkül töröld: ekkor az X-Forwarded-For utolsó elemét (a proxy által írtat) használja.
       - CLIENT_IP_HEADER=cf-connecting-ip
     volumes:
-      # Ugyanaz az adatmappa, amit a PHP is használt (jelszó, kulcs, CareLink, adatbázis átvihető).
+      # Adatmappa: jelszó-hash, API-kulcs, CareLink-kapcsolat és az SQLite adatbázis.
       - /home/dietpi/docker/cukornaplo/data:/data
     ports:
       # A reverse proxy (Caddy) felől maradhat az 5478-as port → a konténer 3000-ére.

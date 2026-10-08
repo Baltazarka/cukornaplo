@@ -1,8 +1,7 @@
 import { fileURLToPath } from 'node:url'
 
-// A meglévő adatmappa (ugyanaz az SQLite + settings.json, amit a PHP is használ).
-// Dockerben DATA_DIR=/data; helyben a projekt melletti ../data.
-const dataDir = process.env.DATA_DIR || fileURLToPath(new URL('../data', import.meta.url))
+// Adatmappa (SQLite + settings.json). Dockerben DATA_DIR=/data; helyben a projekt ./data mappája.
+const dataDir = process.env.DATA_DIR || fileURLToPath(new URL('./data', import.meta.url))
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
@@ -20,7 +19,7 @@ export default defineNuxtConfig({
     // A node:sqlite a Node beépített modulja, nem kell natív fordítás.
     externals: { inline: [] },
   },
-  // Biztonsági fejlécek minden válaszra (a PHP lib.php megfelelője).
+  // Biztonsági fejlécek minden válaszra.
   routeRules: {
     '/**': {
       headers: {

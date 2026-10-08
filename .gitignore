@@ -1,15 +1,15 @@
 # Adatok és titkok – SOHA ne kerüljön verziókezelésbe!
 # (jelszó-hash, API-kulcs, CareLink belépési kulcs, az SQLite egészségügyi adatbázis)
 data/
-nuxt/data-dev/
+data-dev/
 **/carelink_last.json
+.env
 
 # Node / Nuxt
-nuxt/node_modules/
-nuxt/.nuxt/
-nuxt/.output/
-nuxt/.data/
 node_modules/
+.nuxt/
+.output/
+.data/
 
 # Naplók, ideiglenes fájlok
 *.log

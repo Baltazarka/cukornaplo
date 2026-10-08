@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Telefonos beállító varázsló (a PHP setup.php 2–6. lépéseinek megfelelője).
+// Telefonos beállító varázsló: kapcsolatteszt, InPen → Egészség, küldés módja, beállítás, próba.
 const { data: s } = await useFetch('/api/settings')
 const token = computed(() => s.value?.token ?? '')
 const ingestUrl = computed(() => (import.meta.client ? window.location.origin : '') + '/api/ingest')

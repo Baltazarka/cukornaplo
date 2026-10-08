@@ -14,7 +14,7 @@ if (!file) {
 }
 const since = process.argv[3] ? Math.floor(Date.parse(process.argv[3]) / 1000) : 0
 
-const dataDir = process.env.DATA_DIR || resolve(import.meta.dirname!, '../../data')
+const dataDir = process.env.DATA_DIR || resolve(import.meta.dirname!, '../data')
 mkdirSync(dataDir, { recursive: true })
 const db = new DatabaseSync(join(dataDir, 'diabetes.sqlite'))
 db.exec('PRAGMA journal_mode = WAL')

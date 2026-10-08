@@ -1,5 +1,11 @@
-data
+node_modules
+.nuxt
+.output
+.data
 .git
 .gitignore
-.claude
+.env
+data
+data-dev
+README.md
 docker-compose*.yml

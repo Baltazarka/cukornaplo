@@ -1,25 +1,28 @@
-# A közzétett baltazarka/cukornaplo image build-lépései alapján visszaállítva.
-FROM php:8.3-apache
+# Nuxt (Nitro) éles kép. node:sqlite beépített → nincs natív fordítás.
+FROM node:24-alpine AS build
+WORKDIR /app
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm build
 
-RUN a2enmod rewrite headers \
- && mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
-
-COPY docker/php.ini /usr/local/etc/php/conf.d/zz-cukornaplo.ini
-COPY docker/apache.conf /etc/apache2/conf-available/zz-cukornaplo.conf
-COPY docker/entrypoint.sh /usr/local/bin/cukornaplo-entrypoint
-RUN a2enconf zz-cukornaplo \
- && sed -i 's/\r$//' /usr/local/bin/cukornaplo-entrypoint \
- && chmod +x /usr/local/bin/cukornaplo-entrypoint
-
-ENV DATA_DIR=/data APP_TZ=Europe/Budapest TZ=Europe/Budapest CARELINK_POLLER=1
-RUN mkdir -p /data && chown www-data:www-data /data
+FROM node:24-alpine
+WORKDIR /app
+ENV NODE_ENV=production \
+    DATA_DIR=/data \
+    APP_TZ=Europe/Budapest \
+    TZ=Europe/Budapest \
+    CARELINK_INTERVAL=300 \
+    NITRO_HOST=0.0.0.0 \
+    NITRO_PORT=3000
+RUN mkdir -p /data
+# A kész build + a parancssori import-szkript (node futtatja .ts-ként).
+COPY --from=build /app/.output ./.output
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/server ./server
 VOLUME ["/data"]
-
-COPY . /var/www/html/
-RUN rm -rf /var/www/html/data /var/www/html/docker /var/www/html/Dockerfile /var/www/html/.dockerignore
-
-HEALTHCHECK --interval=1m --timeout=5s --start-period=10s \
-  CMD php -r 'exit(@fsockopen("127.0.0.1", 80) ? 0 : 1);'
-
-ENTRYPOINT ["cukornaplo-entrypoint"]
-CMD ["apache2-foreground"]
+EXPOSE 3000
+HEALTHCHECK --interval=1m --timeout=5s --start-period=15s \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/auth/state').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node", ".output/server/index.mjs"]

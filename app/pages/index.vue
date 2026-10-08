@@ -85,7 +85,7 @@ const eventDot = (e: any) =>
 
     <section v-if="!data.stats.day.n && !data.events.length" class="card">
       <p>Erre a napra nincs adat.</p>
-      <p class="muted">A telefonos küldést és a CareLinket egyelőre a PHP felületen lehet beállítani.</p>
+      <p class="muted">Ha még nem állítottad be, a <NuxtLink to="/telefon">Telefon beállítása</NuxtLink> varázsló végigvezet a telefonos küldésen, a szenzorgörbéhez pedig az <NuxtLink to="/adatok">Adatok és import</NuxtLink> oldalon kötheted be a CareLinket.</p>
     </section>
 
     <section class="tiles">

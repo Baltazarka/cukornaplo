@@ -1,5 +1,5 @@
 // SQLite a Node beépített node:sqlite moduljával (nincs natív fordítás).
-// Ugyanazt a diabetes.sqlite fájlt és sémát használja, mint a PHP app.
+// A séma a korábbi PHP-s változattal azonos, így a régi diabetes.sqlite gond nélkül átvihető.
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
