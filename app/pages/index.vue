@@ -3,10 +3,30 @@ const route = useRoute()
 const router = useRouter()
 
 const date = computed(() => (typeof route.query.date === 'string' ? route.query.date : ''))
+// Időszak: 1 = napi nézet, 7 / 14 / 30 = időszakos (AGP) nézet. Az URL-ben ?days=7 formában.
+const PERIODS = [1, 7, 14, 30]
+const period = computed(() => {
+  const n = Number(route.query.days)
+  return PERIODS.includes(n) ? n : 1
+})
 const { data, refresh } = await useFetch('/api/day', { query: { date } })
+const { data: agp } = await useAsyncData(
+  'agp',
+  () => (period.value > 1 ? $fetch<any>('/api/agp', { query: { end: date.value || undefined, days: period.value } }) : Promise.resolve(null)),
+  { watch: [period, date] },
+)
 
+function nav(d: string | null, days = period.value) {
+  const query: Record<string, string> = {}
+  if (d) query.date = d
+  if (days > 1) query.days = String(days)
+  router.push({ query })
+}
 function go(d: string) {
-  router.push({ query: d ? { date: d } : {} })
+  nav(d)
+}
+function openDay(d: string) {
+  nav(d, 1)
 }
 
 function fmt(v: number | null | undefined, dec = 1): string {
@@ -92,13 +112,27 @@ const eventDot = (e: any) =>
 <template>
   <main v-if="data">
     <div class="filters">
-      <button class="ghost" aria-label="Előző nap" @click="go(data.prev)">←</button>
-      <input type="date" :value="data.day" :max="data.today" @change="go(($event.target as HTMLInputElement).value)">
-      <button class="ghost" aria-label="Következő nap" :hidden="data.day >= data.today" @click="go(data.next)">→</button>
-      <button v-if="data.day !== data.today" class="ghost" @click="go(data.today)">Ma</button>
-      <h1>{{ data.label }}</h1>
+      <template v-if="period === 1">
+        <button class="ghost" aria-label="Előző nap" @click="go(data.prev)">←</button>
+        <input type="date" :value="data.day" :max="data.today" @change="go(($event.target as HTMLInputElement).value)">
+        <button class="ghost" aria-label="Következő nap" :hidden="data.day >= data.today" @click="go(data.next)">→</button>
+        <button v-if="data.day !== data.today" class="ghost" @click="go(data.today)">Ma</button>
+      </template>
+      <template v-else-if="agp">
+        <button class="ghost" :aria-label="`Előző ${period} nap`" @click="go(agp.prevEnd)">←</button>
+        <input type="date" :value="agp.end" :max="agp.today" aria-label="Az időszak utolsó napja" @change="go(($event.target as HTMLInputElement).value)">
+        <button class="ghost" :aria-label="`Következő ${period} nap`" :hidden="!agp.nextEnd" @click="go(agp.nextEnd)">→</button>
+        <button v-if="agp.end !== agp.today" class="ghost" @click="go(agp.today)">Ma</button>
+      </template>
+      <div class="segmented" role="group" aria-label="Időszak">
+        <button v-for="p in PERIODS" :key="p" type="button" :aria-pressed="period === p" @click="nav(date, p)">{{ p }} nap</button>
+      </div>
+      <h1>{{ period === 1 ? data.label : agp?.label }}</h1>
     </div>
 
+    <PeriodView v-if="period > 1 && agp" :data="agp" @day="openDay" />
+
+    <template v-if="period === 1">
     <section v-if="!data.stats.day.n && !data.events.length" class="card">
       <p>Erre a napra nincs adat.</p>
       <p class="muted">Ha még nem állítottad be, a <NuxtLink to="/telefon">Telefon beállítása</NuxtLink> varázsló végigvezet a telefonos küldésen, a szenzorgörbéhez pedig az <NuxtLink to="/adatok">Adatok és import</NuxtLink> oldalon kötheted be a CareLinket.</p>
@@ -219,6 +253,7 @@ const eventDot = (e: any) =>
         </table>
       </div>
     </section>
+    </template>
 
     <p class="muted small disclaimer">Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian és az InPen app értékeit használd.</p>
   </main>

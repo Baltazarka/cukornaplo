@@ -3,14 +3,22 @@ import { zonedToTs } from './normalize'
 
 const TZ = process.env.APP_TZ || 'Europe/Budapest'
 
+// Egyszer létrehozott formázó: soronként újat létrehozni 30 napnyi mérésnél (~8600 sor) lassú lenne.
+const DTF = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TZ, hourCycle: 'h23',
+  year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short',
+})
+
 function parts(ts: number): Record<string, string> {
-  const dtf = new Intl.DateTimeFormat('en-CA', {
-    timeZone: TZ, hourCycle: 'h23',
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short',
-  })
   const p: Record<string, string> = {}
-  for (const part of dtf.formatToParts(new Date(ts * 1000))) p[part.type] = part.value
+  for (const part of DTF.formatToParts(new Date(ts * 1000))) p[part.type] = part.value
   return p
+}
+
+/** A nap hányadik perce (0–1439) az app időzónájában, faliórai idő szerint (nyári időnél is). */
+export function minuteOfDayInTz(ts: number): number {
+  const p = parts(ts)
+  return Number(p.hour) * 60 + Number(p.minute)
 }
 
 export function ymdInTz(ts: number): string {

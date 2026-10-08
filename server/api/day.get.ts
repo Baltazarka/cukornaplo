@@ -2,7 +2,8 @@
 import { db } from '../utils/db'
 import { glucoseStats, RANGE_LOW, RANGE_HIGH, RANGE_VERY_LOW, RANGE_VERY_HIGH } from '../utils/stats'
 import { targetRange } from '../utils/range'
-import { ymdInTz, hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/time'
+import { hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/time'
+import { groupByDay, summaryRows } from '../utils/summary'
 
 export default defineEventHandler((event) => {
   const q = getQuery(event)
@@ -20,23 +21,13 @@ export default defineEventHandler((event) => {
     .all(rangeStart, dayEnd) as any[]
 
   const dayRows = { glucose: [] as any[], insulin: [] as any[], carbs: [] as any[] }
-  const daily: Record<string, { glucose: number[]; insulin: number; carbs: number; doses: number }> = {}
+  const daily = groupByDay(rows)
   const allGlucose: number[] = []
 
   for (const r of rows) {
     const ts = Number(r.ts)
     const v = Number(r.value)
-    const key = ymdInTz(ts)
-    if (!daily[key]) daily[key] = { glucose: [], insulin: 0, carbs: 0, doses: 0 }
-    if (r.type === 'glucose') {
-      daily[key].glucose.push(v)
-      allGlucose.push(v)
-    } else if (r.type === 'insulin') {
-      daily[key].insulin += v
-      daily[key].doses++
-    } else {
-      daily[key].carbs += v
-    }
+    if (r.type === 'glucose') allGlucose.push(v)
     if (ts >= dayStart) dayRows[r.type as 'glucose' | 'insulin' | 'carbs'].push({ id: Number(r.id), ts, v, sub: r.subtype, src: r.source })
   }
 
@@ -61,24 +52,7 @@ export default defineEventHandler((event) => {
     return best
   }
 
-  const summary = []
-  for (let i = 0; i < 14; i++) {
-    const k = addDaysYmd(day, -i)
-    const row = daily[k]
-    const s = row ? glucoseStats(row.glucose, low, high) : { n: 0 }
-    summary.push({
-      date: k,
-      label: k.slice(5).replace('-', '. ') + '.',
-      weekday: huWeekday(k).slice(0, 3),
-      n: s.n,
-      avg: s.n ? s.avg : null,
-      inRange: s.n ? s.pct!.inRange : null,
-      low: s.n ? s.pct!.low + s.pct!.veryLow : null,
-      insulin: row?.insulin || null,
-      doses: row?.doses || null,
-      carbs: row?.carbs || null,
-    })
-  }
+  const summary = summaryRows(daily, day, 14, low, high)
 
   return {
     day,
