@@ -130,7 +130,8 @@ async function deleteEvent(e: any) {
 }
 
 const KIND_LABEL: Record<string, string> = { meal: 'Étkezési bólus', correction: 'Korrekció', basal: 'Bázis' }
-const eventLabel = (e: any) => (e.type === 'carbs' ? 'Szénhidrát' : KIND_LABEL[e.kind] ?? 'Inzulin')
+const kindLabel = (e: any) => (e.kind === 'meal' && e.noCarbs ? 'Étkezési bólus, CH nélkül' : KIND_LABEL[e.kind] ?? 'Inzulin')
+const eventLabel = (e: any) => (e.type === 'carbs' ? 'Szénhidrát' : kindLabel(e))
 const eventDot = (e: any) =>
   e.type !== 'insulin' ? e.type : e.kind === 'basal' ? 'basal' : e.kind === 'correction' ? 'correction' : 'insulin'
 // A legördülő értéke: a kézi típus, vagy üres = automatikus (becsült) besorolás.
@@ -199,7 +200,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
           <span class="muted">E</span>
           <button type="submit" class="ghost sm">Mentés</button>
         </form>
-        <p class="muted small">A pontosan ekkora újonnan érkező adag bázis (üresen hagyva kikapcsolva). A többi bólus automatikusan étkezési, ha 30 percen belül szénhidrát is van, különben korrekció. Egy sor típusát a legördülővel javíthatod, a × gombbal törölheted (a telefon sem tölti vissza).</p>
+        <p class="muted small">A pontosan ekkora újonnan érkező adag bázis (üresen hagyva kikapcsolva). A többi bólus automatikusan: étkezési, ha 30 percen belül szénhidrát is van; „CH nélküli” étkezési, ha nincs szénhidrát, de a vércukor a célérték + 2 mmol/L alatt volt; különben korrekció. Az „(auto)” sorokat a legördülővel bármikor átállíthatod (pl. korrekcióról étkezési bólusra), a × gombbal törölheted (a telefon sem tölti vissza).</p>
         <div v-if="data.events.length" class="table-wrap">
           <table class="table">
             <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num">Glükóz</th><th><span class="sr-only">Törlés</span></th></tr></thead>
@@ -209,7 +210,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                 <td>
                   <span class="dot" :class="'dot-' + eventDot(e)" />
                   <select v-if="e.type === 'insulin'" :value="subValue(e)" class="sub-select" aria-label="Típus" @change="setSub(e, ($event.target as HTMLSelectElement).value)">
-                    <option value="">{{ e.auto ? `${KIND_LABEL[e.kind]} (auto)` : 'Automatikus' }}</option>
+                    <option value="">{{ e.auto ? `${kindLabel(e)} (auto)` : 'Automatikus' }}</option>
                     <option value="meal">Étkezési bólus</option>
                     <option value="correction">Korrekció</option>
                     <option value="basal">Bázis</option>

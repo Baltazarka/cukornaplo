@@ -80,7 +80,7 @@ export default defineEventHandler((event) => {
     carbs: dayRows.carbs.map((e) => [e.ts * 1000, e.v]),
     events: events.map((e) => ({
       id: e.id, ts: e.ts * 1000, time: hmInTz(e.ts), type: e.type, sub: e.sub ?? null, v: e.v, glucose: nearestGlucose(e.ts),
-      kind: (e as any).kind ?? null, auto: (e as any).auto ?? false,
+      kind: (e as any).kind ?? null, auto: (e as any).auto ?? false, noCarbs: (e as any).noCarbs ?? false,
     })),
     stats: { day: dayStats, range14: rangeStats },
     totals: { insulin: dayInsulin, meal: sumKind('meal'), correction: sumKind('correction'), basal: sumKind('basal'), carbs: dayCarbs },
