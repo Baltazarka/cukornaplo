@@ -383,8 +383,11 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
   /* Ha a sáv magasabb a képernyőnél, magában görgethető (a ragadós pozíció ne vágja le az alját). */
   .home-side {
     grid-column: 1; grid-row: 1; position: sticky; top: 16px;
-    max-height: calc(100vh - 32px); overflow-y: auto; scrollbar-width: thin;
+    max-height: calc(100vh - 32px); overflow-y: auto;
+    /* A görgetősáv rejtett, de egérgörgővel / érintéssel görgethető. */
+    scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain;
   }
+  .home-side::-webkit-scrollbar { display: none; }
   .home-main { grid-column: 2; grid-row: 1; }
   main.home > .disclaimer { grid-column: 1 / -1; }
 }
