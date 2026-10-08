@@ -106,8 +106,8 @@ function buildOption() {
     textStyle: { rich: { a: { color: C.primary, fontSize: 14, fontWeight: 600 }, b: { color: C.muted, fontSize: 12, fontWeight: 400 } } },
   })
   const bar = (name: string, idx: number, data: any[], color: string, stack?: string) => ({
-    name, type: 'bar', xAxisIndex: idx, yAxisIndex: idx, data, stack, barWidth: 10, silent: true,
-    itemStyle: { color, borderRadius: stack ? 0 : [3, 3, 0, 0] },
+    name, type: 'bar', xAxisIndex: idx, yAxisIndex: idx, data, stack, barWidth: 6, silent: true,
+    itemStyle: { color, borderRadius: stack ? 0 : [2, 2, 0, 0] },
   })
 
   return {

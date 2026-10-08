@@ -12,13 +12,36 @@ let ro: ResizeObserver | null = null
 
 const GRID_LEFT = 52
 const GRID_RIGHT = 16
-const BAR_WIDTH = 10
+const BAR_WIDTH = 6
 
 function hm(ms: number): string {
   return new Date(ms).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' })
 }
 function num(v: number, dec: number): string {
   return v.toLocaleString('hu-HU', { minimumFractionDigits: dec, maximumFractionDigits: dec })
+}
+
+/** Lineáris közelítés a görbe pontjai között (a hiányzó érték 0). */
+function interp(points: [number, number | null][], t: number): number {
+  let i = points.findIndex((p) => p[0] > t)
+  if (i <= 0) return i === 0 ? (points[0][1] ?? 0) : (points.at(-1)?.[1] ?? 0)
+  const [x0, y0] = points[i - 1]
+  const [x1, y1] = points[i]
+  return (y0 ?? 0) + (((y1 ?? 0) - (y0 ?? 0)) * (t - x0)) / (x1 - x0)
+}
+
+/** Az aktív inzulin görbéje az oszlopok helyén megszakítva, a széleken a görbe értékével. */
+function iobAroundBars(points: [number, number | null][], bars: number[][], halfMs: number) {
+  if (!points.length) return []
+  const gaps = bars.map((b) => [Math.min(b[0], b[2]) - halfMs, Math.max(b[0], b[2]) + halfMs])
+  const inGap = (t: number) => gaps.some(([a, b]) => t >= a && t <= b)
+  const out: [number, number | null][] = points.filter((p) => !inGap(p[0]))
+  const edge = (t: number): number | null => {
+    const v = interp(points, t)
+    return v >= 0.01 ? Math.round(v * 100) / 100 : null
+  }
+  for (const [a, b] of gaps) out.push([a, edge(a)], [(a + b) / 2, null], [b, edge(b)])
+  return out.sort((p, q) => p[0] - q[0])
 }
 
 function buildOption() {
@@ -66,7 +89,8 @@ function buildOption() {
   const plotWidth = Math.max(200, (chart?.getWidth?.() ?? el.value?.clientWidth ?? 800) - GRID_LEFT - GRID_RIGHT)
   const msPerPx = (d.dayEndMs - d.dayStartMs) / plotWidth
   const shiftMs = (BAR_WIDTH + 2) * msPerPx
-  const bolus = d.insulin.filter((p: any[]) => p[2] !== 'basal').map((p: any[]) => [p[0], p[1]])
+  // [oszlop helye, adag, eredeti időpont]: az eltolás csak a rajzot érinti.
+  const bolus = d.insulin.filter((p: any[]) => p[2] !== 'basal').map((p: any[]) => [p[0], p[1], p[0]])
   const basal = d.insulin.filter((p: any[]) => p[2] === 'basal').map((p: any[]) => [p[0], p[1]])
   for (const b of basal) {
     const o = bolus.find((p: number[]) => Math.abs(p[0] - b[0]) <= 5 * 60000)
@@ -75,8 +99,9 @@ function buildOption() {
     else o[0] = b[0] + shiftMs
   }
   const carbs = d.carbs.map((p: any[]) => [p[0], p[1]])
-  // A bólusok még hatásban lévő inzulinja (a terápiás beállítások hatásidejével).
-  const iob: [number, number | null][] = d.activeInsulin?.points ?? []
+  // A bólusok még hatásban lévő inzulinja (a terápiás beállítások hatásidejével). Az oszlop helyén
+  // megszakítjuk, és egy pixellel az oszlop alól indul: így nem lóg ki a teteje fölé, és nincs rés sem.
+  const iob = iobAroundBars(d.activeInsulin?.points ?? [], bolus, (BAR_WIDTH / 2 - 1) * msPerPx)
 
   const fmtTooltip = (params: any) => {
     const x = Array.isArray(params) ? params[0]?.axisValue : params.axisValue
@@ -102,7 +127,7 @@ function buildOption() {
     if (iob.length) {
       let best: number | null = null
       let bd = Infinity
-      for (const p of iob) {
+      for (const p of d.activeInsulin.points as [number, number | null][]) {
         const diff = Math.abs(p[0] - x)
         if (diff < bd) { bd = diff; best = p[1] }
       }
@@ -139,7 +164,7 @@ function buildOption() {
   })
   const bar = (name: string, idx: number, data: any[], color: string) => ({
     name, type: 'bar', xAxisIndex: idx, yAxisIndex: idx, data, barWidth: BAR_WIDTH, barGap: '-100%', silent: true, z: 3,
-    itemStyle: { color, borderRadius: [3, 3, 0, 0] },
+    itemStyle: { color, borderRadius: [1, 1, 0, 0] },
   })
 
   return {
@@ -192,7 +217,7 @@ function buildOption() {
         name: 'Aktív inzulin', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: iob, symbol: 'none', silent: true, z: 2,
         connectNulls: false, lineStyle: { width: 1.5, color: C.insulin }, areaStyle: { color: rgba(C.insulin, 0.16) },
       },
-      bar('Bólus', 1, bolus, C.insulin),
+      bar('Bólus', 1, bolus.map((p: number[]) => [p[0], p[1]]), C.insulin),
       bar('Bázis', 1, basal, C.basal),
       bar('Szénhidrát', 2, carbs, C.carbs),
     ],
