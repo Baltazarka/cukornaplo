@@ -10,11 +10,39 @@ const period = computed(() => {
   return PERIODS.includes(n) ? n : 1
 })
 const { data, refresh } = await useFetch('/api/day', { query: { date } })
-const { data: agp } = await useAsyncData(
+const { data: agp, refresh: refreshAgp } = await useAsyncData(
   'agp',
   () => (period.value > 1 ? $fetch<any>('/api/agp', { query: { end: date.value || undefined, days: period.value } }) : Promise.resolve(null)),
   { watch: [period, date] },
 )
+
+// Automatikus frissítés: percenként megnézi, jött-e új adat (pl. CareLink, telefon), és ha igen,
+// újratölti a nézetet; ettől függetlenül 5 percenként mindenképp (a „most” is halad). Háttérben
+// lévő lapon szünetel, visszatéréskor azonnal ellenőriz.
+let stamp = ''
+async function checkFresh(force = false) {
+  const v = await $fetch<{ stamp: string }>('/api/version').catch(() => null)
+  if (!v) return
+  const changed = stamp !== '' && v.stamp !== stamp
+  stamp = v.stamp
+  if (changed || force) {
+    await Promise.all([refresh(), period.value > 1 ? refreshAgp() : null, refreshNuxtData('therapy')])
+  }
+}
+let pollTimer: ReturnType<typeof setInterval> | undefined
+let fullTimer: ReturnType<typeof setInterval> | undefined
+const onVisible = () => { if (!document.hidden) checkFresh() }
+onMounted(() => {
+  checkFresh()
+  pollTimer = setInterval(() => { if (!document.hidden) checkFresh() }, 60_000)
+  fullTimer = setInterval(() => { if (!document.hidden) checkFresh(true) }, 300_000)
+  document.addEventListener('visibilitychange', onVisible)
+})
+onBeforeUnmount(() => {
+  clearInterval(pollTimer)
+  clearInterval(fullTimer)
+  document.removeEventListener('visibilitychange', onVisible)
+})
 
 function nav(d: string | null, days = period.value) {
   const query: Record<string, string> = {}
@@ -101,8 +129,6 @@ async function deleteEvent(e: any) {
   }
 }
 
-const lowPct = (s: any) => (s?.n ? s.pct.low + s.pct.veryLow : null)
-
 const eventLabel = (e: any) =>
   e.type === 'carbs' ? 'Szénhidrát' : e.sub === 'basal' ? 'Bázisinzulin' : 'Inzulin'
 const eventDot = (e: any) =>
@@ -139,14 +165,10 @@ const eventDot = (e: any) =>
       <p class="muted">Ha még nem állítottad be, a <NuxtLink to="/telefon">Telefon beállítása</NuxtLink> varázsló végigvezet a telefonos küldésen, a szenzorgörbéhez pedig az <NuxtLink to="/adatok">Adatok és import</NuxtLink> oldalon kötheted be a CareLinket.</p>
     </section>
 
-    <section class="tiles">
-      <div class="tile"><div class="tile-label">Átlag glükóz</div><div class="tile-value">{{ fmt(data.stats.day.avg) }} <small>mmol/L</small></div></div>
-      <div class="tile"><div class="tile-label">Céltartományban</div><div class="tile-value">{{ fmt(data.stats.day.n ? data.stats.day.pct.inRange : null, 0) }} <small>%</small></div></div>
-      <div class="tile"><div class="tile-label">Alacsony (&lt; 3,9)</div><div class="tile-value">{{ fmt(lowPct(data.stats.day), 0) }} <small>%</small></div></div>
-      <div class="tile"><div class="tile-label">Összes inzulin</div><div class="tile-value">{{ fmt(data.totals.insulin) }} <small>E</small></div></div>
-      <div class="tile"><div class="tile-label">Összes szénhidrát</div><div class="tile-value">{{ fmt(data.totals.carbs, 0) }} <small>g</small></div></div>
-      <div class="tile"><div class="tile-label">Szenzoradat</div><div class="tile-value">{{ fmt(data.coverage, 0) }} <small>%</small></div></div>
-    </section>
+    <StatTiles
+      :stats="data.stats.day" :change="data.change" :range="data.range" :coverage="data.coverage"
+      :insulin="{ total: data.totals.insulin, bolus: data.totals.bolus, basal: data.totals.basal }" :carbs="data.totals.carbs"
+    />
 
     <section class="card">
       <div class="card-head">

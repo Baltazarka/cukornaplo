@@ -5,6 +5,7 @@ import { targetRange } from '../utils/range'
 import { hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/time'
 import { groupByDay, summaryRows } from '../utils/summary'
 import { therapy } from '../utils/therapy'
+import { changeTime, lastTrend } from '../utils/trend'
 
 export default defineEventHandler((event) => {
   const q = getQuery(event)
@@ -35,6 +36,7 @@ export default defineEventHandler((event) => {
   const dayStats = glucoseStats(dayRows.glucose.map((g) => g.v), low, high)
   const rangeStats = glucoseStats(allGlucose, low, high)
   const dayInsulin = dayRows.insulin.reduce((a, e) => a + e.v, 0)
+  const dayBasal = dayRows.insulin.filter((e) => e.sub === 'basal').reduce((a, e) => a + e.v, 0)
   const dayCarbs = dayRows.carbs.reduce((a, e) => a + e.v, 0)
   const coverage = dayStats.n ? Math.min(100, (100 * dayStats.n) / 288) : 0
 
@@ -73,7 +75,9 @@ export default defineEventHandler((event) => {
       id: e.id, ts: e.ts * 1000, time: hmInTz(e.ts), type: e.type, sub: e.sub ?? null, v: e.v, glucose: nearestGlucose(e.ts),
     })),
     stats: { day: dayStats, range14: rangeStats },
-    totals: { insulin: dayInsulin, carbs: dayCarbs },
+    totals: { insulin: dayInsulin, bolus: dayInsulin - dayBasal, basal: dayBasal, carbs: dayCarbs },
+    trend: lastTrend(dayRows.glucose),
+    change: changeTime(dayRows.glucose),
     coverage,
     summary,
     activeInsulin,

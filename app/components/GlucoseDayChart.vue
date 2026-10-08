@@ -285,6 +285,7 @@ const rr = computed(() => props.day.range)
     <div v-if="last" class="last-reading" :class="{ low: last.low, high: last.high }">
       <span class="lr-label">Utolsó aktív vércukor</span>
       <span class="lr-value">{{ f1(last.v) }} <small>mmol/L</small></span>
+      <TrendArrows v-if="day.trend" :dir="day.trend.dir" :level="day.trend.level" class="lr-trend" />
       <span class="lr-time">{{ lastHm(last.ms) }}</span>
     </div>
     <div class="chart-legend">

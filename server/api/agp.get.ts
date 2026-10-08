@@ -5,6 +5,7 @@ import { glucoseStats, RANGE_VERY_LOW, RANGE_VERY_HIGH } from '../utils/stats'
 import { targetRange } from '../utils/range'
 import { startOfDayTs, todayYmd, addDaysYmd, minuteOfDayInTz } from '../utils/time'
 import { groupByDay, summaryRows } from '../utils/summary'
+import { changeTime, type GPoint } from '../utils/trend'
 
 const PERIODS = [7, 14, 30]
 const BIN_MIN = 15 // 96 sáv naponta
@@ -41,12 +42,14 @@ export default defineEventHandler((event) => {
   const basal = new Array(24).fill(0)
   const carbs = new Array(24).fill(0)
   const glucose: number[] = []
+  const gPoints: GPoint[] = []
   for (const r of rows) {
     const m = minuteOfDayInTz(Number(r.ts))
     const v = Number(r.value)
     if (r.type === 'glucose') {
       bins[Math.floor(m / BIN_MIN)].push(v)
       glucose.push(v)
+      gPoints.push({ ts: Number(r.ts), v })
     } else if (r.type === 'insulin') {
       ;(r.subtype === 'basal' ? basal : bolus)[Math.floor(m / 60)] += v
     } else {
@@ -76,7 +79,9 @@ export default defineEventHandler((event) => {
   const elapsedSec = Math.min(endTs, Math.floor(Date.now() / 1000)) - startTs
   const coverage = elapsedSec > 0 ? Math.min(100, (100 * glucose.length) / (elapsedSec / 300)) : 0
 
-  const totalInsulin = bolus.reduce((a, b) => a + b, 0) + basal.reduce((a, b) => a + b, 0)
+  const totalBolus = bolus.reduce((a, b) => a + b, 0)
+  const totalBasal = basal.reduce((a, b) => a + b, 0)
+  const totalInsulin = totalBolus + totalBasal
   const totalCarbs = carbs.reduce((a, b) => a + b, 0)
 
   return {
@@ -91,7 +96,14 @@ export default defineEventHandler((event) => {
     agp,
     hourly: { bolus: perDay(bolus), basal: perDay(basal), carbs: perDay(carbs) },
     stats: glucoseStats(glucose, low, high),
-    totals: { insulinPerDay: totalInsulin / penDays, carbsPerDay: totalCarbs / penDays, penDays },
+    totals: {
+      insulinPerDay: totalInsulin / penDays,
+      bolusPerDay: totalBolus / penDays,
+      basalPerDay: totalBasal / penDays,
+      carbsPerDay: totalCarbs / penDays,
+      penDays,
+    },
+    change: changeTime(gPoints),
     coverage,
     summary: summaryRows(daily, end, days, low, high),
   }

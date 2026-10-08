@@ -20,7 +20,6 @@ const bandLabels = computed<[string, string, string][]>(() => {
   ]
 })
 const s = computed(() => props.data.stats)
-const lowPct = computed(() => (s.value.n ? s.value.pct.low + s.value.pct.veryLow : null))
 </script>
 
 <template>
@@ -29,14 +28,10 @@ const lowPct = computed(() => (s.value.n ? s.value.pct.low + s.value.pct.veryLow
       <p>Erre az időszakra nincs adat.</p>
     </section>
 
-    <section class="tiles">
-      <div class="tile"><div class="tile-label">Átlag glükóz</div><div class="tile-value">{{ fmt(s.avg) }} <small>mmol/L</small></div></div>
-      <div class="tile"><div class="tile-label">Céltartományban</div><div class="tile-value">{{ fmt(s.n ? s.pct.inRange : null, 0) }} <small>%</small></div></div>
-      <div class="tile"><div class="tile-label">Alacsony (&lt; {{ fmt(data.range.low) }})</div><div class="tile-value">{{ fmt(lowPct, 0) }} <small>%</small></div></div>
-      <div class="tile"><div class="tile-label">Inzulin naponta</div><div class="tile-value">{{ fmt(data.totals.insulinPerDay) }} <small>E</small></div></div>
-      <div class="tile"><div class="tile-label">Szénhidrát naponta</div><div class="tile-value">{{ fmt(data.totals.carbsPerDay, 0) }} <small>g</small></div></div>
-      <div class="tile"><div class="tile-label">Szenzoradat</div><div class="tile-value">{{ fmt(data.coverage, 0) }} <small>%</small></div></div>
-    </section>
+    <StatTiles
+      :stats="s" :change="data.change" :range="data.range" :coverage="data.coverage" per-day
+      :insulin="{ total: data.totals.insulinPerDay, bolus: data.totals.bolusPerDay, basal: data.totals.basalPerDay }" :carbs="data.totals.carbsPerDay"
+    />
 
     <section class="card">
       <div class="card-head">

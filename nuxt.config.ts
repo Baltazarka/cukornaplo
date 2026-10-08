@@ -33,7 +33,15 @@ export default defineNuxtConfig({
     head: {
       htmlAttrs: { lang: 'hu' },
       title: 'Cukornapló',
-      meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
+      meta: [
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { name: 'theme-color', content: '#0d0d0d' },
+        { name: 'apple-mobile-web-app-title', content: 'Cukornapló' },
+      ],
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+      ],
       // A mentett témát még a Vue betöltése előtt beállítjuk (nincs villanás).
       script: [{
         innerHTML: "try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}",
