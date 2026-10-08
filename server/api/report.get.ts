@@ -6,6 +6,7 @@ import { targetRange } from '../utils/range'
 import { startOfDayTs, todayYmd, addDaysYmd, huWeekday, hmInTz, minuteOfDayInTz, ymdInTz } from '../utils/time'
 import { insulinKind, MEAL_WINDOW_SEC } from '../utils/insulinKind'
 import { changeTime } from '../utils/trend'
+import { notesBetween } from '../utils/notes'
 
 const PERIODS = [7, 14, 30]
 
@@ -55,6 +56,7 @@ export default defineEventHandler((event) => {
     }
   }
 
+  const notes = notesBetween(from, to)
   const out = [...byDay.values()].map((d) => {
     // A bejegyzések mellé a legközelebbi (±10 perc) glükózérték.
     for (const e of d.events) {
@@ -69,6 +71,7 @@ export default defineEventHandler((event) => {
     const sum = (pred: (e: Day['events'][number]) => boolean) => d.events.filter(pred).reduce((a, e) => a + e.v, 0)
     return {
       ...d,
+      notes: notes.filter((n) => n.day === d.date).map((n) => ({ time: n.time, minute: n.minute, tags: n.tags, text: n.text })),
       stats,
       coverage: Math.min(100, Math.round((100 * d.glucose.length) / 288)),
       totals: {

@@ -9,7 +9,9 @@ const period = computed(() => {
   const n = Number(route.query.days)
   return PERIODS.includes(n) ? n : 1
 })
-const { data, refresh } = await useFetch('/api/day', { query: { date } })
+const { data, refresh } = await useFetch<any>('/api/day', { query: { date } })
+// Megosztási linkkel belépett megtekintő: minden szerkesztő elem rejtve.
+const readOnly = useReadOnly()
 const { data: agp, refresh: refreshAgp } = await useAsyncData(
   'agp',
   () => (period.value > 1 ? $fetch<any>('/api/agp', { query: { end: date.value || undefined, days: period.value } }) : Promise.resolve(null)),
@@ -22,7 +24,11 @@ const { data: agp, refresh: refreshAgp } = await useAsyncData(
 let stamp = ''
 const clAlert = ref<{ level: string; message: string; detail?: string } | null>(null)
 async function checkFresh(force = false) {
-  const v = await $fetch<{ stamp: string; alert: any }>('/api/version').catch(() => null)
+  const v = await $fetch<{ stamp: string; alert: any }>('/api/version').catch((e) => {
+    // Lejárt munkamenet (pl. a megosztási link ideje letelt): vissza a belépéshez.
+    if (e?.statusCode === 401 || e?.response?.status === 401) navigateTo(readOnly.value ? '/login?lejart=1' : '/login')
+    return null
+  })
   if (!v) return
   clAlert.value = v.alert
   const changed = stamp !== '' && v.stamp !== stamp
@@ -121,16 +127,60 @@ async function setSub(e: any, v: string) {
 }
 
 // Egy inzulin- vagy CH-sor törlése (megerősítéssel). A telefon később sem tölti vissza.
-const deletingId = ref<number | null>(null)
+const deletingId = ref<string | null>(null)
 async function deleteEvent(e: any) {
   const amount = e.type === 'carbs' ? `${fmt(e.v, 0)} g` : `${fmt(e.v)} E`
   if (!confirm(`Biztos törlöd ezt a bejegyzést?\n\n${e.time}  ${eventLabel(e)}  ${amount}`)) return
-  deletingId.value = e.id
+  deletingId.value = e.type + e.id
   try {
     await $fetch('/api/entry-delete', { method: 'POST', body: { id: e.id } })
     await refresh()
   } catch (err: any) {
     alert(err?.data?.error ?? 'A törlés nem sikerült.')
+  } finally {
+    deletingId.value = null
+  }
+}
+
+// Napló: bejegyzések és jegyzetek időrendben.
+const logRows = computed<any[]>(() =>
+  [...(data.value?.events ?? []), ...(data.value?.notes ?? []).map((n: any) => ({ ...n, type: 'note' }))].sort((a, b) => a.ts - b.ts))
+
+// Új jegyzet: időpont (mai napon most, különben 12:00), címkék, szöveg.
+const noteForm = ref<{ time: string; tags: string[]; text: string } | null>(null)
+const noteError = ref('')
+const noteSaving = ref(false)
+function openNoteForm() {
+  const now = new Date()
+  const time = data.value?.day === data.value?.today
+    ? `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}` : '12:00'
+  noteForm.value = { time, tags: [], text: '' }
+  noteError.value = ''
+}
+function toggleNoteTag(id: string) {
+  const f = noteForm.value!
+  f.tags = f.tags.includes(id) ? f.tags.filter((t) => t !== id) : [...f.tags, id]
+}
+async function saveNote() {
+  noteSaving.value = true
+  noteError.value = ''
+  try {
+    await $fetch('/api/notes', { method: 'POST', body: { date: data.value!.day, ...noteForm.value } })
+    noteForm.value = null
+    await refresh()
+  } catch (e: any) {
+    noteError.value = e?.data?.error ?? 'A mentés nem sikerült.'
+  } finally {
+    noteSaving.value = false
+  }
+}
+async function deleteNote(n: any) {
+  const what = [...n.tags.map(noteTagLabel), n.text].filter(Boolean).join(', ')
+  if (!confirm(`Biztos törlöd ezt a jegyzetet?\n\n${n.time}  ${what}`)) return
+  deletingId.value = 'note' + n.id
+  try {
+    await $fetch('/api/note-delete', { method: 'POST', body: { id: n.id } })
+    await refresh()
   } finally {
     deletingId.value = null
   }
@@ -153,7 +203,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
         <b>{{ clAlert.message }}</b>
         <span v-if="clAlert.detail">{{ clAlert.detail }}</span>
       </div>
-      <NuxtLink to="/adatok" class="btn ghost sm">CareLink beállítás</NuxtLink>
+      <NuxtLink v-if="!readOnly" to="/adatok" class="btn ghost sm">CareLink beállítás</NuxtLink>
     </div>
     <div class="filters">
       <template v-if="period === 1">
@@ -183,7 +233,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
     <template v-if="period === 1">
     <section v-if="!data.stats.day.n && !data.events.length" class="card">
       <p>Erre a napra nincs adat.</p>
-      <p class="muted">Ha még nem állítottad be, a <NuxtLink to="/telefon">Telefon beállítása</NuxtLink> varázsló végigvezet a telefonos küldésen, a szenzorgörbéhez pedig az <NuxtLink to="/adatok">Adatok és import</NuxtLink> oldalon kötheted be a CareLinket.</p>
+      <p class="muted">Ha még nem állítottad be, a <NuxtLink to="/telefon">Telefon beállítása</NuxtLink> varázsló végigvezet a telefonos küldésen, a szenzorgörbéhez pedig az <NuxtLink to="/adatok">Beállítások</NuxtLink> oldalon kötheted be a CareLinket.</p>
     </section>
 
     <StatTiles
@@ -194,7 +244,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
     <section class="card">
       <div class="card-head">
         <h2>Napi görbe</h2>
-        <form class="range-edit" @submit.prevent="saveRange">
+        <form v-if="!readOnly" class="range-edit" @submit.prevent="saveRange">
           <span class="muted">Céltartomány:</span>
           <input v-model.number="editLow" type="number" step="0.1" min="3.1" max="13.7" aria-label="Alsó határ">
           <span class="muted">–</span>
@@ -211,51 +261,82 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
 
     <div class="grid2">
       <section class="card">
-        <h2>Napló</h2>
-        <form class="range-edit" @submit.prevent="saveBasal">
+        <div class="card-head">
+          <h2>Napló</h2>
+          <button v-if="!readOnly && !noteForm" type="button" class="ghost sm" @click="openNoteForm">+ Jegyzet</button>
+        </div>
+        <form v-if="noteForm" class="note-form" @submit.prevent="saveNote">
+          <div class="note-form-row">
+            <label class="note-time">Időpont <input v-model="noteForm.time" type="time" required></label>
+            <div class="note-tags" role="group" aria-label="Címkék">
+              <button
+                v-for="tg in NOTE_TAGS" :key="tg.id" type="button" class="tag-toggle"
+                :aria-pressed="noteForm.tags.includes(tg.id)" @click="toggleNoteTag(tg.id)"
+              >{{ tg.label }}</button>
+            </div>
+          </div>
+          <input v-model="noteForm.text" type="text" maxlength="500" placeholder="Megjegyzés (pl. 40 perc futás, láz, 2 pohár bor)" aria-label="Megjegyzés">
+          <p v-if="noteError" class="err-text small">{{ noteError }}</p>
+          <div class="btn-row">
+            <button type="submit" class="sm" :disabled="noteSaving">Mentés</button>
+            <button type="button" class="ghost sm" @click="noteForm = null">Mégse</button>
+          </div>
+        </form>
+        <form v-if="!readOnly" class="range-edit" @submit.prevent="saveBasal">
           <span class="muted">Bázisadagom:</span>
           <input v-model.number="basalDose" type="number" step="0.5" min="0" max="100" placeholder="pl. 52" aria-label="Bázisadag (E)">
           <span class="muted">E</span>
           <button type="submit" class="ghost sm">Mentés</button>
         </form>
-        <p class="muted small">A pontosan ekkora újonnan érkező adag bázis (üresen hagyva kikapcsolva). A többi bólus automatikusan: étkezési, ha 30 percen belül szénhidrát is van; „CH nélküli” étkezési, ha nincs szénhidrát, de a vércukor a célérték + 2 mmol/L alatt volt; különben korrekció. Az „(auto)” sorokat a legördülővel bármikor átállíthatod (pl. korrekcióról étkezési bólusra), a × gombbal törölheted (a telefon sem tölti vissza).</p>
-        <div v-if="data.events.length" class="table-wrap">
+        <p v-if="!readOnly" class="muted small">A pontosan ekkora újonnan érkező adag bázis (üresen hagyva kikapcsolva). A többi bólus automatikusan: étkezési, ha 30 percen belül szénhidrát is van; „CH nélküli” étkezési, ha nincs szénhidrát, de a vércukor a célérték + 2 mmol/L alatt volt; különben korrekció. Az „(auto)” sorokat a legördülővel bármikor átállíthatod (pl. korrekcióról étkezési bólusra), a × gombbal törölheted (a telefon sem tölti vissza).</p>
+        <div v-if="logRows.length" class="table-wrap">
           <table class="table">
-            <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num">Glükóz</th><th><span class="sr-only">Törlés</span></th></tr></thead>
+            <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num">Glükóz</th><th v-if="!readOnly"><span class="sr-only">Törlés</span></th></tr></thead>
             <tbody>
-              <tr v-for="e in data.events" :key="e.id">
+              <tr v-for="e in logRows" :key="e.type + e.id" :class="{ 'note-row': e.type === 'note' }">
                 <td class="num">{{ e.time }}</td>
-                <td>
-                  <span class="dot" :class="'dot-' + eventDot(e)" />
-                  <select v-if="e.type === 'insulin'" :value="subValue(e)" class="sub-select" aria-label="Típus" @change="setSub(e, ($event.target as HTMLSelectElement).value)">
-                    <option value="">{{ e.auto ? `${kindLabel(e)} (auto)` : 'Automatikus' }}</option>
-                    <option value="meal">Étkezési bólus</option>
-                    <option value="correction">Korrekció</option>
-                    <option value="basal">Bázis</option>
-                  </select>
-                  <template v-else>
-                    {{ eventLabel(e) }}
-                    <button
-                      type="button" class="tag-toggle" :aria-pressed="e.sub === 'fatty'"
-                      title="Zsíros / fehérjedús étkezés: később emeli a vércukrot, ezért a CH-arány becslése kihagyja"
-                      @click="toggleFatty(e)"
-                    >zsíros</button>
-                  </template>
+                <td v-if="e.type === 'note'" colspan="3">
+                  <span class="dot dot-note" />
+                  <span v-for="tg in e.tags" :key="tg" class="note-chip">{{ noteTagLabel(tg) }}</span>
+                  <span class="note-text">{{ e.text }}</span>
                 </td>
-                <td class="num">{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : fmt(e.v) + ' E' }}</td>
-                <td class="num">{{ e.glucose != null ? fmt(e.glucose) : '–' }}</td>
-                <td class="act">
+                <template v-else>
+                  <td>
+                    <span class="dot" :class="'dot-' + eventDot(e)" />
+                    <template v-if="e.type === 'insulin'">
+                      <select v-if="!readOnly" :value="subValue(e)" class="sub-select" aria-label="Típus" @change="setSub(e, ($event.target as HTMLSelectElement).value)">
+                        <option value="">{{ e.auto ? `${kindLabel(e)} (auto)` : 'Automatikus' }}</option>
+                        <option value="meal">Étkezési bólus</option>
+                        <option value="correction">Korrekció</option>
+                        <option value="basal">Bázis</option>
+                      </select>
+                      <template v-else>{{ kindLabel(e) }}</template>
+                    </template>
+                    <template v-else>
+                      {{ eventLabel(e) }}
+                      <button
+                        v-if="!readOnly" type="button" class="tag-toggle" :aria-pressed="e.sub === 'fatty'"
+                        title="Zsíros / fehérjedús étkezés: később emeli a vércukrot, ezért a CH-arány becslése kihagyja"
+                        @click="toggleFatty(e)"
+                      >zsíros</button>
+                      <span v-else-if="e.sub === 'fatty'" class="note-chip">zsíros</span>
+                    </template>
+                  </td>
+                  <td class="num">{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : fmt(e.v) + ' E' }}</td>
+                  <td class="num">{{ e.glucose != null ? fmt(e.glucose) : '–' }}</td>
+                </template>
+                <td v-if="!readOnly" class="act">
                   <button
-                    type="button" class="row-del" :disabled="deletingId === e.id"
-                    :aria-label="`${e.time} ${eventLabel(e)} törlése`" :title="'Törlés'"
-                    @click="deleteEvent(e)"
+                    type="button" class="row-del" :disabled="deletingId === e.type + e.id"
+                    :aria-label="`${e.time} ${e.type === 'note' ? 'jegyzet' : eventLabel(e)} törlése`" :title="'Törlés'"
+                    @click="e.type === 'note' ? deleteNote(e) : deleteEvent(e)"
                   >×</button>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p v-else class="muted">Erre a napra nincs inzulin- vagy CH-bejegyzés.</p>
+        <p v-else class="muted">Erre a napra nincs bejegyzés.</p>
       </section>
 
       <section class="card">

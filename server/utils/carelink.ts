@@ -149,7 +149,7 @@ async function clRefresh(): Promise<void> {
     // Csak a valódi invalid_grant bontja a kapcsolatot; átmeneti 401/403-nál (pl. botvédelem) megőrizzük a tokent.
     if (tok?.error === 'invalid_grant') {
       clSave({ refresh_token: null, access_token: null })
-      throw new Error('A CareLink belépés lejárt. Lépj be újra: Adatok és import → CareLink.')
+      throw new Error('A CareLink belépés lejárt. Lépj be újra: Beállítások → CareLink.')
     }
     throw new Error(`A CareLink token frissítése nem sikerült (HTTP ${status}).`)
   }
@@ -348,7 +348,7 @@ export function clAlert(now = Math.floor(Date.now() / 1000)): ClAlert | null {
   const everUsed = !!(s.refresh_token || s.last_ok_at || s.session)
   if (!everUsed) return null
   if (!clIsConnected()) {
-    return { level: 'error', message: 'A CareLink-kapcsolat megszakadt, a szenzorgörbe nem frissül.', detail: 'Jelentkezz be újra az Adatok és import oldalon.' }
+    return { level: 'error', message: 'A CareLink-kapcsolat megszakadt, a szenzorgörbe nem frissül.', detail: 'Jelentkezz be újra a Beállítások oldalon.' }
   }
   const interval = Number(process.env.CARELINK_INTERVAL ?? useRuntimeConfig().carelinkInterval)
   const lastOk = Number(s.last_ok_at ?? 0)

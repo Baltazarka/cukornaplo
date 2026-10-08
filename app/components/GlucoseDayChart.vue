@@ -152,6 +152,11 @@ function buildOption() {
       }))
     : []
   const segmentAt = (x: number) => segs.find((q) => x >= q.from && x < q.to)
+
+  // Jegyzetek: halvány függőleges vonal a glükózpanelen, felül a címkével.
+  const notes: any[] = d.notes ?? []
+  const noteLabel = (n: any) => [...n.tags.map(noteTagLabel), n.text].filter(Boolean).join(', ')
+  const noteShort = (n: any) => (n.tags.length ? noteTagLabel(n.tags[0]) : n.text).slice(0, 14)
   // A bólusok még hatásban lévő inzulinja (a terápiás beállítások hatásidejével). Az oszlop helyén
   // megszakítjuk, és egy pixellel az oszlop alól indul: így nem lóg ki a teteje fölé, és nincs rés sem.
   // Minden bólus saját görbéje az oszlopa tetejéről indul, és mutatja, meddig hat még.
@@ -210,6 +215,9 @@ function buildOption() {
         if (diff < bd) { bd = diff; best = p[1] }
       }
       if (best) html += `<div><span style="display:inline-block;width:8px;height:2px;background:${C.insulin};margin:0 6px 3px 0"></span>Aktív inzulin <b>${num(best, 1)}</b> E</div>`
+    }
+    for (const n of notes.filter((q) => Math.abs(q.ts - x) <= 10 * 60000)) {
+      html += `<div style="margin-top:4px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid ${C.muted};margin-right:6px"></span>Jegyzet ${n.time}: <b>${escapeHtml(noteLabel(n))}</b></div>`
     }
     for (const p of ch) {
       html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${C.carbs};margin-right:6px"></span>Szénhidrát <b>${num(p[1], 0)}</b> g${p[2] ? ` <span style="color:${C.muted}">· zsíros / fehérjedús</span>` : ''}</div>`
@@ -272,6 +280,17 @@ function buildOption() {
     ],
     series: [
       ...segmentSeries,
+      ...(notes.length
+        ? [{
+            type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: [], silent: true, z: 5, tooltip: { show: false },
+            markLine: {
+              silent: true, symbol: ['none', 'circle'], symbolSize: 6,
+              lineStyle: { color: C.muted, width: 1, type: [2, 3] },
+              label: { show: true, position: 'end', formatter: (p: any) => p.data.name, color: C.text, fontSize: 10 },
+              data: notes.map((n) => ({ xAxis: n.ts, name: noteShort(n) })),
+            },
+          }]
+        : []),
       ...fillSeries,
       {
         name: 'Glükóz', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: g, z: 4,

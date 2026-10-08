@@ -14,6 +14,8 @@ export default defineEventHandler(async (event) => {
   }
   db().exec('DELETE FROM entries')
   db().exec('DELETE FROM deleted_entries')
+  db().exec('DELETE FROM notes')
+  db().exec('DELETE FROM share_tokens')
   db().exec('DELETE FROM login_failures')
   resetSettings()
   try {

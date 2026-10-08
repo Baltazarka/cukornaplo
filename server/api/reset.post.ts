@@ -10,6 +10,7 @@ export default defineEventHandler(async (event) => {
   const before = (db().prepare('SELECT COUNT(*) c FROM entries').get() as any).c
   db().exec('DELETE FROM entries')
   db().exec('DELETE FROM deleted_entries')
+  db().exec('DELETE FROM notes')
   saveSettings({ last_ingest: null })
   return { ok: true, deleted: Number(before) }
 })

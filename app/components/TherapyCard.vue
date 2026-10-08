@@ -4,6 +4,7 @@ import type { Therapy } from '#shared/types/therapy'
 
 const { data } = await useFetch<{ therapy: Therapy | null }>('/api/therapy', { key: 'therapy' })
 const t = computed(() => data.value?.therapy ?? null)
+const readOnly = useReadOnly()
 
 // A most érvényes napszak percenként frissül.
 const minute = ref(nowMinute())
@@ -34,7 +35,7 @@ const updated = computed(() =>
   <section class="card therapy-card" aria-labelledby="therapy-title">
     <div class="card-head">
       <h2 id="therapy-title">Terápiás beállítások</h2>
-      <NuxtLink v-if="t" to="/terapia" class="btn ghost sm">Szerkesztés</NuxtLink>
+      <NuxtLink v-if="t && !readOnly" to="/terapia" class="btn ghost sm">Szerkesztés</NuxtLink>
     </div>
 
     <template v-if="t">
@@ -87,7 +88,7 @@ const updated = computed(() =>
 
     <template v-else>
       <p class="muted small">Még nincs megadva. Írd be az InPen app <b>Inzulinbeállítások</b> képernyőjének értékeit: célérték, érzékenységi tényező és CH-arány napszakonként.</p>
-      <NuxtLink to="/terapia" class="btn">Beállítás</NuxtLink>
+      <NuxtLink v-if="!readOnly" to="/terapia" class="btn">Beállítás</NuxtLink>
     </template>
   </section>
 </template>

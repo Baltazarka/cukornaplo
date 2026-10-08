@@ -2,7 +2,10 @@
 const password = ref('')
 const error = ref('')
 const busy = ref(false)
-const auth = useState<{ hasPassword: boolean; authed: boolean }>('auth')
+const auth = useAuthState()
+const route = useRoute()
+// A megosztási link lejártakor ide jut a megtekintő.
+const expired = computed(() => route.query.lejart === '1')
 
 async function submit() {
   busy.value = true
@@ -23,6 +26,7 @@ async function submit() {
   <main>
     <section class="card narrow">
       <h1>Belépés</h1>
+      <p v-if="expired" class="notice">A megtekintési link lejárt. Ha tovább szeretnéd nézni, kérj új linket attól, aki küldte.</p>
       <p v-if="error" class="alert">{{ error }}</p>
       <form class="stack" @submit.prevent="submit">
         <label>Jelszó

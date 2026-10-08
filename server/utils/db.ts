@@ -54,6 +54,25 @@ export function db(): DatabaseSync {
     deleted_at INTEGER NOT NULL,
     PRIMARY KEY (type, ts, value)
   )`)
+  // Jegyzetek (sport, betegség, szenzorcsere stb. címkékkel és szabad szöveggel).
+  d.exec(`CREATE TABLE IF NOT EXISTS notes (
+    id INTEGER PRIMARY KEY,
+    ts INTEGER NOT NULL,
+    tags TEXT NOT NULL DEFAULT '',
+    text TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+  )`)
+  d.exec('CREATE INDEX IF NOT EXISTS notes_ts ON notes (ts)')
+  // Ideiglenes, csak olvasható megtekintési linkek (a token csak hash-ként tárolva).
+  d.exec(`CREATE TABLE IF NOT EXISTS share_tokens (
+    id INTEGER PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    revoked INTEGER NOT NULL DEFAULT 0,
+    used_at INTEGER
+  )`)
   _db = d
   return d
 }

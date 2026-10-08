@@ -7,6 +7,7 @@ import { groupByDay, summaryRows } from '../utils/summary'
 import { therapy, actionMinutesAt, daySegments } from '../utils/therapy'
 import { changeTime, lastTrend } from '../utils/trend'
 import { insulinKind, MEAL_WINDOW_SEC } from '../utils/insulinKind'
+import { notesBetween } from '../utils/notes'
 
 export default defineEventHandler((event) => {
   const q = getQuery(event)
@@ -91,6 +92,7 @@ export default defineEventHandler((event) => {
     summary,
     activeInsulin: activeInsulin && { ...activeInsulin, at: undefined },
     segments: segmentsFor(day),
+    notes: notesBetween(dayStart, dayEnd).map((n) => ({ id: n.id, ts: n.ts * 1000, time: n.time, tags: n.tags, text: n.text })),
   }
 })
 

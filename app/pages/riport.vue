@@ -75,6 +75,8 @@ const hh = (m: number) => String(Math.floor(m / 60) % 24).padStart(2, '0')
 const KIND_LABEL: Record<string, string> = {
   meal: 'Étkezési bólus', 'meal-nocarb': 'Étkezési bólus (CH nélkül)', correction: 'Korrekció', basal: 'Bázis',
 }
+/** Egy nap bejegyzései és jegyzetei időrendben. */
+const rowsOf = (d: any) => [...d.events, ...d.notes.map((n: any) => ({ ...n, type: 'note' }))].sort((a, b) => a.minute - b.minute)
 const preBolus = (v: number | null) => (v == null ? '–' : v < 0 ? `${-v} p előtte` : v > 0 ? `${v} p után` : 'evéskor')
 const okPct = (r: any) => {
   const n = r.ok + r.spike + r.high + r.low
@@ -253,20 +255,23 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
             </span>
           </header>
           <ReportDayChart :glucose="d.glucose" :events="d.events" :low="rep.range.low" :high="rep.range.high" />
-          <table v-if="d.events.length" class="table report-events">
+          <table v-if="d.events.length || d.notes.length" class="table report-events">
             <tbody>
-              <tr v-for="(e, i) in d.events" :key="i">
+              <tr v-for="(e, i) in rowsOf(d)" :key="i" :class="{ 'report-note': e.type === 'note' }">
                 <td class="num">{{ e.time }}</td>
-                <td>
-                  <i class="dot" :class="e.type === 'carbs' ? 'dot-carbs' : e.kind === 'basal' ? 'dot-basal' : e.kind === 'correction' ? 'dot-correction' : 'dot-insulin'" />
-                  {{ e.type === 'carbs' ? (e.fatty ? 'Szénhidrát (zsíros / fehérjedús)' : 'Szénhidrát') : KIND_LABEL[e.kind] }}
-                </td>
-                <td class="num">{{ e.type === 'carbs' ? `${fmt(e.v, 0)} g` : `${fmt(e.v)} E` }}</td>
-                <td class="num">{{ e.glucose != null ? `${fmt(e.glucose)} mmol/L` : '' }}</td>
+                <td v-if="e.type === 'note'" colspan="3"><i class="dot dot-note" />Jegyzet: <b>{{ e.tags.map(noteTagLabel).join(', ') }}</b> {{ e.text }}</td>
+                <template v-else>
+                  <td>
+                    <i class="dot" :class="e.type === 'carbs' ? 'dot-carbs' : e.kind === 'basal' ? 'dot-basal' : e.kind === 'correction' ? 'dot-correction' : 'dot-insulin'" />
+                    {{ e.type === 'carbs' ? (e.fatty ? 'Szénhidrát (zsíros / fehérjedús)' : 'Szénhidrát') : KIND_LABEL[e.kind] }}
+                  </td>
+                  <td class="num">{{ e.type === 'carbs' ? `${fmt(e.v, 0)} g` : `${fmt(e.v)} E` }}</td>
+                  <td class="num">{{ e.glucose != null ? `${fmt(e.glucose)} mmol/L` : '' }}</td>
+                </template>
               </tr>
             </tbody>
           </table>
-          <p v-else class="muted small">Nincs inzulin- vagy CH-bejegyzés.</p>
+          <p v-else class="muted small">Nincs bejegyzés.</p>
         </article>
       </section>
 

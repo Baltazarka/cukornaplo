@@ -1,10 +1,12 @@
 <script setup lang="ts">
-const auth = useState<{ hasPassword: boolean; authed: boolean }>('auth', () => ({ hasPassword: false, authed: false }))
+const auth = useAuthState()
+const viewerUntil = computed(() =>
+  auth.value.viewer ? new Date(auth.value.viewer.expiresAt * 1000).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }) : '')
 const route = useRoute()
 
 async function logout() {
   await $fetch('/api/auth/logout', { method: 'POST' })
-  auth.value = { ...auth.value, authed: false }
+  auth.value = { ...auth.value, authed: false, viewer: null }
   await navigateTo('/login')
 }
 
@@ -39,11 +41,17 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.va
     <header class="topbar">
       <NuxtLink class="brand" to="/">Cukornapló</NuxtLink>
       <div class="topbar-right">
+        <nav v-if="!auth.authed && auth.viewer">
+          <NuxtLink to="/" :class="{ active: route.path === '/' }">Napi nézet</NuxtLink>
+          <NuxtLink to="/riport" :class="{ active: route.path === '/riport' }">Riport</NuxtLink>
+          <span class="viewer-badge" title="Megosztási linkkel megnyitva, csak olvasható">Megtekintés · {{ viewerUntil }}-ig</span>
+          <a href="#" @click.prevent="logout">Kilépés</a>
+        </nav>
         <nav v-if="auth.authed">
           <NuxtLink to="/" :class="{ active: route.path === '/' }">Napi nézet</NuxtLink>
           <NuxtLink to="/terapia" :class="{ active: route.path === '/terapia' }">Terápia</NuxtLink>
           <NuxtLink to="/telefon" :class="{ active: route.path === '/telefon' }">Telefon beállítása</NuxtLink>
-          <NuxtLink to="/adatok" :class="{ active: route.path === '/adatok' }">Adatok és import</NuxtLink>
+          <NuxtLink to="/adatok" :class="{ active: route.path === '/adatok' }">Beállítások</NuxtLink>
           <a href="#" @click.prevent="logout">Kilépés</a>
         </nav>
         <button class="theme-toggle" :title="'Téma: ' + themeLabel" aria-label="Téma váltása" @click="cycleTheme">
