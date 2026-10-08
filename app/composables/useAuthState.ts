@@ -2,6 +2,7 @@
 // csak olvasható megtekintő, a link lejáratának idejével.
 export interface AuthState {
   hasPassword: boolean
+  hasPasskey?: boolean
   authed: boolean
   viewer: { expiresAt: number } | null
 }

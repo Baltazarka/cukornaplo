@@ -73,6 +73,16 @@ export function db(): DatabaseSync {
     revoked INTEGER NOT NULL DEFAULT 0,
     used_at INTEGER
   )`)
+  // Passkey-k (Face ID / Touch ID): csak a nyilvános kulcs van itt, a privát kulcs az eszközön marad.
+  d.exec(`CREATE TABLE IF NOT EXISTS passkeys (
+    id TEXT PRIMARY KEY,
+    public_key BLOB NOT NULL,
+    counter INTEGER NOT NULL DEFAULT 0,
+    transports TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    last_used INTEGER
+  )`)
   // Laboreredmények: HbA1c (%), a GMI-vel összevetéshez.
   d.exec(`CREATE TABLE IF NOT EXISTS lab_results (
     id INTEGER PRIMARY KEY,

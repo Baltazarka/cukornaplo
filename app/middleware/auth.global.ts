@@ -6,7 +6,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const auth = useAuthState()
   if (to.path === '/megosztas') return // a link fogadóoldala maga intézi a belépést
   const state = await $fetch<any>('/api/auth/state').catch(() => ({ hasPassword: false, authed: false, viewer: null }))
-  auth.value = { hasPassword: state.hasPassword, authed: state.authed, viewer: state.viewer ?? null }
+  auth.value = { hasPassword: state.hasPassword, hasPasskey: !!state.hasPasskey, authed: state.authed, viewer: state.viewer ?? null }
 
   if (!state.authed && state.viewer) {
     return VIEWER_PAGES.has(to.path) ? undefined : navigateTo('/')

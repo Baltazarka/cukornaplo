@@ -1,4 +1,5 @@
 import { hasPassword, isAuthed, isLocalRequest, setupCode } from '../../utils/auth'
+import { hasPasskey } from '../../utils/passkey'
 import { viewerOf } from '../../utils/share'
 
 export default defineEventHandler(async (event) => {
@@ -10,6 +11,7 @@ export default defineEventHandler(async (event) => {
   const viewer = authed ? null : await viewerOf(event)
   return {
     hasPassword: hasPw,
+    hasPasskey: hasPasskey(),
     authed,
     needsSetupCode,
     // Megosztási linkkel belépett, csak olvasható megtekintő.

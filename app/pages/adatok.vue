@@ -33,6 +33,42 @@ onMounted(() => { if (!data.value?.carelink.connected) loadAuthUrl() })
 
 // --- műveletek ---
 const busy = ref('')
+
+// Passkey-k (Face ID / Touch ID)
+const { data: passkeys, refresh: pkRefresh } = await useFetch<{ id: string; name: string; createdAt: number; lastUsed: number | null }[]>('/api/auth/passkey/list')
+const pkName = ref('')
+const pkMsg = ref('')
+const pkErr = ref('')
+const pkSupported = ref(false)
+onMounted(() => { pkSupported.value = !!window.PublicKeyCredential })
+async function pkAdd() {
+  busy.value = 'pk'; pkMsg.value = ''; pkErr.value = ''
+  try {
+    const { startRegistration } = await import('@simplewebauthn/browser')
+    const optionsJSON = await $fetch<any>('/api/auth/passkey/register-options', { method: 'POST' })
+    const response = await startRegistration({ optionsJSON })
+    await $fetch('/api/auth/passkey/register-verify', { method: 'POST', body: { response, name: pkName.value } })
+    pkName.value = ''
+    pkMsg.value = 'A passkey hozzáadva. Legközelebb Face ID-val is beléphetsz.'
+    await pkRefresh()
+    if (auth.value) (auth.value as any).hasPasskey = true
+  } catch (e: any) {
+    if (e?.name !== 'NotAllowedError' && e?.name !== 'AbortError') pkErr.value = e?.data?.error ?? e?.message ?? 'A passkey hozzáadása nem sikerült.'
+  } finally {
+    busy.value = ''
+  }
+}
+async function pkDelete(id: string) {
+  if (!confirm('Biztosan törlöd ezt a passkey-t?')) return
+  busy.value = 'pk'
+  try {
+    await $fetch('/api/auth/passkey/delete', { method: 'POST', body: { id } })
+    await pkRefresh()
+    if (auth.value) (auth.value as any).hasPasskey = !!passkeys.value?.length
+  } finally {
+    busy.value = ''
+  }
+}
 async function regenToken() {
   if (!confirm('Biztos? A régi kulccsal ezután nem lehet adatot küldeni.')) return
   busy.value = 'token'
@@ -198,6 +234,26 @@ async function factoryReset() {
           <button type="submit" :disabled="busy === 'cl-connect'">Kapcsolódás</button>
         </form>
       </template>
+    </section>
+
+    <section class="card">
+      <h2>Belépés Face ID-val / Touch ID-val (passkey)</h2>
+      <p class="muted">Az eszközöd biometrikus azonosításával jelszó nélkül léphetsz be. A jelszó tartaléknak megmarad. Minden eszközön (telefon, laptop) külön kell hozzáadni.</p>
+      <p v-if="pkMsg" class="notice">{{ pkMsg }}</p>
+      <p v-if="pkErr" class="alert">{{ pkErr }}</p>
+      <ul v-if="passkeys?.length" class="plain">
+        <li v-for="p in passkeys" :key="p.id" class="copyrow">
+          <span>{{ p.name }} <span class="muted small">· hozzáadva {{ new Date(p.createdAt * 1000).toLocaleDateString('hu-HU') }}<template v-if="p.lastUsed">, utoljára {{ new Date(p.lastUsed * 1000).toLocaleDateString('hu-HU') }}</template></span></span>
+          <button class="ghost sm" :disabled="busy === 'pk'" @click="pkDelete(p.id)">Törlés</button>
+        </li>
+      </ul>
+      <form v-if="pkSupported" class="stack" @submit.prevent="pkAdd">
+        <label>Az eszköz neve
+          <input v-model="pkName" type="text" maxlength="60" placeholder="pl. iPhone">
+        </label>
+        <button type="submit" :disabled="busy === 'pk'">Passkey hozzáadása ezen az eszközön</button>
+      </form>
+      <p v-else class="muted small">Ez a böngésző nem támogatja a passkey-t.</p>
     </section>
 
     <section class="card">

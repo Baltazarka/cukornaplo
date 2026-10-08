@@ -38,7 +38,7 @@ function sessionSecret(): string {
 
 export function authSession(event: H3Event) {
   // auth: bejelentkezett tulajdonos; viewer: ideiglenes, csak olvasható megtekintő (megosztási link).
-  return useSession<{ auth?: boolean; viewer?: { id: number } }>(event, {
+  return useSession<{ auth?: boolean; viewer?: { id: number }; challenge?: string }>(event, {
     password: sessionSecret(),
     name: 'cukornaplo_sess',
     cookie: { sameSite: 'lax' },
