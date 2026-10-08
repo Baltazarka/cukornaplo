@@ -1,5 +1,7 @@
 # Nuxt (Nitro) éles kép. node:sqlite beépített → nincs natív fordítás.
-FROM node:24-alpine AS build
+# A build fázis a gép saját architektúráján fut (nem emulálva), mert a kimenet tiszta JS:
+# így a Windows-on fordított arm64 kép is percek alatt elkészül.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
