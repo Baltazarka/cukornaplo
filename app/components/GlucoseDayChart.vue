@@ -113,7 +113,11 @@ function buildOption() {
   const segs: any[] = d.segments?.list ?? []
   const showBands = !!d.segments?.byTimeOfDay && new Set(segs.map((x) => x.index)).size > 1
   const bandColor = rgba(C.primary, 0.045)
-  const segLabel = (x: any) => ((x.to - x.from) / msPerPx >= 96 ? `CH ${num(x.icr, 1)} · ISF ${num(x.isf, 1)}` : '')
+  // A napszak felirata; ha a napszaknak saját hatásideje van, az is.
+  const segLabel = (x: any) => {
+    const own = x.actionMinutes !== d.activeInsulin?.durationMinutes ? ` · ${actionLabel(x.actionMinutes)}` : ''
+    return (x.to - x.from) / msPerPx >= 96 + (own ? 30 : 0) ? `CH ${num(x.icr, 1)} · ISF ${num(x.isf, 1)}${own}` : ''
+  }
   // Minden második napszak kap halvány hátteret; a glükózpanelen mindegyik feliratot is.
   const segAreas = (withLabel: boolean) => segs
     .filter((x) => withLabel || (showBands && x.index % 2 === 1))
@@ -189,7 +193,11 @@ function buildOption() {
     }
     for (const p of ins) {
       const k = KIND[p[2] as keyof typeof KIND] ?? KIND.meal
-      html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${C[k.color]};margin-right:6px"></span>${k.label} <b>${num(p[1], 2)}</b> E</div>`
+      // A bólus hatásideje (a beadás napszakáé) és a napszak kezdete.
+      const dose = (ai?.doses as any[] | undefined)?.find((x) => x[0] === p[0])
+      const sg = segmentAt(p[0])
+      const extra = dose ? ` <span style="color:${C.muted}">· hatás ${actionLabel(dose[2])}${sg && d.segments?.byTimeOfDay ? `, ${sg.start} napszak` : ''}</span>` : ''
+      html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${C[k.color]};margin-right:6px"></span>${k.label} <b>${num(p[1], 2)}</b> E${extra}</div>`
     }
     if (iobTotal.length) {
       let best: number | null = null
@@ -333,6 +341,12 @@ function f1(v: number): string {
   return v.toLocaleString('hu-HU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 const rr = computed(() => props.day.range)
+// Jelmagyarázat: a közös hatásidő, vagy ha a napszakok eltérnek, hogy napszakonként változik.
+const actionText = computed(() => {
+  const ai = props.day.activeInsulin
+  const own = (props.day.segments?.list ?? []).some((x: any) => x.actionMinutes !== ai.durationMinutes)
+  return own ? 'napszakonként eltérő' : actionLabel(ai.durationMinutes)
+})
 </script>
 
 <template>
@@ -359,7 +373,7 @@ const rr = computed(() => props.day.range)
       <span class="k"><span class="sw" style="background: var(--series-correction)" /> korrekció</span>
       <span class="k"><span class="sw" style="background: var(--series-basal)" /> bázis</span>
       <span v-if="day.activeInsulin" class="k" :title="`${day.activeInsulin.insulin ?? 'Bólusinzulin'}, hatásidő ${actionLabel(day.activeInsulin.durationMinutes)}`">
-        <span class="sw iob" /> bólus hatása ({{ actionLabel(day.activeInsulin.durationMinutes) }})
+        <span class="sw iob" /> bólus hatása ({{ actionText }})
       </span>
     </div>
     <div ref="el" class="chart-box" />
