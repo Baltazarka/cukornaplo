@@ -20,9 +20,11 @@ const { data: agp, refresh: refreshAgp } = await useAsyncData(
 // újratölti a nézetet; ettől függetlenül 5 percenként mindenképp (a „most” is halad). Háttérben
 // lévő lapon szünetel, visszatéréskor azonnal ellenőriz.
 let stamp = ''
+const clAlert = ref<{ level: string; message: string; detail?: string } | null>(null)
 async function checkFresh(force = false) {
-  const v = await $fetch<{ stamp: string }>('/api/version').catch(() => null)
+  const v = await $fetch<{ stamp: string; alert: any }>('/api/version').catch(() => null)
   if (!v) return
+  clAlert.value = v.alert
   const changed = stamp !== '' && v.stamp !== stamp
   stamp = v.stamp
   if (changed || force) {
@@ -146,6 +148,13 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
 <template>
   <main v-if="data" class="home">
     <div class="home-main">
+    <div v-if="clAlert" class="cl-alert" :class="clAlert.level" role="alert">
+      <div class="cl-alert-text">
+        <b>{{ clAlert.message }}</b>
+        <span v-if="clAlert.detail">{{ clAlert.detail }}</span>
+      </div>
+      <NuxtLink to="/adatok" class="btn ghost sm">CareLink beállítás</NuxtLink>
+    </div>
     <div class="filters">
       <template v-if="period === 1">
         <button class="ghost" aria-label="Előző nap" @click="go(data.prev)">←</button>
@@ -163,6 +172,10 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
         <button v-for="p in PERIODS" :key="p" type="button" :aria-pressed="period === p" @click="nav(date, p)">{{ p }} nap</button>
       </div>
       <h1>{{ period === 1 ? data.label : agp?.label }}</h1>
+      <NuxtLink
+        class="btn ghost report-link" :to="{ path: '/riport', query: { days: period > 1 ? period : 14, end: (period > 1 ? agp?.end : data.day) || undefined } }"
+        title="Részletes, nyomtatható riport (PDF-be menthető)"
+      >Riport / PDF</NuxtLink>
     </div>
 
     <PeriodView v-if="period > 1 && agp" :data="agp" @day="openDay" />

@@ -521,3 +521,64 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .basal-sw.st-up { background: var(--status-warning); }
 .basal-sw.st-down { background: var(--status-critical); }
 .basal-sw.st-none { background: var(--axis); }
+
+/* CareLink-figyelmeztetés a főoldal tetején */
+.cl-alert {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 14px; border-radius: 10px;
+  border: 1px solid var(--border); border-left: 4px solid var(--status-critical); background: var(--alert-bg);
+}
+.cl-alert.warning { border-left-color: var(--status-warning); background: color-mix(in srgb, var(--status-warning) 12%, var(--surface-1)); }
+.cl-alert-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 280px; min-width: 0; }
+.cl-alert-text span { color: var(--text-secondary); font-size: 14px; }
+
+/* ---- Nyomtatható riport ---- */
+.filters .report-link { margin-left: auto; }
+.report { max-width: 860px; }
+.report-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.report-toolbar .small { flex: 1 1 100%; }
+.report-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; border-bottom: 2px solid var(--text-primary); padding-bottom: 8px; }
+.report-head h1 { font-size: 22px; }
+.report-meta { text-align: right; }
+.report-section { display: flex; flex-direction: column; gap: 8px; break-inside: avoid; }
+.report-section h2 { margin: 0; font-size: 16px; border-bottom: 1px solid var(--grid); padding-bottom: 4px; }
+.report-section p { margin: 0; }
+.report-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 16px; }
+.report-kpis > div { display: flex; flex-direction: column; }
+.report-kpis span { font-size: 11px; color: var(--text-muted); }
+.report-kpis b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.report-kpis b small { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+.report-kpis .kpi-split { font-size: 15px; }
+.tir-hbar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; gap: 2px; }
+.tir-hbar span { display: block; min-width: 2px; }
+.report-tir-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; color: var(--text-secondary); }
+.report-tir-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
+.report-table { font-size: 12.5px; }
+.report-table th, .report-table td { padding: 4px 6px; }
+.report-days { gap: 14px; break-inside: auto; }
+.report-day { break-inside: avoid; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+.report-day header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.report-day-chart { width: 100%; height: auto; display: block; }
+.rd-band { fill: color-mix(in srgb, var(--status-good) 12%, transparent); }
+.rd-grid line { stroke: var(--grid); stroke-width: 0.8; }
+.rd-range { stroke: var(--text-muted); stroke-width: 0.8; stroke-dasharray: 3 3; }
+.rd-axis text { font-size: 9px; fill: var(--text-muted); }
+.rd-glucose { fill: none; stroke: var(--text-primary); stroke-width: 1.4; stroke-linejoin: round; }
+.rd-label { font-size: 8.5px; fill: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.rd-carb { fill: var(--series-carbs); }
+.rd-carb.fatty { fill: color-mix(in srgb, var(--series-carbs) 35%, transparent); stroke: var(--series-carbs); stroke-width: 1; }
+.report-events { font-size: 11.5px; }
+.report-events td { padding: 2px 6px; }
+.report-events .dot { width: 8px; height: 8px; margin-right: 5px; }
+.report-foot { border-top: 1px solid var(--grid); padding-top: 6px; }
+@media (max-width: 640px) { .report-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+@page { size: A4; margin: 12mm; }
+@media print {
+  html, body { background: #fff !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .topbar, .no-print, .ic-readout { display: none !important; }
+  main.report { max-width: none; padding: 0; gap: 12px; }
+  .report-day { border-color: #ccc; }
+  .report-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  a { color: inherit; text-decoration: none; }
+}

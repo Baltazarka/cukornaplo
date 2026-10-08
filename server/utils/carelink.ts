@@ -3,7 +3,7 @@
 import { writeFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { MGDL_PER_MMOL, zonedToTs } from './normalize'
-import { storeRows, type Row } from './db'
+import { db, storeRows, type Row } from './db'
 
 const CL_DISCOVERY_URL = 'https://clcloud.minimed.eu/connect/carepartner/v13/discover/android/3.6'
 const CL_REGION = 'EU'
@@ -330,4 +330,51 @@ export function clReadRaw(): string {
   } catch {
     return '{}'
   }
+}
+
+/** Ennyi ideig tartó sikertelen lekérés után jelez a főoldal (mp). */
+const ALERT_ERROR_AFTER = 15 * 60
+/** Ennyi idő friss szenzoradat nélkül már figyelmeztetés (mp). */
+const ALERT_STALE_AFTER = 30 * 60
+
+export interface ClAlert { level: 'error' | 'warning'; message: string; detail?: string }
+
+/**
+ * Figyelmeztetés a főoldalra, ha a CareLink-kapcsolat megszakadt, a lekérés tartósan hibás,
+ * vagy régóta nem jött szenzoradat. Ha a CareLink sosem volt beállítva, nincs figyelmeztetés.
+ */
+export function clAlert(now = Math.floor(Date.now() / 1000)): ClAlert | null {
+  const s = clState()
+  const everUsed = !!(s.refresh_token || s.last_ok_at || s.session)
+  if (!everUsed) return null
+  if (!clIsConnected()) {
+    return { level: 'error', message: 'A CareLink-kapcsolat megszakadt, a szenzorgörbe nem frissül.', detail: 'Jelentkezz be újra az Adatok és import oldalon.' }
+  }
+  const interval = Number(process.env.CARELINK_INTERVAL ?? useRuntimeConfig().carelinkInterval)
+  const lastOk = Number(s.last_ok_at ?? 0)
+  if (interval > 0 && s.last_error && Number(s.last_error_at ?? 0) >= lastOk && now - lastOk > ALERT_ERROR_AFTER) {
+    const mins = lastOk ? Math.round((now - lastOk) / 60) : null
+    return {
+      level: 'error',
+      message: mins ? `A CareLink-lekérés ${mins} perce nem sikerül.` : 'A CareLink-lekérés nem sikerül.',
+      detail: `Hiba: ${s.last_error}`,
+    }
+  }
+  const row = db().prepare("SELECT MAX(ts) mx FROM entries WHERE type = 'glucose'").get() as { mx: number | null }
+  const lastSg = Number(row?.mx ?? 0)
+  if (lastSg && now - lastSg > ALERT_STALE_AFTER) {
+    return {
+      level: 'warning',
+      message: `${staleText(now - lastSg)} nem jött új szenzoradat.`,
+      detail: 'A CareLink elérhető, de nincs friss mérés: nézd meg a szenzort és a telefonos Medtronic appot (a telefonnak kell feltöltenie a CareLinkre).',
+    }
+  }
+  return null
+}
+
+function staleText(sec: number): string {
+  const m = Math.round(sec / 60)
+  if (m < 120) return `${m} perce`
+  const h = Math.round(m / 60)
+  return h < 48 ? `${h} órája` : `${Math.round(h / 24)} napja`
 }
