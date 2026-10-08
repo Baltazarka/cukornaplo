@@ -129,10 +129,12 @@ async function deleteEvent(e: any) {
   }
 }
 
-const eventLabel = (e: any) =>
-  e.type === 'carbs' ? 'Szénhidrát' : e.sub === 'basal' ? 'Bázisinzulin' : 'Inzulin'
+const KIND_LABEL: Record<string, string> = { meal: 'Étkezési bólus', correction: 'Korrekció', basal: 'Bázis' }
+const eventLabel = (e: any) => (e.type === 'carbs' ? 'Szénhidrát' : KIND_LABEL[e.kind] ?? 'Inzulin')
 const eventDot = (e: any) =>
-  e.type === 'insulin' && e.sub === 'basal' ? 'basal' : e.type
+  e.type !== 'insulin' ? e.type : e.kind === 'basal' ? 'basal' : e.kind === 'correction' ? 'correction' : 'insulin'
+// A legördülő értéke: a kézi típus, vagy üres = automatikus (becsült) besorolás.
+const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? e.sub : '')
 </script>
 
 <template>
@@ -167,7 +169,7 @@ const eventDot = (e: any) =>
 
     <StatTiles
       :stats="data.stats.day" :change="data.change" :range="data.range" :coverage="data.coverage"
-      :insulin="{ total: data.totals.insulin, bolus: data.totals.bolus, basal: data.totals.basal }" :carbs="data.totals.carbs"
+      :insulin="{ total: data.totals.insulin, meal: data.totals.meal, correction: data.totals.correction, basal: data.totals.basal }" :carbs="data.totals.carbs"
     />
 
     <section class="card">
@@ -197,7 +199,7 @@ const eventDot = (e: any) =>
           <span class="muted">E</span>
           <button type="submit" class="ghost sm">Mentés</button>
         </form>
-        <p class="muted small">Minden adag bólus, kivéve a pontosan ekkora újonnan érkezőt (üresen hagyva kikapcsolva). Egy sor típusát a legördülővel javíthatod, a × gombbal törölheted (a telefon sem tölti vissza).</p>
+        <p class="muted small">A pontosan ekkora újonnan érkező adag bázis (üresen hagyva kikapcsolva). A többi bólus automatikusan étkezési, ha 30 percen belül szénhidrát is van, különben korrekció. Egy sor típusát a legördülővel javíthatod, a × gombbal törölheted (a telefon sem tölti vissza).</p>
         <div v-if="data.events.length" class="table-wrap">
           <table class="table">
             <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num">Glükóz</th><th><span class="sr-only">Törlés</span></th></tr></thead>
@@ -206,9 +208,10 @@ const eventDot = (e: any) =>
                 <td class="num">{{ e.time }}</td>
                 <td>
                   <span class="dot" :class="'dot-' + eventDot(e)" />
-                  <select v-if="e.type === 'insulin'" :value="e.sub ?? ''" class="sub-select" aria-label="Típus" @change="setSub(e, ($event.target as HTMLSelectElement).value)">
-                    <option value="">Inzulin</option>
-                    <option value="bolus">Bólus</option>
+                  <select v-if="e.type === 'insulin'" :value="subValue(e)" class="sub-select" aria-label="Típus" @change="setSub(e, ($event.target as HTMLSelectElement).value)">
+                    <option value="">{{ e.auto ? `${KIND_LABEL[e.kind]} (auto)` : 'Automatikus' }}</option>
+                    <option value="meal">Étkezési bólus</option>
+                    <option value="correction">Korrekció</option>
                     <option value="basal">Bázis</option>
                   </select>
                   <template v-else>{{ eventLabel(e) }}</template>

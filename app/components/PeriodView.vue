@@ -30,7 +30,7 @@ const s = computed(() => props.data.stats)
 
     <StatTiles
       :stats="s" :change="data.change" :range="data.range" :coverage="data.coverage" per-day
-      :insulin="{ total: data.totals.insulinPerDay, bolus: data.totals.bolusPerDay, basal: data.totals.basalPerDay }" :carbs="data.totals.carbsPerDay"
+      :insulin="{ total: data.totals.insulinPerDay, meal: data.totals.mealPerDay, correction: data.totals.correctionPerDay, basal: data.totals.basalPerDay }" :carbs="data.totals.carbsPerDay"
     />
 
     <section class="card">

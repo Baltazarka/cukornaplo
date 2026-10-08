@@ -6,6 +6,7 @@ import { hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/
 import { groupByDay, summaryRows } from '../utils/summary'
 import { therapy, actionMinutesAt, daySegments } from '../utils/therapy'
 import { changeTime, lastTrend } from '../utils/trend'
+import { insulinKind, MEAL_WINDOW_SEC } from '../utils/insulinKind'
 
 export default defineEventHandler((event) => {
   const q = getQuery(event)
@@ -33,10 +34,14 @@ export default defineEventHandler((event) => {
     if (ts >= dayStart) dayRows[r.type as 'glucose' | 'insulin' | 'carbs'].push({ id: Number(r.id), ts, v, sub: r.subtype, src: r.source })
   }
 
+  // Bólusok besorolása (étkezési / korrekció / bázis): a nap széleinél a szomszédos napok CH-ja is számít.
+  const carbTs = carbTimes(dayStart - 8 * 3600 - MEAL_WINDOW_SEC, dayEnd + MEAL_WINDOW_SEC)
+  for (const e of dayRows.insulin) Object.assign(e, insulinKind(e.ts, e.sub, carbTs))
+
   const dayStats = glucoseStats(dayRows.glucose.map((g) => g.v), low, high)
   const rangeStats = glucoseStats(allGlucose, low, high)
   const dayInsulin = dayRows.insulin.reduce((a, e) => a + e.v, 0)
-  const dayBasal = dayRows.insulin.filter((e) => e.sub === 'basal').reduce((a, e) => a + e.v, 0)
+  const sumKind = (k: string) => dayRows.insulin.filter((e) => e.kind === k).reduce((a, e) => a + e.v, 0)
   const dayCarbs = dayRows.carbs.reduce((a, e) => a + e.v, 0)
   const coverage = dayStats.n ? Math.min(100, (100 * dayStats.n) / 288) : 0
 
@@ -56,7 +61,9 @@ export default defineEventHandler((event) => {
   }
 
   const summary = summaryRows(daily, day, 14, low, high)
-  const activeInsulin = iobCurve(dayStart, dayEnd)
+  const activeInsulin = iobCurve(dayStart, dayEnd, carbTs)
+  // A még aktív gyors hatású inzulin most (csak a mai napon, és ha a terápia be van állítva).
+  const iobNow = activeInsulin && day === today ? round2(activeInsulin.at(Math.floor(Date.now() / 1000))) : null
 
   return {
     day,
@@ -69,18 +76,20 @@ export default defineEventHandler((event) => {
     dayEndMs: dayEnd * 1000,
     range: { veryLow: RANGE_VERY_LOW, low, high, veryHigh: RANGE_VERY_HIGH },
     glucose: dayRows.glucose.map((g) => [g.ts * 1000, g.v]),
-    insulin: dayRows.insulin.map((e) => [e.ts * 1000, e.v, e.sub]),
+    insulin: dayRows.insulin.map((e) => [e.ts * 1000, e.v, e.kind]),
     carbs: dayRows.carbs.map((e) => [e.ts * 1000, e.v]),
     events: events.map((e) => ({
       id: e.id, ts: e.ts * 1000, time: hmInTz(e.ts), type: e.type, sub: e.sub ?? null, v: e.v, glucose: nearestGlucose(e.ts),
+      kind: (e as any).kind ?? null, auto: (e as any).auto ?? false,
     })),
     stats: { day: dayStats, range14: rangeStats },
-    totals: { insulin: dayInsulin, bolus: dayInsulin - dayBasal, basal: dayBasal, carbs: dayCarbs },
+    totals: { insulin: dayInsulin, meal: sumKind('meal'), correction: sumKind('correction'), basal: sumKind('basal'), carbs: dayCarbs },
+    iobNow,
     trend: lastTrend(dayRows.glucose),
     change: changeTime(dayRows.glucose),
     coverage,
     summary,
-    activeInsulin,
+    activeInsulin: activeInsulin && { ...activeInsulin, at: undefined },
     segments: segmentsFor(day),
   }
 })
@@ -90,7 +99,7 @@ export default defineEventHandler((event) => {
  * inzulinjának csúcsidejével és hatásidejével (exponenciális modell). Az előző este beadott adagok
  * is beleszámítanak. Terápiás beállítás nélkül null.
  */
-function iobCurve(dayStart: number, dayEnd: number) {
+function iobCurve(dayStart: number, dayEnd: number, carbTs: number[]) {
   const t = therapy()
   if (!t) return null
   const info = insulinById(t.bolusInsulin)
@@ -98,11 +107,11 @@ function iobCurve(dayStart: number, dayEnd: number) {
   // A hatásidő a beadás napszakáé (ha ott külön meg van adva), különben a közös érték.
   const maxDia = Math.max(t.actionMinutes, ...t.segments.map((s) => s.actionMinutes ?? 0))
   const doses = (db()
-    .prepare("SELECT ts, value FROM entries WHERE type = 'insulin' AND (subtype IS NULL OR subtype != 'basal') AND ts >= ? AND ts < ? ORDER BY ts")
+    .prepare("SELECT ts, value, subtype FROM entries WHERE type = 'insulin' AND (subtype IS NULL OR subtype != 'basal') AND ts >= ? AND ts < ? ORDER BY ts")
     .all(dayStart - maxDia * 60, dayEnd) as any[]).map((r) => {
     const ts = Number(r.ts)
     const dia = actionMinutesAt(t, ts)
-    return { ts, v: Number(r.value), dia, model: insulinModel(peak, dia) }
+    return { ts, v: Number(r.value), dia, kind: insulinKind(ts, r.subtype, carbTs).kind, model: insulinModel(peak, dia) }
   })
 
   const at = (ts: number, inclusive: boolean) => {
@@ -135,8 +144,10 @@ function iobCurve(dayStart: number, dayEnd: number) {
     durationMinutes: t.actionMinutes,
     points: out,
     // Az egyes bólusok (az előző esti, még ható adagokkal együtt) a saját görbéjükhöz:
-    // [időpont ms, adag E, hatásidő perc].
-    doses: doses.map((d) => [d.ts * 1000, d.v, d.dia]),
+    // [időpont ms, adag E, hatásidő perc, típus].
+    doses: doses.map((d) => [d.ts * 1000, d.v, d.dia, d.kind]),
+    /** A még aktív inzulin (E) egy adott pillanatban (unix mp). */
+    at: (ts: number) => at(ts, true),
   }
 }
 
@@ -148,6 +159,10 @@ function segmentsFor(day: string) {
     byTimeOfDay: t.byTimeOfDay,
     list: daySegments(t, day).map((s) => ({ ...s, from: s.from * 1000, to: s.to * 1000 })),
   }
+}
+
+function carbTimes(from: number, to: number): number[] {
+  return (db().prepare("SELECT ts FROM entries WHERE type = 'carbs' AND ts >= ? AND ts < ?").all(from, to) as any[]).map((r) => Number(r.ts))
 }
 
 function round2(v: number): number {

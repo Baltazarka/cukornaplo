@@ -1,10 +1,10 @@
-// Egy inzulinbejegyzés típusának utólagos átállítása (bólus / bázis / nincs).
+// Egy inzulinbejegyzés típusának kézi átállítása: étkezési bólus / korrekció / bázis, vagy üres = automatikus.
 import { db } from '../utils/db'
 
 export default defineEventHandler(async (event) => {
   const body = (await readBody(event)) ?? {}
   const id = Number(body.id)
-  const sub = body.subtype === 'basal' || body.subtype === 'bolus' ? body.subtype : null
+  const sub = ['basal', 'meal', 'correction'].includes(body.subtype) ? body.subtype : null
   if (!Number.isInteger(id)) {
     setResponseStatus(event, 400)
     return { ok: false, error: 'Érvénytelen azonosító.' }

@@ -32,6 +32,7 @@ function buildOption() {
     border: token('--border'),
     insulin: token('--series-insulin'),
     basal: token('--series-basal'),
+    correction: token('--series-correction'),
     carbs: token('--series-carbs'),
   }
 
@@ -74,9 +75,10 @@ function buildOption() {
       html += '<div>Kevés adat ebben az időszakban</div>'
     }
     const hb = d.hourly
-    if (hb.bolus[h] || hb.basal[h] || hb.carbs[h]) {
+    if (hb.meal[h] || hb.correction[h] || hb.basal[h] || hb.carbs[h]) {
       html += `<div style="margin-top:6px;color:${C.muted}">${String(h).padStart(2, '0')}:00–${String(h + 1).padStart(2, '0')}:00, napi átlag</div>`
-      if (hb.bolus[h]) html += row('Bólus', `${num(hb.bolus[h], 1)} E`)
+      if (hb.meal[h]) html += row('Étkezési bólus', `${num(hb.meal[h], 1)} E`)
+      if (hb.correction[h]) html += row('Korrekció', `${num(hb.correction[h], 1)} E`)
       if (hb.basal[h]) html += row('Bázis', `${num(hb.basal[h], 1)} E`)
       if (hb.carbs[h]) html += row('Szénhidrát', `${num(hb.carbs[h], 0)} g`)
     }
@@ -151,7 +153,8 @@ function buildOption() {
           data: [{ yAxis: r.low }, { yAxis: r.high }],
         },
       },
-      bar('Bólus', 1, hourBars(d.hourly.bolus), C.insulin, 'ins'),
+      bar('Étkezési bólus', 1, hourBars(d.hourly.meal), C.insulin, 'ins'),
+      bar('Korrekció', 1, hourBars(d.hourly.correction), C.correction, 'ins'),
       bar('Bázis', 1, hourBars(d.hourly.basal), C.basal, 'ins'),
       bar('Szénhidrát', 2, hourBars(d.hourly.carbs), C.carbs),
     ],
@@ -195,7 +198,8 @@ function f1(v: number): string {
       <span class="k"><span class="sw inrange" /> {{ f1(r.low) }}–{{ f1(r.high) }}</span>
       <span class="k"><span class="sw hatched warn" /> {{ f1(r.high) }}–{{ f1(r.veryHigh) }}</span>
       <span class="k"><span class="sw" style="background: var(--status-serious)" /> &gt; {{ f1(r.veryHigh) }}</span>
-      <span class="k"><span class="sw" style="background: var(--series-insulin)" /> bólus</span>
+      <span class="k"><span class="sw" style="background: var(--series-insulin)" /> étkezési bólus</span>
+      <span class="k"><span class="sw" style="background: var(--series-correction)" /> korrekció</span>
       <span class="k"><span class="sw" style="background: var(--series-basal)" /> bázis</span>
     </div>
     <div ref="el" class="chart-box" />

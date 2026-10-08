@@ -6,6 +6,7 @@ import { targetRange } from '../utils/range'
 import { startOfDayTs, todayYmd, addDaysYmd, minuteOfDayInTz } from '../utils/time'
 import { groupByDay, summaryRows } from '../utils/summary'
 import { changeTime, type GPoint } from '../utils/trend'
+import { insulinKind } from '../utils/insulinKind'
 
 const PERIODS = [7, 14, 30]
 const BIN_MIN = 15 // 96 sáv naponta
@@ -38,11 +39,13 @@ export default defineEventHandler((event) => {
     .all(startTs, endTs) as { type: string; ts: number; value: number; subtype: string | null }[]
 
   const bins: number[][] = Array.from({ length: BINS }, () => [])
-  const bolus = new Array(24).fill(0)
+  const meal = new Array(24).fill(0)
+  const correction = new Array(24).fill(0)
   const basal = new Array(24).fill(0)
   const carbs = new Array(24).fill(0)
   const glucose: number[] = []
   const gPoints: GPoint[] = []
+  const carbTs = rows.filter((r) => r.type === 'carbs').map((r) => Number(r.ts))
   for (const r of rows) {
     const m = minuteOfDayInTz(Number(r.ts))
     const v = Number(r.value)
@@ -51,7 +54,8 @@ export default defineEventHandler((event) => {
       glucose.push(v)
       gPoints.push({ ts: Number(r.ts), v })
     } else if (r.type === 'insulin') {
-      ;(r.subtype === 'basal' ? basal : bolus)[Math.floor(m / 60)] += v
+      const kind = insulinKind(Number(r.ts), r.subtype, carbTs).kind
+      ;(kind === 'basal' ? basal : kind === 'meal' ? meal : correction)[Math.floor(m / 60)] += v
     } else {
       carbs[Math.floor(m / 60)] += v
     }
@@ -79,9 +83,8 @@ export default defineEventHandler((event) => {
   const elapsedSec = Math.min(endTs, Math.floor(Date.now() / 1000)) - startTs
   const coverage = elapsedSec > 0 ? Math.min(100, (100 * glucose.length) / (elapsedSec / 300)) : 0
 
-  const totalBolus = bolus.reduce((a, b) => a + b, 0)
-  const totalBasal = basal.reduce((a, b) => a + b, 0)
-  const totalInsulin = totalBolus + totalBasal
+  const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0)
+  const totalInsulin = sum(meal) + sum(correction) + sum(basal)
   const totalCarbs = carbs.reduce((a, b) => a + b, 0)
 
   return {
@@ -94,12 +97,13 @@ export default defineEventHandler((event) => {
     nextEnd: end >= today ? null : (addDaysYmd(end, days) > today ? today : addDaysYmd(end, days)),
     range: { veryLow: RANGE_VERY_LOW, low, high, veryHigh: RANGE_VERY_HIGH },
     agp,
-    hourly: { bolus: perDay(bolus), basal: perDay(basal), carbs: perDay(carbs) },
+    hourly: { meal: perDay(meal), correction: perDay(correction), basal: perDay(basal), carbs: perDay(carbs) },
     stats: glucoseStats(glucose, low, high),
     totals: {
       insulinPerDay: totalInsulin / penDays,
-      bolusPerDay: totalBolus / penDays,
-      basalPerDay: totalBasal / penDays,
+      mealPerDay: sum(meal) / penDays,
+      correctionPerDay: sum(correction) / penDays,
+      basalPerDay: sum(basal) / penDays,
       carbsPerDay: totalCarbs / penDays,
       penDays,
     },

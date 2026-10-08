@@ -16,6 +16,7 @@
   --series-insulin: #eb6834;
   --series-carbs: #1baf7a;
   --series-basal: #4a3aa7;
+  --series-correction: #c2408f;
   --band: rgba(12, 163, 12, 0.09);
   --status-good: #0ca30c;
   --status-warning: #fab219;
@@ -42,6 +43,7 @@
     --series-insulin: #d95926;
     --series-carbs: #199e70;
     --series-basal: #9085e9;
+    --series-correction: #d660a8;
     --band: rgba(12, 163, 12, 0.16);
     --notice-bg: #17283d;
     --alert-bg: #3a1c1c;
@@ -271,6 +273,9 @@ input[type=date], input[type=time] {
 .last-reading .lr-label { font-size: 12px; color: var(--text-muted); }
 .last-reading .lr-value { font-size: 26px; font-weight: 700; line-height: 1; }
 .last-reading .lr-value small { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.last-reading .lr-iob { display: inline-flex; align-items: baseline; gap: 6px; margin-left: 6px; padding-left: 12px; border-left: 1px solid var(--grid); }
+.last-reading .lr-iob-value { font-size: 18px; font-weight: 700; color: var(--series-insulin); font-variant-numeric: tabular-nums; }
+.last-reading .lr-iob-value small { font-size: 12px; font-weight: 400; color: var(--text-muted); }
 .last-reading .lr-time { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
 .card-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
@@ -298,6 +303,7 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
 .dot-insulin { background: var(--series-insulin); }
 .dot-basal { background: var(--series-basal); }
+.dot-correction { background: var(--series-correction); }
 .dot-carbs { background: var(--series-carbs); }
 
 .tir { margin-bottom: 16px; }

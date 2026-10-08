@@ -13,6 +13,11 @@ let ro: ResizeObserver | null = null
 const GRID_LEFT = 52
 const GRID_RIGHT = 16
 const BAR_WIDTH = 6
+const KIND = {
+  meal: { label: 'Étkezési bólus', color: 'insulin' },
+  correction: { label: 'Korrekció', color: 'correction' },
+  basal: { label: 'Bázis', color: 'basal' },
+} as const
 const INS_HEIGHT = 78
 const IOB_LINE = 1.5
 
@@ -57,6 +62,7 @@ function buildOption() {
     primary: cssToken('--text-primary'),
     insulin: cssToken('--series-insulin'),
     basal: cssToken('--series-basal'),
+    correction: cssToken('--series-correction'),
     carbs: cssToken('--series-carbs'),
     low: cssToken('--status-critical'),
     tooltipBg: cssToken('--tooltip-bg'),
@@ -91,8 +97,8 @@ function buildOption() {
   const plotWidth = Math.max(200, (chart?.getWidth?.() ?? el.value?.clientWidth ?? 800) - GRID_LEFT - GRID_RIGHT)
   const msPerPx = (d.dayEndMs - d.dayStartMs) / plotWidth
   const shiftMs = (BAR_WIDTH + 2) * msPerPx
-  // [oszlop helye, adag, eredeti időpont]: az eltolás csak a rajzot érinti.
-  const bolus = d.insulin.filter((p: any[]) => p[2] !== 'basal').map((p: any[]) => [p[0], p[1], p[0]])
+  // [oszlop helye, adag, eredeti időpont, típus]; étkezési bólus és korrekció egy csoportban.
+  const bolus = d.insulin.filter((p: any[]) => p[2] !== 'basal').map((p: any[]) => [p[0], p[1], p[0], p[2]])
   const basal = d.insulin.filter((p: any[]) => p[2] === 'basal').map((p: any[]) => [p[0], p[1]])
   for (const b of basal) {
     const o = bolus.find((p: number[]) => Math.abs(p[0] - b[0]) <= 5 * 60000)
@@ -147,16 +153,16 @@ function buildOption() {
   const iobTotal: [number, number | null][] = ai?.points ?? []
   const insMax = niceMax(Math.max(1, ...d.insulin.map((p: any[]) => p[1]), ...iobTotal.map((p) => p[1] ?? 0)))
   const drop = (IOB_LINE / 2) * (insMax / INS_HEIGHT)
-  const curves: [number, number][][] = []
+  const curves: { kind: string; data: [number, number][] }[] = []
   if (ai) {
     const edgeMs = (BAR_WIDTH / 2 - 1) * msPerPx
     // Minden adag a saját (a beadás napszakára érvényes) hatásidejével.
     const models = new Map<number, ReturnType<typeof insulinModel>>()
-    for (const [doseMs, dose, dia] of ai.doses as [number, number, number][]) {
+    for (const [doseMs, dose, dia, kind] of ai.doses as [number, number, number, string][]) {
       if (!models.has(dia)) models.set(dia, insulinModel(ai.peakMinutes, dia))
-      const bar = bolus.find((p: number[]) => p[2] === doseMs)
+      const bar = bolus.find((p: any[]) => p[2] === doseMs)
       const startMs = bar ? bar[0] + edgeMs : doseMs
-      curves.push(doseCurve(models.get(dia)!, dia, doseMs, dose, startMs, drop))
+      curves.push({ kind, data: doseCurve(models.get(dia)!, dia, doseMs, dose, startMs, drop) })
     }
   }
 
@@ -182,8 +188,8 @@ function buildOption() {
       html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:6px"></span>Glükóz <b>${num(gNear, 1)}</b> mmol/L</div>`
     }
     for (const p of ins) {
-      const b = p[2] === 'basal'
-      html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${b ? C.basal : C.insulin};margin-right:6px"></span>${b ? 'Bázis' : 'Bólus'} <b>${num(p[1], 2)}</b> E</div>`
+      const k = KIND[p[2] as keyof typeof KIND] ?? KIND.meal
+      html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${C[k.color]};margin-right:6px"></span>${k.label} <b>${num(p[1], 2)}</b> E</div>`
     }
     if (iobTotal.length) {
       let best: number | null = null
@@ -275,11 +281,15 @@ function buildOption() {
           data: [{ yAxis: r.low }, { yAxis: r.high }],
         },
       },
-      ...curves.map((data) => ({
-        name: 'Aktív inzulin', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data, symbol: 'none', silent: true, z: 2,
-        lineStyle: { width: IOB_LINE, color: C.insulin }, areaStyle: { color: rgba(C.insulin, 0.12) },
-      })),
-      bar('Bólus', 1, bolus.map((p: number[]) => [p[0], p[1]]), C.insulin),
+      ...curves.map(({ kind, data }) => {
+        const color = kind === 'correction' ? C.correction : C.insulin
+        return {
+          name: 'Aktív inzulin', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data, symbol: 'none', silent: true, z: 2,
+          lineStyle: { width: IOB_LINE, color }, areaStyle: { color: rgba(color, 0.12) },
+        }
+      }),
+      bar('Bólus', 1, bolus.filter((p: any[]) => p[3] !== 'correction').map((p: any[]) => [p[0], p[1]]), C.insulin),
+      bar('Korrekció', 1, bolus.filter((p: any[]) => p[3] === 'correction').map((p: any[]) => [p[0], p[1]]), C.correction),
       bar('Bázis', 1, basal, C.basal),
       bar('Szénhidrát', 2, carbs, C.carbs),
     ],
@@ -332,6 +342,10 @@ const rr = computed(() => props.day.range)
       <span class="lr-value">{{ f1(last.v) }} <small>mmol/L</small></span>
       <TrendArrows v-if="day.trend" :dir="day.trend.dir" :level="day.trend.level" class="lr-trend" />
       <span class="lr-time">{{ lastHm(last.ms) }}</span>
+      <span v-if="day.iobNow != null" class="lr-iob" title="A még ható gyors hatású (bólus- és korrekciós) inzulin összesen, most">
+        <span class="lr-label">Aktív inzulin</span>
+        <span class="lr-iob-value">{{ f1(day.iobNow) }} <small>E</small></span>
+      </span>
     </div>
     <div class="chart-legend">
       <span class="k"><span class="sw line" style="background: var(--text-primary)" /> céltartomány / glükóz</span>
@@ -341,7 +355,8 @@ const rr = computed(() => props.day.range)
       <span class="k"><span class="sw hatched warn" /> {{ f1(rr.high) }}–{{ f1(rr.veryHigh) }}</span>
       <span class="k"><span class="sw" style="background: var(--status-serious)" /> &gt; {{ f1(rr.veryHigh) }}</span>
       <span v-if="day.segments" class="k"><span class="sw segment" /> {{ day.segments.byTimeOfDay ? 'napszak, célérték' : 'célérték' }}</span>
-      <span class="k"><span class="sw" style="background: var(--series-insulin)" /> bólus</span>
+      <span class="k"><span class="sw" style="background: var(--series-insulin)" /> étkezési bólus</span>
+      <span class="k"><span class="sw" style="background: var(--series-correction)" /> korrekció</span>
       <span class="k"><span class="sw" style="background: var(--series-basal)" /> bázis</span>
       <span v-if="day.activeInsulin" class="k" :title="`${day.activeInsulin.insulin ?? 'Bólusinzulin'}, hatásidő ${actionLabel(day.activeInsulin.durationMinutes)}`">
         <span class="sw iob" /> bólus hatása ({{ actionLabel(day.activeInsulin.durationMinutes) }})

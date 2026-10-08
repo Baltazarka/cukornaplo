@@ -5,7 +5,7 @@ const props = defineProps<{
   stats: any
   change: { slow: number; moderate: number; rapid: number; any: number } | null
   range: { low: number; high: number }
-  insulin: { total: number; bolus: number; basal: number }
+  insulin: { total: number; meal: number; correction: number; basal: number }
   carbs: number
   coverage: number
   /** Időszakos nézetben „naponta” értendő az inzulin és a CH. */
@@ -64,7 +64,8 @@ const CV_LIMIT = 36
       <div class="tile-label">{{ perDay ? 'Inzulin naponta' : 'Összes inzulin' }}</div>
       <div class="tile-value">{{ fmt(insulin.total) }} <small>E</small></div>
       <div class="tile-sub tile-split">
-        <span><i class="dot dot-insulin" />bólus {{ fmt(insulin.bolus) }}</span>
+        <span title="étkezési bólus"><i class="dot dot-insulin" />bólus {{ fmt(insulin.meal) }}</span>
+        <span><i class="dot dot-correction" />korrekció {{ fmt(insulin.correction) }}</span>
         <span><i class="dot dot-basal" />bázis {{ fmt(insulin.basal) }}</span>
       </div>
     </div>
