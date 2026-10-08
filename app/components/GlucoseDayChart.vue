@@ -101,6 +101,44 @@ function buildOption() {
     else o[0] = b[0] + shiftMs
   }
   const carbs = d.carbs.map((p: any[]) => [p[0], p[1]])
+
+  // Terápiás napszakok: halvány, váltakozó sávok mindhárom panelen, felül az értékekkel (ha elfér),
+  // a glükózpanelen szaggatott vonallal a napszak célértéke.
+  const segs: any[] = d.segments?.list ?? []
+  const showBands = !!d.segments?.byTimeOfDay && new Set(segs.map((x) => x.index)).size > 1
+  const bandColor = rgba(C.primary, 0.045)
+  const segLabel = (x: any) => ((x.to - x.from) / msPerPx >= 96 ? `CH ${num(x.icr, 1)} · ISF ${num(x.isf, 1)}` : '')
+  // Minden második napszak kap halvány hátteret; a glükózpanelen mindegyik feliratot is.
+  const segAreas = (withLabel: boolean) => segs
+    .filter((x) => withLabel || (showBands && x.index % 2 === 1))
+    .map((x) => [
+      {
+        xAxis: x.from,
+        itemStyle: { color: showBands && x.index % 2 === 1 ? bandColor : 'transparent' },
+        label: withLabel ? { show: true, formatter: segLabel(x) } : { show: false },
+      },
+      { xAxis: x.to },
+    ])
+  const segmentSeries = segs.length
+    ? [0, 1, 2].map((gi) => ({
+        type: 'line', xAxisIndex: gi, yAxisIndex: gi, data: [], silent: true, z: 0, tooltip: { show: false },
+        markArea: {
+          silent: true,
+          label: { position: 'insideTop', distance: 4, color: C.muted, fontSize: 10 },
+          data: segAreas(gi === 0),
+        },
+        ...(gi === 0
+          ? {
+              markLine: {
+                silent: true, symbol: 'none', label: { show: false },
+                lineStyle: { color: C.muted, width: 1, type: [4, 4] },
+                data: segs.map((x) => [{ coord: [x.from, x.target] }, { coord: [x.to, x.target] }]),
+              },
+            }
+          : {}),
+      }))
+    : []
+  const segmentAt = (x: number) => segs.find((q) => x >= q.from && x < q.to)
   // A bólusok még hatásban lévő inzulinja (a terápiás beállítások hatásidejével). Az oszlop helyén
   // megszakítjuk, és egy pixellel az oszlop alól indul: így nem lóg ki a teteje fölé, és nincs rés sem.
   // Minden bólus saját görbéje az oszlopa tetejéről indul, és mutatja, meddig hat még.
@@ -111,12 +149,14 @@ function buildOption() {
   const drop = (IOB_LINE / 2) * (insMax / INS_HEIGHT)
   const curves: [number, number][][] = []
   if (ai) {
-    const model = insulinModel(ai.peakMinutes, ai.durationMinutes)
     const edgeMs = (BAR_WIDTH / 2 - 1) * msPerPx
-    for (const [doseMs, dose] of ai.doses as [number, number][]) {
+    // Minden adag a saját (a beadás napszakára érvényes) hatásidejével.
+    const models = new Map<number, ReturnType<typeof insulinModel>>()
+    for (const [doseMs, dose, dia] of ai.doses as [number, number, number][]) {
+      if (!models.has(dia)) models.set(dia, insulinModel(ai.peakMinutes, dia))
       const bar = bolus.find((p: number[]) => p[2] === doseMs)
       const startMs = bar ? bar[0] + edgeMs : doseMs
-      curves.push(doseCurve(model, ai.durationMinutes, doseMs, dose, startMs, drop))
+      curves.push(doseCurve(models.get(dia)!, dia, doseMs, dose, startMs, drop))
     }
   }
 
@@ -133,6 +173,10 @@ function buildOption() {
     const ins = d.insulin.filter((p: any[]) => Math.abs(p[0] - x) <= win)
     const ch = d.carbs.filter((p: any[]) => Math.abs(p[0] - x) <= win)
     let html = `<div style="font-weight:600;margin-bottom:4px">${hm(x)}</div>`
+    const sg = segmentAt(x)
+    if (sg) {
+      html += `<div style="color:${C.muted};font-size:12px;margin-bottom:4px">${d.segments.byTimeOfDay ? `Napszak ${sg.start}–${sg.end}` : 'Egész nap'}: cél ${num(sg.target, 1)} · ISF ${num(sg.isf, 1)} · CH ${num(sg.icr, 1)} g/E</div>`
+    }
     if (gNear !== null && gDiff <= 10 * 60000) {
       const col = gNear < r.low ? C.low : C.primary
       html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:6px"></span>Glükóz <b>${num(gNear, 1)}</b> mmol/L</div>`
@@ -210,6 +254,7 @@ function buildOption() {
       { type: 'value', gridIndex: 2, min: 0, splitNumber: 2, axisLabel, splitLine, axisLine: { show: false } },
     ],
     series: [
+      ...segmentSeries,
       ...fillSeries,
       {
         name: 'Glükóz', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: g, z: 4,
@@ -295,6 +340,7 @@ const rr = computed(() => props.day.range)
       <span class="k"><span class="sw inrange" /> {{ f1(rr.low) }}–{{ f1(rr.high) }}</span>
       <span class="k"><span class="sw hatched warn" /> {{ f1(rr.high) }}–{{ f1(rr.veryHigh) }}</span>
       <span class="k"><span class="sw" style="background: var(--status-serious)" /> &gt; {{ f1(rr.veryHigh) }}</span>
+      <span v-if="day.segments" class="k"><span class="sw segment" /> {{ day.segments.byTimeOfDay ? 'napszak, célérték' : 'célérték' }}</span>
       <span class="k"><span class="sw" style="background: var(--series-insulin)" /> bólus</span>
       <span class="k"><span class="sw" style="background: var(--series-basal)" /> bázis</span>
       <span v-if="day.activeInsulin" class="k" :title="`${day.activeInsulin.insulin ?? 'Bólusinzulin'}, hatásidő ${actionLabel(day.activeInsulin.durationMinutes)}`">

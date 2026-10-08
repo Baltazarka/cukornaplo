@@ -242,6 +242,7 @@ input[type=date], input[type=time] {
 .chart-legend .sw.dashed { height: 0; border-top: 2px dashed var(--text-primary); border-radius: 0; width: 16px; }
 .chart-legend .sw.dotted { background-image: radial-gradient(var(--text-muted) 1px, transparent 1.2px); background-size: 4px 4px; border: 1px solid var(--grid); }
 .chart-legend .sw.iob { background: color-mix(in srgb, var(--series-insulin) 16%, transparent); border-top: 2px solid var(--series-insulin); border-radius: 0; height: 10px; }
+.chart-legend .sw.segment { background: color-mix(in srgb, var(--text-primary) 8%, transparent); border-top: 1px dashed var(--text-muted); border-radius: 0; }
 .chart-legend .sw.inrange { background: color-mix(in srgb, var(--status-good) 55%, transparent); }
 .chart-legend .sw.hatched.crit { background: repeating-linear-gradient(-45deg, var(--status-critical) 0 2px, color-mix(in srgb, var(--status-critical) 18%, transparent) 2px 5px); }
 .chart-legend .sw.hatched.warn { background: repeating-linear-gradient(-45deg, var(--status-warning) 0 2px, color-mix(in srgb, var(--status-warning) 18%, transparent) 2px 5px); }

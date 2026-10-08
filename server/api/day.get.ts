@@ -4,7 +4,7 @@ import { glucoseStats, RANGE_LOW, RANGE_HIGH, RANGE_VERY_LOW, RANGE_VERY_HIGH } 
 import { targetRange } from '../utils/range'
 import { hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/time'
 import { groupByDay, summaryRows } from '../utils/summary'
-import { therapy } from '../utils/therapy'
+import { therapy, actionMinutesAt, daySegments } from '../utils/therapy'
 import { changeTime, lastTrend } from '../utils/trend'
 
 export default defineEventHandler((event) => {
@@ -81,6 +81,7 @@ export default defineEventHandler((event) => {
     coverage,
     summary,
     activeInsulin,
+    segments: segmentsFor(day),
   }
 })
 
@@ -93,18 +94,23 @@ function iobCurve(dayStart: number, dayEnd: number) {
   const t = therapy()
   if (!t) return null
   const info = insulinById(t.bolusInsulin)
-  const dia = t.actionMinutes
-  const model = insulinModel(info?.peakMinutes ?? 75, dia)
+  const peak = info?.peakMinutes ?? 75
+  // A hatásidő a beadás napszakáé (ha ott külön meg van adva), különben a közös érték.
+  const maxDia = Math.max(t.actionMinutes, ...t.segments.map((s) => s.actionMinutes ?? 0))
   const doses = (db()
     .prepare("SELECT ts, value FROM entries WHERE type = 'insulin' AND (subtype IS NULL OR subtype != 'basal') AND ts >= ? AND ts < ? ORDER BY ts")
-    .all(dayStart - dia * 60, dayEnd) as any[]).map((r) => ({ ts: Number(r.ts), v: Number(r.value) }))
+    .all(dayStart - maxDia * 60, dayEnd) as any[]).map((r) => {
+    const ts = Number(r.ts)
+    const dia = actionMinutesAt(t, ts)
+    return { ts, v: Number(r.value), dia, model: insulinModel(peak, dia) }
+  })
 
   const at = (ts: number, inclusive: boolean) => {
     let sum = 0
     for (const d of doses) {
       const min = (ts - d.ts) / 60
       if (min < 0 || (!inclusive && min === 0)) continue
-      sum += d.v * model.iob(min)
+      sum += d.v * d.model.iob(min)
     }
     return sum
   }
@@ -125,11 +131,22 @@ function iobCurve(dayStart: number, dayEnd: number) {
   )
   return {
     insulin: info?.name ?? null,
-    peakMinutes: info?.peakMinutes ?? 75,
-    durationMinutes: dia,
+    peakMinutes: peak,
+    durationMinutes: t.actionMinutes,
     points: out,
-    // Az egyes bólusok (az előző esti, még ható adagokkal együtt) a saját görbéjükhöz.
-    doses: doses.map((d) => [d.ts * 1000, d.v]),
+    // Az egyes bólusok (az előző esti, még ható adagokkal együtt) a saját görbéjükhöz:
+    // [időpont ms, adag E, hatásidő perc].
+    doses: doses.map((d) => [d.ts * 1000, d.v, d.dia]),
+  }
+}
+
+/** A terápiás napszakok a napi grafikonhoz (ms), ha be vannak állítva. */
+function segmentsFor(day: string) {
+  const t = therapy()
+  if (!t) return null
+  return {
+    byTimeOfDay: t.byTimeOfDay,
+    list: daySegments(t, day).map((s) => ({ ...s, from: s.from * 1000, to: s.to * 1000 })),
   }
 }
 

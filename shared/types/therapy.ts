@@ -10,6 +10,11 @@ export interface TherapySegment {
   isf: number
   /** Inzulin-szénhidrát arány, g / E. */
   icr: number
+  /**
+   * Napszakra jellemző inzulinhatás-idő, perc (ha nincs megadva, a közös `actionMinutes` érvényes).
+   * A hatásgörbe a beadás napszakának értékével rajzolódik.
+   */
+  actionMinutes?: number
 }
 
 export interface Therapy {
