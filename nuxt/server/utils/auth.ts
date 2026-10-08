@@ -1,5 +1,6 @@
 // Hitelesítés: jelszó (bcrypt, PHP-kompatibilis) + sütiben lezárt munkamenet.
 import bcrypt from 'bcryptjs'
+import { timingSafeEqual } from 'node:crypto'
 import type { H3Event } from 'h3'
 import { db } from './db'
 
@@ -69,18 +70,49 @@ export function isLocalRequest(event: H3Event): boolean {
  */
 export function setupCode(): string {
   let code = String(setting('setup_code', '') ?? '')
-  if (!code) {
-    code = [...crypto.getRandomValues(new Uint8Array(3))].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase()
+  // 8 hexa karakter (XXXX-XXXX, ~4,3 milliárd lehetőség). A régi, rövidebb kódot lecseréljük.
+  if (!/^[0-9A-F]{4}-[0-9A-F]{4}$/.test(code)) {
+    const hex = [...crypto.getRandomValues(new Uint8Array(4))].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase()
+    code = `${hex.slice(0, 4)}-${hex.slice(4)}`
     saveSettings({ setup_code: code })
   }
   console.log(`[cukornaplo] Beállító kód: ${code}`)
   return code
 }
 
+/** A beküldött kód egyezik-e (kötőjel és kis/nagybetű nem számít; állandó idejű összehasonlítás). */
+export function setupCodeMatches(sent: string): boolean {
+  const norm = (s: string) => s.toUpperCase().replace(/[^0-9A-F]/g, '')
+  const a = Buffer.from(norm(sent))
+  const b = Buffer.from(norm(setupCode()))
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
 // ---- bejelentkezési próbálkozások korlátozása (IP-nként) ----
 
+/**
+ * A kliens IP-címe a próbálkozás-korláthoz.
+ *
+ * Az X-Forwarded-For ELSŐ elemét a kliens szabadon beírhatja (a proxyk csak hozzáfűznek a
+ * végéhez), így azzal minden próbálkozás más IP-nek látszana, és a tiltás sosem lépne életbe.
+ * Ezért:
+ *  - ha a CLIENT_IP_HEADER be van állítva (Cloudflare mögött: cf-connecting-ip), azt használjuk:
+ *    ezt a Cloudflare mindig felülírja a valódi IP-vel;
+ *  - különben az X-Forwarded-For UTOLSÓ elemét: ezt a legközelebbi reverse proxy írta;
+ *  - proxy nélkül a kapcsolat IP-jét.
+ */
 function clientIp(event: H3Event): string {
-  return getRequestIP(event, { xForwardedFor: true }) ?? 'local'
+  const header = (process.env.CLIENT_IP_HEADER || '').trim().toLowerCase()
+  if (header) {
+    const v = getHeader(event, header)?.split(',')[0]?.trim()
+    if (v) return v
+  }
+  const xff = getHeader(event, 'x-forwarded-for')
+  if (xff) {
+    const last = xff.split(',').map((s) => s.trim()).filter(Boolean).pop()
+    if (last) return last
+  }
+  return getRequestIP(event) ?? 'local'
 }
 
 /** 0 = most lehet; különben hány másodperc múlva. */

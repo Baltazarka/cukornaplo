@@ -34,7 +34,7 @@ async function submit() {
       <form class="stack" @submit.prevent="submit">
         <template v-if="needsCode">
           <label>Beállító kód
-            <input v-model="setupCode" type="text" required autocomplete="off" autocapitalize="characters" placeholder="XXXXXX">
+            <input v-model="setupCode" type="text" required autocomplete="off" autocapitalize="characters" placeholder="XXXX-XXXX">
           </label>
           <p class="muted small">A kódot a szerver naplójában találod. Dockerben: <code>docker logs cukornaplo-nuxt 2&gt;&amp;1 | grep kód</code>. Ez védi meg, hogy más ne állíthasson be jelszót helyetted.</p>
         </template>

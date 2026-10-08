@@ -1,5 +1,5 @@
 // Első jelszó beállítása (csak ha még nincs jelszó). Nyilvános szerveren beállító kóddal.
-import { hasPassword, setPassword, getSession, isLocalRequest, setupCode, loginLockedFor, loginFailed } from '../../utils/auth'
+import { hasPassword, setPassword, getSession, isLocalRequest, setupCodeMatches, loginLockedFor, loginFailed } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
   if (hasPassword()) {
@@ -15,8 +15,7 @@ export default defineEventHandler(async (event) => {
       setResponseStatus(event, 429)
       return { ok: false, error: 'Túl sok hibás próbálkozás. Próbáld újra később.' }
     }
-    const sent = String(body.setup_code ?? '').trim().toUpperCase()
-    if (sent !== setupCode()) {
+    if (!setupCodeMatches(String(body.setup_code ?? ''))) {
       loginFailed(event)
       setResponseStatus(event, 403)
       return { ok: false, error: 'Hibás beállító kód.' }

@@ -12,6 +12,11 @@ services:
       - DATA_DIR=/data
       # CareLink háttér-lekérés másodpercben (0 = ki). Alapból 5 perc.
       - CARELINK_INTERVAL=300
+      # A belépési próbálkozás-korláthoz: a valódi kliens IP-je ebből a fejlécből jön.
+      # A Cloudflare ezt mindig felülírja, a kliens nem tudja hamisítani. Csak akkor hagyd
+      # bent, ha az 5478-as port kívülről nem érhető el közvetlenül (csak a Cloudflare-en át).
+      # Cloudflare nélkül töröld: ekkor az X-Forwarded-For utolsó elemét (a proxy által írtat) használja.
+      - CLIENT_IP_HEADER=cf-connecting-ip
     volumes:
       # Ugyanaz az adatmappa, amit a PHP is használt (jelszó, kulcs, CareLink, adatbázis átvihető).
       - /home/dietpi/docker/cukornaplo/data:/data

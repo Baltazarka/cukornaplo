@@ -6,7 +6,9 @@ A szerveroldal (Nitro) ugyanazt az SQLite-sémát és `settings.json`-t használ
 ## Mi van kész
 
 - **Belépés / jelszó** – `/setup` (első jelszó), `/login`, kilépés. Munkamenet lezárt
-  sütiben (bcrypt, a PHP $2y$ hash-sel is kompatibilis), IP-nkénti próbálkozás-korlát.
+  sütiben (bcrypt, a PHP $2y$ hash-sel is kompatibilis), IP-nkénti próbálkozás-korlát (a kliens IP a `CLIENT_IP_HEADER` fejlécből, különben az
+  X-Forwarded-For utolsó, proxy által írt eleméből jön, így nem hamisítható). Az első
+  jelszóhoz távolról 8 jegyű beállító kód kell (`docker logs`).
   Az `/api/**` végpontok munkamenethez kötöttek (kivéve az adatfogadót, ami X-Token).
 - **Napi nézet** (`/`): három összehangolt panel közös időtengelyen (glükóz / inzulin /
   szénhidrát) – az időpontok pontosan egymás alá esnek, egyesített tooltippel. A glükóz
@@ -54,7 +56,8 @@ pnpm dev          # http://localhost:3000
 DATA_DIR=./data-dev CARELINK_INTERVAL=0 pnpm dev
 ```
 
-- Dockerben a `DATA_DIR=/data` és `CARELINK_INTERVAL` környezeti változóval állítható.
+- Dockerben a `DATA_DIR=/data`, a `CARELINK_INTERVAL` és a `CLIENT_IP_HEADER` (Cloudflare mögött:
+  `cf-connecting-ip`) környezeti változóval állítható.
 
 > Megjegyzés: az SQLite a Node beépített `node:sqlite` moduljával megy (nincs natív fordítás).
 > A Nuxt a `4.5.2`-re van rögzítve: a `4.6.0` Windowson minden oldalt 500-zal dönt
