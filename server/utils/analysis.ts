@@ -6,6 +6,7 @@ import { db } from './db'
 import { therapy, activeSegments, segmentAt, actionMinutesAt } from './therapy'
 import { insulinKind, MEAL_WINDOW_SEC } from './insulinKind'
 import { targetRange } from './range'
+import { minuteOfDayInTz, ymdInTz } from './time'
 
 /** Ennyi tiszta esemény kell egy napszakban a becsléshez, illetve a megbízható becsléshez. */
 export const MIN_EVENTS = 3
@@ -13,12 +14,14 @@ export const GOOD_EVENTS = 5
 
 const STEP = 5 // perc
 const MEAL_WINDOW_MIN = 240 // az étkezés utáni 4 óra
+const FATTY_WINDOW_MIN = 360 // zsíros / fehérjedús étkezésnél 6 óra (később emel)
 const MEAL_PRE_MIN = 30 // a görbe az étkezés előtt 30 perccel indul
 const CORR_WINDOW_MIN = 360 // a korrekció utáni 6 óra
 const MIN_COVERAGE = 0.7 // a vizsgált ablak legalább 70%-ában legyen szenzoradat
 const MIN_DROP = 1 // mmol/L: ennél kisebb esésből nem becsülünk hatásidőt
 
 interface G { ts: number; v: number }
+interface Carb extends G { fatty: boolean }
 interface Bolus { ts: number; v: number; kind: 'meal' | 'correction'; noCarbs: boolean }
 
 const r1 = (v: number) => Math.round(v * 10) / 10
@@ -89,7 +92,10 @@ export interface MealEvent {
   rating: 'ok' | 'spike' | 'high' | 'low'
   correctionAfter: boolean
   clean: boolean
-  /** Vércukor-eltérés a kezdőhöz képest, −30 … +240 perc, 5 percenként. */
+  /** Zsíros / fehérjedús étkezésnek jelölve (a naplóban): a CH-arány becsléséből kimarad. */
+  fatty: boolean
+  d6h: number | null
+  /** Vércukor-eltérés a kezdőhöz képest, −30 … +360 perc, 5 percenként. */
   curve: (number | null)[]
 }
 
@@ -118,13 +124,13 @@ export function analyze(from: number, to: number) {
     .all(loadFrom, loadTo) as { type: string; ts: number; value: number; subtype: string | null }[]
 
   const glucose: G[] = []
-  const carbs: G[] = []
+  const carbs: Carb[] = []
   const insulinRows: { ts: number; v: number; subtype: string | null }[] = []
   for (const r of rows) {
     const ts = Number(r.ts)
     const v = Number(r.value)
     if (r.type === 'glucose') glucose.push({ ts, v })
-    else if (r.type === 'carbs') carbs.push({ ts, v })
+    else if (r.type === 'carbs') carbs.push({ ts, v, fatty: r.subtype === 'fatty' })
     else insulinRows.push({ ts, v, subtype: r.subtype })
   }
   const carbTs = carbs.map((c) => c.ts)
@@ -138,18 +144,19 @@ export function analyze(from: number, to: number) {
   const targetAt = (ts: number) => (t ? segmentAt(t, ts).target : 6)
 
   // --- Étkezések: a 30 percen belüli CH-bejegyzések egy étkezés; a CH nélküli étkezési bólusok is.
-  const groups: { ts: number; last: number; carbs: number | null; boluses: Bolus[] }[] = []
+  const groups: { ts: number; last: number; carbs: number | null; fatty: boolean; boluses: Bolus[] }[] = []
   for (const c of carbs) {
     const g = groups.at(-1)
     if (g && g.carbs != null && c.ts - g.last <= MEAL_WINDOW_SEC) {
       g.last = c.ts
       g.carbs += c.v
-    } else groups.push({ ts: c.ts, last: c.ts, carbs: c.v, boluses: [] })
+      g.fatty ||= c.fatty
+    } else groups.push({ ts: c.ts, last: c.ts, carbs: c.v, fatty: c.fatty, boluses: [] })
   }
   for (const b of boluses.filter((x) => x.kind === 'meal')) {
     const g = groups.find((x) => x.carbs != null && b.ts >= x.ts - MEAL_WINDOW_SEC && b.ts <= x.last + MEAL_WINDOW_SEC)
     if (g) g.boluses.push(b)
-    else if (b.noCarbs) groups.push({ ts: b.ts, last: b.ts, carbs: null, boluses: [b] })
+    else if (b.noCarbs) groups.push({ ts: b.ts, last: b.ts, carbs: null, fatty: false, boluses: [b] })
   }
 
   const meals: MealEvent[] = []
@@ -157,9 +164,14 @@ export function analyze(from: number, to: number) {
     if (g.ts < from || g.ts >= to) continue
     const startBG = sample(g.ts)
     if (startBG == null) continue
-    const { values, covered } = curveAround(sample, g.ts, -MEAL_PRE_MIN, MEAL_WINDOW_MIN)
-    const after = values.slice(MEAL_PRE_MIN / STEP)
-    if (after.filter((v) => v != null).length / after.length < MIN_COVERAGE || covered < MIN_COVERAGE) continue
+    // A görbe 6 óráig tart; a lefedettséget és a fő számokat sima étkezésnél az első 4 órára nézzük,
+    // zsírosnál a teljes 6 órára (a késői emelkedés miatt).
+    const { values } = curveAround(sample, g.ts, -MEAL_PRE_MIN, FATTY_WINDOW_MIN)
+    const winMin = g.fatty ? FATTY_WINDOW_MIN : MEAL_WINDOW_MIN
+    const after = values.slice(MEAL_PRE_MIN / STEP, (MEAL_PRE_MIN + winMin) / STEP + 1)
+    const head = values.slice(0, (MEAL_PRE_MIN + MEAL_WINDOW_MIN) / STEP + 1)
+    if (after.filter((v) => v != null).length / after.length < MIN_COVERAGE) continue
+    if (head.filter((v) => v != null).length / head.length < MIN_COVERAGE) continue
     const own = new Set(g.boluses)
     const end = g.ts + MEAL_WINDOW_MIN * 60
     const firstBolus = g.boluses.length ? Math.min(...g.boluses.map((b) => b.ts)) : null
@@ -177,6 +189,7 @@ export function analyze(from: number, to: number) {
     const at = (m: number) => after[m / STEP] ?? null
     const d2h = at(120) != null ? at(120)! - startBG : null
     const d4h = at(240) != null ? at(240)! - startBG : null
+    const d6h = g.fatty && at(360) != null ? at(360)! - startBG : null
     const rating: MealEvent['rating'] =
       min < low || (d4h != null && d4h < -2) ? 'low'
       : correctionAfter || (d4h != null && d4h > 2) ? 'high'
@@ -198,7 +211,10 @@ export function analyze(from: number, to: number) {
       rating,
       correctionAfter,
       clean: !otherBolus && !otherCarbs && !correctionAfter,
-      curve: values.map((v) => (v == null ? null : r2(v - startBG))),
+      fatty: g.fatty,
+      d6h: d6h != null ? r1(d6h) : null,
+      // Sima étkezésnél 4 óra után a görbe már más étkezésekkel keveredne: ott levágjuk.
+      curve: values.map((v, i) => (v == null || (!g.fatty && i * STEP - MEAL_PRE_MIN > MEAL_WINDOW_MIN) ? null : r2(v - startBG))),
     })
   }
 
@@ -231,7 +247,10 @@ export function analyze(from: number, to: number) {
 
   // --- Napszakonkénti összesítés és becslés.
   const segments = segmentGroups(t).map((sg) => {
-    const segMeals = meals.filter((m) => m.seg === sg.index)
+    const segAll = meals.filter((m) => m.seg === sg.index)
+    const segMeals = segAll.filter((m) => !m.fatty)
+    const fattyMeals = segAll.filter((m) => m.fatty)
+    // A zsíros / fehérjedús étkezések kimaradnak a CH-arány becsléséből (a késői emelkedés torzítana).
     const cleanCarbMeals = segMeals.filter((m) => m.clean && m.carbs && m.bolus > 0 && m.d4h != null)
     const segCorr = corrections.filter((c) => c.seg === sg.index)
 
@@ -262,10 +281,12 @@ export function analyze(from: number, to: number) {
       therapy: sg.seg ? { target: sg.seg.target, isf: sg.seg.isf, icr: sg.seg.icr, actionMinutes: sg.seg.actionMinutes ?? t!.actionMinutes } : null,
       counts: {
         meals: segMeals.length,
+        fattyMeals: fattyMeals.length,
         cleanMeals: cleanCarbMeals.length,
         cleanCorrections: segCorr.length,
       },
       meals: mealSummary(segMeals),
+      fatty: mealSummary(fattyMeals),
       estimate: {
         isf: actionFit ? { value: actionFit.isf, n: actionFit.n } : null,
         icr: icrEst != null ? { value: icrEst, n: icrValues.length } : null,
@@ -280,6 +301,7 @@ export function analyze(from: number, to: number) {
     counts: { meals: meals.length, corrections: correctionCount, cleanCorrections: corrections.length },
     segments,
     action: actionSummary(corrections, t),
+    basal: basalCheck(glucose, carbs, boluses, diaAt, low, from, Math.min(to, Math.floor(Date.now() / 1000))),
   }
 }
 
@@ -292,11 +314,14 @@ function glucoseCoverage(g: G[], from: number, to: number): number {
 /** Étkezések összesítése egy napszakra: medián görbe (eltérés a kezdőtől) és fő számok. */
 function mealSummary(meals: MealEvent[]) {
   if (!meals.length) return null
-  const minutes = meals[0].curve.map((_, i) => -MEAL_PRE_MIN + i * STEP)
+  // Csak addig, ameddig van adat (sima étkezésnél 4, zsírosnál 6 óra).
+  const lastIdx = Math.max(...meals.map((m) => m.curve.findLastIndex((v) => v != null)))
+  const minutes = meals[0].curve.slice(0, lastIdx + 1).map((_, i) => -MEAL_PRE_MIN + i * STEP)
   const band = (q: number) =>
     minutes.map((_, i) => {
       const vals = meals.map((m) => m.curve[i]).filter((v): v is number => v != null).sort((a, b) => a - b)
-      return vals.length >= 2 ? r2(quantile(vals, q)) : null
+      // A medián egy étkezésből is látszik, a 25–75% sávhoz legalább kettő kell.
+      return vals.length >= (q === 0.5 ? 1 : 2) ? r2(quantile(vals, q)) : null
     })
   const med = (pick: (m: MealEvent) => number | null) => {
     const v = median(meals.map(pick).filter((x): x is number => x != null))
@@ -310,6 +335,7 @@ function mealSummary(meals: MealEvent[]) {
     peakMin: med((m) => m.peakMin),
     d2h: med((m) => m.d2h),
     d4h: med((m) => m.d4h),
+    d6h: med((m) => m.d6h),
     preBolus: med((m) => m.preBolusMin),
     ratings,
     curve: { minutes, p25: band(0.25), p50: band(0.5), p75: band(0.75) },
@@ -370,5 +396,69 @@ function actionSummary(events: CorrectionEvent[], t: Therapy | null) {
     observed: { minutes, p25: band(0.25), p50: band(0.5), p75: band(0.75) },
     fit,
     current,
+  }
+}
+
+/**
+ * Bázisellenőrzés: azokban az időszakokban, amikor étel és bólus nem befolyásolja a vércukrot
+ * (4 óráig étkezés után — zsírosnál 6 —, a bólus hatásidején belül, és 2 órával hipó után nem),
+ * mennyit változik a vércukor óránként. Ha a bázis jól fedi az alapigényt, ez közel nulla.
+ * Eredmény: napóránkénti átlagos sodródás (mmol/L/óra) és három napszak-összesítés.
+ */
+function basalCheck(
+  glucose: G[], carbs: Carb[], boluses: Bolus[], diaAt: (ts: number) => number, low: number, from: number, to: number,
+) {
+  const sample = sampler(glucose)
+  // A „nem böjt” időszakok (étkezés, ható bólus, hipó utáni 2 óra) összefésülve, majd 5 perces
+  // rácson egyetlen végigsöpréssel jelöljük, mely időpontok számítanak.
+  const blocked: [number, number][] = [
+    ...carbs.map((c): [number, number] => [c.ts, c.ts + (c.fatty ? FATTY_WINDOW_MIN : MEAL_WINDOW_MIN) * 60]),
+    ...boluses.map((b): [number, number] => [b.ts, b.ts + diaAt(b.ts) * 60]),
+    ...glucose.filter((g) => g.v < low).map((g): [number, number] => [g.ts, g.ts + 2 * 3600]),
+  ].sort((a, b) => a[0] - b[0])
+  const LAG = 15 * 60 // a változást 15 perces lépésekben mérjük (kevésbé zajos)
+  const start = Math.ceil(from / 300) * 300
+  const steps = Math.max(0, Math.floor((to - start) / 300) + 1)
+  const ok = new Uint8Array(steps)
+  let bi = 0
+  let blockedUntil = -Infinity
+  for (let i = 0; i < steps; i++) {
+    const ts = start + i * 300
+    while (bi < blocked.length && blocked[bi][0] <= ts) blockedUntil = Math.max(blockedUntil, blocked[bi++][1])
+    ok[i] = ts >= blockedUntil ? 1 : 0
+  }
+
+  const hours = Array.from({ length: 24 }, () => ({ sum: 0, n: 0 }))
+  const blockDays: Set<string>[] = [new Set(), new Set(), new Set()]
+  const blockOf = (h: number) => (h < 4 ? 0 : h < 8 ? 1 : 2)
+  const lagSteps = LAG / 300
+  for (let i = 0; i + lagSteps < steps; i++) {
+    if (!ok[i] || !ok[i + lagSteps]) continue
+    const ts = start + i * 300
+    const a = sample(ts)
+    const b = sample(ts + LAG)
+    if (a == null || b == null) continue
+    const h = Math.floor(minuteOfDayInTz(ts + LAG / 2) / 60)
+    hours[h].sum += (b - a) * (3600 / LAG)
+    hours[h].n++
+    blockDays[blockOf(h)].add(ymdInTz(ts))
+  }
+  const BLOCKS = [
+    { label: 'Éjszaka', from: 0, to: 4 },
+    { label: 'Hajnal, kora reggel', from: 4, to: 8 },
+    { label: 'Nappal, este', from: 8, to: 24 },
+  ]
+  return {
+    hours: hours.map((x, h) => ({ h, slope: x.n ? r2(x.sum / x.n) : null, hours: r1((x.n * 5) / 60) })),
+    blocks: BLOCKS.map((b, i) => {
+      const hs = hours.slice(b.from, b.to)
+      const n = hs.reduce((a, x) => a + x.n, 0)
+      return {
+        ...b,
+        slope: n ? r2(hs.reduce((a, x) => a + x.sum, 0) / n) : null,
+        hours: r1((n * 5) / 60),
+        days: blockDays[i].size,
+      }
+    }),
   }
 }

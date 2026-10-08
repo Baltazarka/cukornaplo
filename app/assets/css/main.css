@@ -486,3 +486,38 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .r-spike { background: var(--status-warning); }
 .r-high { background: var(--status-serious); }
 .r-low { background: var(--status-critical); }
+
+/* Napló: „zsíros” jelölés a szénhidrát-soroknál */
+.tag-toggle {
+  margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 500;
+  background: transparent; color: var(--text-muted); border: 1px dashed var(--axis);
+}
+.tag-toggle:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.tag-toggle[aria-pressed="true"] {
+  color: var(--text-primary); border-style: solid; border-color: var(--series-carbs);
+  background: color-mix(in srgb, var(--series-carbs) 18%, transparent);
+}
+.meal-fatty { margin: 8px 0 0; color: var(--text-secondary); }
+
+/* ---- Bázisellenőrzés ---- */
+.basal-check { display: flex; flex-direction: column; gap: 12px; }
+.basal-check p { margin: 0; }
+.basal-blocks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.basal-block { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); }
+.basal-block .st-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--axis); }
+.st-ok .st-dot, .basal-bar.st-ok { background: var(--status-good); fill: var(--status-good); }
+.st-up .st-dot, .basal-bar.st-up { background: var(--status-warning); fill: var(--status-warning); }
+.st-down .st-dot, .basal-bar.st-down { background: var(--status-critical); fill: var(--status-critical); }
+.basal-bar.st-none { fill: var(--axis); }
+.basal-svg { width: 100%; height: 136px; display: block; }
+.basal-zero { stroke: var(--text-muted); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.basal-svg .mc-ref { vector-effect: non-scaling-stroke; }
+.basal-axis { position: relative; height: 16px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.basal-axis span { position: absolute; transform: translateX(-50%); }
+.basal-axis span:first-child { transform: none; }
+.basal-axis span:last-child { transform: translateX(-100%); }
+@media (max-width: 560px) { .basal-blocks { grid-template-columns: minmax(0, 1fr); } }
+.basal-sw.st-ok { background: var(--status-good); }
+.basal-sw.st-up { background: var(--status-warning); }
+.basal-sw.st-down { background: var(--status-critical); }
+.basal-sw.st-none { background: var(--axis); }

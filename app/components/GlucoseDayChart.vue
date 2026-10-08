@@ -106,7 +106,10 @@ function buildOption() {
     if (b[1] <= o[1]) b[0] = o[0] + shiftMs
     else o[0] = b[0] + shiftMs
   }
-  const carbs = d.carbs.map((p: any[]) => [p[0], p[1]])
+  // A zsírosnak jelölt étkezés oszlopa halványabb, keretes.
+  const carbs = d.carbs.map((p: any[]) => (p[2]
+    ? { value: [p[0], p[1]], itemStyle: { color: rgba(C.carbs, 0.35), borderColor: C.carbs, borderWidth: 1.5 } }
+    : [p[0], p[1]]))
 
   // Terápiás napszakok: halvány, váltakozó sávok mindhárom panelen, felül az értékekkel (ha elfér),
   // a glükózpanelen szaggatott vonallal a napszak célértéke.
@@ -209,7 +212,7 @@ function buildOption() {
       if (best) html += `<div><span style="display:inline-block;width:8px;height:2px;background:${C.insulin};margin:0 6px 3px 0"></span>Aktív inzulin <b>${num(best, 1)}</b> E</div>`
     }
     for (const p of ch) {
-      html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${C.carbs};margin-right:6px"></span>Szénhidrát <b>${num(p[1], 0)}</b> g</div>`
+      html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${C.carbs};margin-right:6px"></span>Szénhidrát <b>${num(p[1], 0)}</b> g${p[2] ? ` <span style="color:${C.muted}">· zsíros / fehérjedús</span>` : ''}</div>`
     }
     return html
   }

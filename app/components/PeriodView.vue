@@ -45,6 +45,7 @@ const s = computed(() => props.data.stats)
     </section>
 
     <MealAnalysis :end="data.end" :days="data.days" />
+    <BasalCheck :end="data.end" :days="data.days" />
 
     <div class="grid2">
       <section class="card">

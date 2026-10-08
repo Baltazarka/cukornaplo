@@ -108,6 +108,11 @@ async function saveBasal() {
   await $fetch('/api/basal', { method: 'POST', body: { basal_dose: basalDose.value || null } })
   await refresh()
 }
+// Étkezés jelölése zsíros / fehérjedúsként (a CH-arány becslése kihagyja, az elemzés külön mutatja).
+async function toggleFatty(e: any) {
+  await $fetch('/api/entry-tag', { method: 'POST', body: { id: e.id, tag: e.sub === 'fatty' ? null : 'fatty' } })
+  await refresh()
+}
 async function setSub(e: any, v: string) {
   await $fetch('/api/entry-subtype', { method: 'POST', body: { id: e.id, subtype: v } })
   await refresh()
@@ -215,7 +220,14 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                     <option value="correction">Korrekció</option>
                     <option value="basal">Bázis</option>
                   </select>
-                  <template v-else>{{ eventLabel(e) }}</template>
+                  <template v-else>
+                    {{ eventLabel(e) }}
+                    <button
+                      type="button" class="tag-toggle" :aria-pressed="e.sub === 'fatty'"
+                      title="Zsíros / fehérjedús étkezés: később emeli a vércukrot, ezért a CH-arány becslése kihagyja"
+                      @click="toggleFatty(e)"
+                    >zsíros</button>
+                  </template>
                 </td>
                 <td class="num">{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : fmt(e.v) + ' E' }}</td>
                 <td class="num">{{ e.glucose != null ? fmt(e.glucose) : '–' }}</td>
