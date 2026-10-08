@@ -114,7 +114,7 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
 const hmMin = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5))
 
 /** Az érvényes napszakok időrendben (kikapcsolt napszakbeállításnál csak az első, egész nap). */
-function activeSegments(t: Therapy): TherapySegment[] {
+export function activeSegments(t: Therapy): TherapySegment[] {
   return t.byTimeOfDay ? t.segments : [{ ...t.segments[0], start: '00:00' }]
 }
 

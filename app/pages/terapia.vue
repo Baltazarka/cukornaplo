@@ -40,6 +40,24 @@ function removeSegment(key: number) {
   segments.value = segments.value.filter((s) => s.key !== key)
 }
 
+// A becslések átvétele a szerkesztőbe (napszak-kezdet szerint párosítva); menteni külön kell.
+const applied = ref('')
+function applyEstimates(values: { start: string; isf?: number; icr?: number; actionMinutes?: number }[]) {
+  const sorted = [...segments.value].sort((a, b) => hmToMinutes(a.start) - hmToMinutes(b.start))
+  const changed: string[] = []
+  for (const v of values) {
+    const row = byTimeOfDay.value ? segments.value.find((s) => s.start === v.start) : sorted[0]
+    if (!row) continue
+    const parts: string[] = []
+    if (v.isf != null) { row.isf = v.isf; parts.push('ISF') }
+    if (v.icr != null) { row.icr = v.icr; parts.push('CH-arány') }
+    if (v.actionMinutes != null) { row.actionMinutes = v.actionMinutes; parts.push('hatásidő') }
+    if (parts.length) changed.push(`${row.start}: ${parts.join(', ')}`)
+  }
+  applied.value = changed.length ? `Beírtam a becsléseket (${changed.join('; ')}). Nézd át, és ha jó, mentsd.` : ''
+  if (changed.length) document.querySelector('.therapy-edit-table')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
 const errors = ref<string[]>([])
 const saving = ref(false)
 async function save() {
@@ -73,6 +91,7 @@ async function save() {
       <h1>Terápiás beállítások</h1>
       <p class="muted small">Az InPen app <b>Beállítások → Inzulinbeállítások</b> képernyőjének értékei. Egyelőre kézzel adod meg, és csak tájékoztató jellegűek: az adagot továbbra is az InPen app számolja.</p>
 
+      <div v-if="applied" class="notice" role="status">{{ applied }}</div>
       <div v-if="errors.length" class="alert" role="alert">
         <b>Nem sikerült menteni:</b>
         <ul class="errors"><li v-for="e in errors" :key="e">{{ e }}</li></ul>
@@ -166,5 +185,6 @@ async function save() {
         <button type="submit" :disabled="saving">Mentés</button>
       </div>
     </form>
+    <AnalysisCard @apply="applyEstimates" />
   </main>
 </template>

@@ -453,3 +453,36 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .tf-curve { padding: 12px 0; border-bottom: 1px solid var(--grid); }
 .tf-curve p { margin-top: 6px; }
 .tf-note { padding: 10px 0; border-bottom: 1px solid var(--grid); }
+
+/* ---- Becslés az adatokból (Terápia oldal) ---- */
+.analysis-card { max-width: 760px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.analysis-card p { margin: 0; }
+.analysis-table th small { display: block; font-size: 11px; font-weight: 400; }
+.analysis-table td { vertical-align: middle; }
+.analysis-table .seg-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.analysis-table td.num b { margin-left: 2px; }
+.analysis-table .est-q { display: block; font-size: 11px; color: var(--text-muted); }
+.gather { display: flex; align-items: center; gap: 8px; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gather-bar { width: 56px; height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; flex: none; }
+.gather-bar i { display: block; height: 100%; background: var(--status-good); border-radius: 3px; }
+.analysis-action h3, .meal-seg h3 { font-size: 14px; margin: 6px 0 4px; }
+.mini-chart { width: 100%; }
+.mini-chart svg { display: block; touch-action: none; }
+.mc-ref { stroke: var(--axis); stroke-width: 1; stroke-dasharray: 3 3; }
+.mc-dot { stroke: var(--surface-1); stroke-width: 2; }
+
+/* ---- Étkezéselemzés (időszakos nézet) ---- */
+.meal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.meal-seg { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--surface-2); min-width: 0; }
+.meal-seg h3 { margin-top: 0; display: flex; justify-content: space-between; gap: 8px; }
+.meal-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; margin: 8px 0 0; }
+.meal-stats dt { font-size: 11px; color: var(--text-muted); }
+.meal-stats dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.meal-ratings { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px; margin-top: 10px; }
+.meal-ratings span { display: block; }
+.meal-rating-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
+.meal-rating-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+.r-ok { background: var(--status-good); }
+.r-spike { background: var(--status-warning); }
+.r-high { background: var(--status-serious); }
+.r-low { background: var(--status-critical); }
