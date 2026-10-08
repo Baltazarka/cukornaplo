@@ -107,7 +107,7 @@ function buildOption() {
     else o[0] = b[0] + shiftMs
   }
   // A zsírosnak jelölt étkezés oszlopa halványabb, keretes.
-  const carbs = d.carbs.map((p: any[]) => (p[2]
+  const carbs = d.carbs.map((p: any[]) => (p[2] === 'fatty'
     ? { value: [p[0], p[1]], itemStyle: { color: rgba(C.carbs, 0.35), borderColor: C.carbs, borderWidth: 1.5 } }
     : [p[0], p[1]]))
 
@@ -220,7 +220,7 @@ function buildOption() {
       html += `<div style="margin-top:4px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid ${C.muted};margin-right:6px"></span>Jegyzet ${n.time}: <b>${escapeHtml(noteLabel(n))}</b></div>`
     }
     for (const p of ch) {
-      html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${C.carbs};margin-right:6px"></span>Szénhidrát <b>${num(p[1], 0)}</b> g${p[2] ? ` <span style="color:${C.muted}">· zsíros / fehérjedús</span>` : ''}</div>`
+      html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${C.carbs};margin-right:6px"></span>Szénhidrát <b>${num(p[1], 0)}</b> g${p[2] ? ` <span style="color:${C.muted}">· ${p[2] === 'fatty' ? 'zsíros / fehérjedús' : 'gyors CH'}</span>` : ''}</div>`
     }
     return html
   }

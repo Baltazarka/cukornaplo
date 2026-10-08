@@ -78,7 +78,7 @@ export default defineEventHandler((event) => {
     range: { veryLow: RANGE_VERY_LOW, low, high, veryHigh: RANGE_VERY_HIGH },
     glucose: dayRows.glucose.map((g) => [g.ts * 1000, g.v]),
     insulin: dayRows.insulin.map((e) => [e.ts * 1000, e.v, e.kind]),
-    carbs: dayRows.carbs.map((e) => [e.ts * 1000, e.v, e.sub === 'fatty']),
+    carbs: dayRows.carbs.map((e) => [e.ts * 1000, e.v, e.sub === 'fatty' || e.sub === 'fast' ? e.sub : null]),
     events: events.map((e) => ({
       id: e.id, ts: e.ts * 1000, time: hmInTz(e.ts), type: e.type, sub: e.sub ?? null, v: e.v, glucose: nearestGlucose(e.ts),
       kind: (e as any).kind ?? null, auto: (e as any).auto ?? false, noCarbs: (e as any).noCarbs ?? false,

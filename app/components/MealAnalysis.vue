@@ -65,7 +65,7 @@ const RATINGS = [
       <div v-for="s in segs" :key="s.index" class="meal-seg">
         <h3>
           <span>{{ data.therapySet ? `${s.start}–${s.end}` : 'Egész nap' }}</span>
-          <span class="muted small">{{ s.counts.meals }} étkezés, ebből {{ s.counts.cleanMeals }} tiszta<template v-if="s.counts.fattyMeals"> · {{ s.counts.fattyMeals }} zsíros</template></span>
+          <span class="muted small">{{ s.counts.meals }} étkezés, ebből {{ s.counts.cleanMeals }} tiszta<template v-if="s.counts.fattyMeals"> · {{ s.counts.fattyMeals }} zsíros</template><template v-if="s.counts.fastMeals"> · {{ s.counts.fastMeals }} gyors CH</template></span>
         </h3>
         <ClientOnly>
           <MiniBandChart

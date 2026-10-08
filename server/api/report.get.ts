@@ -29,7 +29,7 @@ export default defineEventHandler((event) => {
   type Day = {
     date: string; label: string; weekday: string
     glucose: [number, number][]
-    events: { time: string; minute: number; type: 'insulin' | 'carbs'; kind: string | null; v: number; fatty: boolean; glucose: number | null }[]
+    events: { time: string; minute: number; type: 'insulin' | 'carbs'; kind: string | null; v: number; fatty: boolean; fast: boolean; glucose: number | null }[]
   }
   const byDay = new Map<string, Day>()
   for (let d = start; d <= end; d = addDaysYmd(d, 1)) {
@@ -51,7 +51,7 @@ export default defineEventHandler((event) => {
       day.events.push({
         time: hmInTz(ts), minute, type: r.type as 'insulin' | 'carbs',
         kind: kind ? (kind.kind === 'meal' && kind.noCarbs ? 'meal-nocarb' : kind.kind) : null,
-        v, fatty: r.type === 'carbs' && r.subtype === 'fatty', glucose: null,
+        v, fatty: r.type === 'carbs' && r.subtype === 'fatty', fast: r.type === 'carbs' && r.subtype === 'fast', glucose: null,
       })
     }
   }

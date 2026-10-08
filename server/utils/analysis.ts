@@ -15,13 +15,14 @@ export const GOOD_EVENTS = 5
 const STEP = 5 // perc
 const MEAL_WINDOW_MIN = 240 // az étkezés utáni 4 óra
 const FATTY_WINDOW_MIN = 360 // zsíros / fehérjedús étkezésnél 6 óra (később emel)
+const FAST_WINDOW_MIN = 120 // gyors CH (pl. hipó kezelése): 2 óra alatt felszívódik
 const MEAL_PRE_MIN = 30 // a görbe az étkezés előtt 30 perccel indul
 const CORR_WINDOW_MIN = 360 // a korrekció utáni 6 óra
 const MIN_COVERAGE = 0.7 // a vizsgált ablak legalább 70%-ában legyen szenzoradat
 const MIN_DROP = 1 // mmol/L: ennél kisebb esésből nem becsülünk hatásidőt
 
 interface G { ts: number; v: number }
-interface Carb extends G { fatty: boolean }
+interface Carb extends G { fatty: boolean; fast: boolean }
 interface Bolus { ts: number; v: number; kind: 'meal' | 'correction'; noCarbs: boolean }
 
 const r1 = (v: number) => Math.round(v * 10) / 10
@@ -94,6 +95,8 @@ export interface MealEvent {
   clean: boolean
   /** Zsíros / fehérjedús étkezésnek jelölve (a naplóban): a CH-arány becsléséből kimarad. */
   fatty: boolean
+  /** Gyors CH-nak jelölve: a CH-arány becslésében marad, csak a darabszám miatt tartjuk számon. */
+  fast: boolean
   d6h: number | null
   /** Vércukor-eltérés a kezdőhöz képest, −30 … +360 perc, 5 percenként. */
   curve: (number | null)[]
@@ -130,7 +133,7 @@ export function analyze(from: number, to: number) {
     const ts = Number(r.ts)
     const v = Number(r.value)
     if (r.type === 'glucose') glucose.push({ ts, v })
-    else if (r.type === 'carbs') carbs.push({ ts, v, fatty: r.subtype === 'fatty' })
+    else if (r.type === 'carbs') carbs.push({ ts, v, fatty: r.subtype === 'fatty', fast: r.subtype === 'fast' })
     else insulinRows.push({ ts, v, subtype: r.subtype })
   }
   const carbTs = carbs.map((c) => c.ts)
@@ -144,19 +147,20 @@ export function analyze(from: number, to: number) {
   const targetAt = (ts: number) => (t ? segmentAt(t, ts).target : 6)
 
   // --- Étkezések: a 30 percen belüli CH-bejegyzések egy étkezés; a CH nélküli étkezési bólusok is.
-  const groups: { ts: number; last: number; carbs: number | null; fatty: boolean; boluses: Bolus[] }[] = []
+  const groups: { ts: number; last: number; carbs: number | null; fatty: boolean; fast: boolean; boluses: Bolus[] }[] = []
   for (const c of carbs) {
     const g = groups.at(-1)
     if (g && g.carbs != null && c.ts - g.last <= MEAL_WINDOW_SEC) {
       g.last = c.ts
       g.carbs += c.v
       g.fatty ||= c.fatty
-    } else groups.push({ ts: c.ts, last: c.ts, carbs: c.v, fatty: c.fatty, boluses: [] })
+      g.fast ||= c.fast
+    } else groups.push({ ts: c.ts, last: c.ts, carbs: c.v, fatty: c.fatty, fast: c.fast, boluses: [] })
   }
   for (const b of boluses.filter((x) => x.kind === 'meal')) {
     const g = groups.find((x) => x.carbs != null && b.ts >= x.ts - MEAL_WINDOW_SEC && b.ts <= x.last + MEAL_WINDOW_SEC)
     if (g) g.boluses.push(b)
-    else if (b.noCarbs) groups.push({ ts: b.ts, last: b.ts, carbs: null, fatty: false, boluses: [b] })
+    else if (b.noCarbs) groups.push({ ts: b.ts, last: b.ts, carbs: null, fatty: false, fast: false, boluses: [b] })
   }
 
   const meals: MealEvent[] = []
@@ -212,6 +216,7 @@ export function analyze(from: number, to: number) {
       correctionAfter,
       clean: !otherBolus && !otherCarbs && !correctionAfter,
       fatty: g.fatty,
+      fast: g.fast && !g.fatty,
       d6h: d6h != null ? r1(d6h) : null,
       // Sima étkezésnél 4 óra után a görbe már más étkezésekkel keveredne: ott levágjuk.
       curve: values.map((v, i) => (v == null || (!g.fatty && i * STEP - MEAL_PRE_MIN > MEAL_WINDOW_MIN) ? null : r2(v - startBG))),
@@ -282,6 +287,7 @@ export function analyze(from: number, to: number) {
       counts: {
         meals: segMeals.length,
         fattyMeals: fattyMeals.length,
+        fastMeals: segMeals.filter((m) => m.fast).length,
         cleanMeals: cleanCarbMeals.length,
         cleanCorrections: segCorr.length,
       },
@@ -412,7 +418,7 @@ function basalCheck(
   // A „nem böjt” időszakok (étkezés, ható bólus, hipó utáni 2 óra) összefésülve, majd 5 perces
   // rácson egyetlen végigsöpréssel jelöljük, mely időpontok számítanak.
   const blocked: [number, number][] = [
-    ...carbs.map((c): [number, number] => [c.ts, c.ts + (c.fatty ? FATTY_WINDOW_MIN : MEAL_WINDOW_MIN) * 60]),
+    ...carbs.map((c): [number, number] => [c.ts, c.ts + (c.fatty ? FATTY_WINDOW_MIN : c.fast ? FAST_WINDOW_MIN : MEAL_WINDOW_MIN) * 60]),
     ...boluses.map((b): [number, number] => [b.ts, b.ts + diaAt(b.ts) * 60]),
     ...glucose.filter((g) => g.v < low).map((g): [number, number] => [g.ts, g.ts + 2 * 3600]),
   ].sort((a, b) => a[0] - b[0])

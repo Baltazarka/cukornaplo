@@ -116,9 +116,10 @@ async function saveBasal() {
   await $fetch('/api/basal', { method: 'POST', body: { basal_dose: basalDose.value || null } })
   await refresh()
 }
-// Étkezés jelölése zsíros / fehérjedúsként (a CH-arány becslése kihagyja, az elemzés külön mutatja).
-async function toggleFatty(e: any) {
-  await $fetch('/api/entry-tag', { method: 'POST', body: { id: e.id, tag: e.sub === 'fatty' ? null : 'fatty' } })
+// Szénhidrát jelölése: zsíros / fehérjedús (a CH-arány becslése kihagyja, az elemzés külön mutatja),
+// vagy gyors CH (pl. hipó kezelése). A kettő kizárja egymást; újra kattintva a jelölés lekerül.
+async function toggleCarbTag(e: any, tag: 'fatty' | 'fast') {
+  await $fetch('/api/entry-tag', { method: 'POST', body: { id: e.id, tag: e.sub === tag ? null : tag } })
   await refresh()
 }
 async function setSub(e: any, v: string) {
@@ -314,12 +315,20 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                     </template>
                     <template v-else>
                       {{ eventLabel(e) }}
-                      <button
-                        v-if="!readOnly" type="button" class="tag-toggle" :aria-pressed="e.sub === 'fatty'"
-                        title="Zsíros / fehérjedús étkezés: később emeli a vércukrot, ezért a CH-arány becslése kihagyja"
-                        @click="toggleFatty(e)"
-                      >zsíros</button>
+                      <template v-if="!readOnly">
+                        <button
+                          type="button" class="tag-toggle" :aria-pressed="e.sub === 'fatty'"
+                          title="Zsíros / fehérjedús étkezés: később emeli a vércukrot, ezért a CH-arány becslése kihagyja"
+                          @click="toggleCarbTag(e, 'fatty')"
+                        >zsíros</button>
+                        <button
+                          type="button" class="tag-toggle" :aria-pressed="e.sub === 'fast'"
+                          title="Gyors szénhidrát (pl. hipó kezelése, gyümölcslé, szőlőcukor): hamar emel és hamar lecseng"
+                          @click="toggleCarbTag(e, 'fast')"
+                        >gyors</button>
+                      </template>
                       <span v-else-if="e.sub === 'fatty'" class="note-chip">zsíros</span>
+                      <span v-else-if="e.sub === 'fast'" class="note-chip">gyors</span>
                     </template>
                   </td>
                   <td class="num">{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : fmt(e.v) + ' E' }}</td>
