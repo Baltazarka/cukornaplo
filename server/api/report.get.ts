@@ -73,7 +73,7 @@ export default defineEventHandler((event) => {
       ...d,
       notes: notes.filter((n) => n.day === d.date).map((n) => ({ time: n.time, minute: n.minute, tags: n.tags, text: n.text })),
       stats,
-      coverage: Math.min(100, Math.round((100 * d.glucose.length) / 288)),
+      coverage: coverageOf(d.date, d.glucose.length),
       totals: {
         meal: sum((e) => e.kind === 'meal' || e.kind === 'meal-nocarb'),
         correction: sum((e) => e.kind === 'correction'),
@@ -91,3 +91,10 @@ export default defineEventHandler((event) => {
     dayList: out.reverse(), // a legfrissebb nap elöl
   }
 })
+
+/** Szenzorlefedettség egy napra: a mérések száma az eltelt időhöz képest (ma csak a mostanáig). */
+function coverageOf(date: string, n: number): number {
+  const from = startOfDayTs(date)
+  const elapsed = Math.min(startOfDayTs(addDaysYmd(date, 1)), Math.floor(Date.now() / 1000)) - from
+  return elapsed > 0 ? Math.min(100, Math.round((100 * n) / (elapsed / 300))) : 0
+}

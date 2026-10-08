@@ -46,7 +46,9 @@ export default defineEventHandler((event) => {
   const dayInsulin = dayRows.insulin.reduce((a, e) => a + e.v, 0)
   const sumKind = (k: string) => dayRows.insulin.filter((e) => e.kind === k).reduce((a, e) => a + e.v, 0)
   const dayCarbs = dayRows.carbs.reduce((a, e) => a + e.v, 0)
-  const coverage = dayStats.n ? Math.min(100, (100 * dayStats.n) / 288) : 0
+  // Lefedettség: a mérések száma az eltelt időhöz képest (ma csak a mostanáig eltelt rész számít).
+  const elapsedSec = Math.min(dayEnd, Math.floor(Date.now() / 1000)) - dayStart
+  const coverage = dayStats.n && elapsedSec > 0 ? Math.min(100, (100 * dayStats.n) / (elapsedSec / 300)) : 0
 
   // Napló: inzulin + CH időrendben, mellé a legközelebbi (±10 perc) glükózérték.
   const events = [

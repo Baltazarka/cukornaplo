@@ -265,6 +265,8 @@ export function analyze(from: number, to: number) {
     // CH-arány: mennyi inzulin kellett volna, hogy 4 óra múlva a célértéken legyen?
     //   szükséges = beadott + (4 órás érték − cél) ÷ ISF;  ebből az étkezésre jutó rész a
     //   kezdő vércukor korrekciója nélkül; CH-arány = CH ÷ étkezésre jutó inzulin.
+    //   A korrekció célérték alatt negatív (mint a kalkulátorban): így az étkezésre jutó rész
+    //   mindig beadott + (4 órás érték − kezdő érték) ÷ ISF, a kezdő értéktől függetlenül.
     const isfForIcr = sg.seg?.isf ?? null
     const icrValues: number[] = []
     if (isfForIcr) {
@@ -272,7 +274,7 @@ export function analyze(from: number, to: number) {
         const target = sg.seg!.target
         const end = m.startBG + m.d4h!
         const needed = m.bolus + (end - target) / isfForIcr
-        const corr = Math.max(0, (m.startBG - target) / isfForIcr)
+        const corr = (m.startBG - target) / isfForIcr
         const mealNeeded = needed - corr
         if (mealNeeded > 0.2) icrValues.push(m.carbs! / mealNeeded)
       }
