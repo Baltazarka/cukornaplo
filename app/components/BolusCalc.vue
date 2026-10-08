@@ -1,0 +1,168 @@
+<script setup lang="ts">
+// Bóluskalkulátor: a beírt szénhidrátból, a vércukorból (alapból a friss CGM-érték), a most érvényes
+// napszak CH-arányából, érzékenységéből és célértékéből, valamint a még aktív inzulinból javasol adagot.
+// Tájékoztató: nem rögzít semmit, a beadott adag az InPenből érkezik a naplóba.
+const { data, refresh } = await useFetch<any>('/api/bolus-context', { key: 'bolus-context' })
+
+/** A CGM-érték ennyi percig számít frissnek, utána kézzel kell beírni. */
+const FRESH_MIN = 15
+/** Ennél magasabb vércukornál ketonvizsgálat javasolt (mmol/L). */
+const KETONE_BG = 14
+
+const carbs = ref('')
+const bg = ref('')
+const bgTouched = ref(false)
+const useIob = ref(true)
+// Átmenet a napszakok között (a választás ebben a böngészőben megmarad).
+const BLEND_KEY = 'cukornaplo.bolusBlend'
+const useBlend = ref(true)
+onMounted(() => {
+  try { useBlend.value = localStorage.getItem(BLEND_KEY) !== '0' } catch { /* nincs tároló */ }
+})
+watch(useBlend, (v) => {
+  try { localStorage.setItem(BLEND_KEY, v ? '1' : '0') } catch { /* nincs tároló */ }
+})
+
+const cgm = computed(() => data.value?.glucose ?? null)
+const cgmFresh = computed(() => cgm.value && cgm.value.ageMin <= FRESH_MIN)
+// A vércukor mezőt a friss CGM-értékkel töltjük, amíg kézzel nem írtál bele.
+watchEffect(() => {
+  if (!bgTouched.value) bg.value = cgmFresh.value ? fmt(cgm.value.v) : ''
+})
+function useCgm() {
+  bgTouched.value = false
+}
+
+// Percenként és amikor visszatérsz a lapra, frissítjük (CGM, aktív inzulin, napszak).
+let timer: ReturnType<typeof setInterval> | undefined
+const onVisible = () => document.visibilityState === 'visible' && refresh()
+onMounted(() => {
+  timer = setInterval(refresh, 60_000)
+  document.addEventListener('visibilitychange', onVisible)
+})
+onBeforeUnmount(() => {
+  clearInterval(timer)
+  document.removeEventListener('visibilitychange', onVisible)
+})
+
+const num = (s: string) => {
+  const v = Number(String(s).replace(',', '.').trim())
+  return s.trim() !== '' && Number.isFinite(v) ? v : null
+}
+function fmt(v: number | null | undefined, dec = 1): string {
+  if (v == null) return '–'
+  return v.toLocaleString('hu-HU', { minimumFractionDigits: dec, maximumFractionDigits: dec })
+}
+
+const seg = computed(() => data.value?.segment)
+const blend = computed(() => data.value?.blend ?? null)
+/** A számításhoz használt CH-arány és érzékenység: átmenettel vagy a napszak lépcsős értéke. */
+const ratios = computed(() =>
+  useBlend.value && blend.value ? { icr: blend.value.icr, isf: blend.value.isf } : { icr: seg.value.icr, isf: seg.value.isf },
+)
+const carbsV = computed(() => num(carbs.value))
+const bgV = computed(() => num(bg.value))
+const iob = computed(() => (useIob.value ? data.value?.iob ?? 0 : 0))
+const invalid = computed(() =>
+  (carbs.value.trim() !== '' && (carbsV.value == null || carbsV.value < 0 || carbsV.value > 400))
+  || (bg.value.trim() !== '' && (bgV.value == null || bgV.value < 1 || bgV.value > 35)),
+)
+const result = computed(() => {
+  if (!seg.value || invalid.value || (carbsV.value == null && bgV.value == null)) return null
+  return calcBolus({
+    carbs: carbsV.value ?? 0, bg: bgV.value, target: seg.value.target, isf: ratios.value.isf, icr: ratios.value.icr,
+    iob: iob.value, maxBolus: data.value.maxBolus,
+  })
+})
+const low = computed(() => bgV.value != null && bgV.value < (data.value?.range.low ?? 3.9))
+const ago = (min: number) => (min < 1 ? 'most' : min < 60 ? `${min} perce` : `${Math.floor(min / 60)} ó ${min % 60} p-e`)
+const trendText = computed(() => {
+  const t = cgm.value?.trend
+  if (!t || t.level < 2) return ''
+  return t.dir > 0 ? 'Gyorsan emelkedik.' : 'Gyorsan csökken.'
+})
+</script>
+
+<template>
+  <section class="card bolus-calc" aria-labelledby="bolus-title">
+    <div class="card-head">
+      <h2 id="bolus-title">Bóluskalkulátor</h2>
+      <span v-if="seg" class="muted small">{{ seg.start === seg.end ? 'egész nap' : `${seg.start}–${seg.end}` }}</span>
+    </div>
+
+    <p v-if="data && !data.therapySet" class="muted">
+      A számításhoz előbb add meg a <NuxtLink to="/terapia">terápiás beállításokat</NuxtLink> (CH-arány, érzékenység, célérték).
+    </p>
+    <template v-else-if="seg">
+      <form class="bc-form" @submit.prevent>
+        <label>Szénhidrát
+          <span class="bc-input"><input v-model="carbs" type="text" inputmode="numeric" placeholder="0"><small>g</small></span>
+        </label>
+        <label>Vércukor
+          <span class="bc-input"><input v-model="bg" type="text" inputmode="decimal" placeholder="–" @input="bgTouched = true"><small>mmol/L</small></span>
+        </label>
+      </form>
+      <div class="bc-cgm small">
+        <template v-if="cgm">
+          CGM: <b>{{ fmt(cgm.v) }}</b>
+          <TrendArrows v-if="cgm.trend" :dir="cgm.trend.dir" :level="cgm.trend.level" />
+          <span class="muted">{{ ago(cgm.ageMin) }}</span>
+          <span v-if="!cgmFresh" class="err-text"> · régi, írd be a mért értéket</span>
+          <button v-if="bgTouched && cgmFresh" type="button" class="link-btn" @click="useCgm">CGM-érték</button>
+        </template>
+        <span v-else class="muted">Nincs friss CGM-érték, írd be a mért vércukrot.</span>
+      </div>
+      <label class="bc-iob small">
+        <input v-model="useIob" type="checkbox">
+        Aktív inzulin levonása <b>{{ fmt(data.iob) }} E</b>
+        <span v-if="data.lastBolus" class="muted">(utolsó: {{ fmt(data.lastBolus.v) }} E, {{ ago(data.lastBolus.minutesAgo) }})</span>
+      </label>
+
+      <label v-if="blend" class="bc-iob small">
+        <input v-model="useBlend" type="checkbox">
+        Átmenet a napszakok között
+        <span class="muted">
+          (most {{ fmt(blend.icr, 2) }} g/E és {{ fmt(blend.isf, 2) }} mmol/L/E: {{ seg.start }} {{ fmt(seg.icr) }} → {{ blend.next.start }} {{ fmt(blend.next.icr) }} g/E)
+        </span>
+      </label>
+
+      <p v-if="invalid" class="alert small">Ellenőrizd a beírt értékeket (szénhidrát 0–400 g, vércukor 1–35 mmol/L).</p>
+
+      <div v-if="result" class="bc-result" aria-live="polite">
+        <dl class="bc-lines">
+          <div v-if="carbsV">
+            <dt>Étkezés <span class="muted">{{ fmt(carbsV, 0) }} g ÷ {{ fmt(ratios.icr, 2) }} g/E</span></dt>
+            <dd>{{ fmt(result.carbDose, 2) }} E</dd>
+          </div>
+          <div v-if="bgV != null">
+            <dt>Korrekció <span class="muted">({{ fmt(bgV) }} − {{ fmt(seg.target) }}) ÷ {{ fmt(ratios.isf, 2) }}</span></dt>
+            <dd>{{ result.correction > 0 ? '+' : '' }}{{ fmt(result.correction, 2) }} E</dd>
+          </div>
+          <div v-if="result.iobUsed > 0">
+            <dt>Aktív inzulin <span class="muted">a korrekcióból</span></dt>
+            <dd>−{{ fmt(result.iobUsed, 2) }} E</dd>
+          </div>
+          <div class="bc-sum"><dt>Számított</dt><dd>{{ fmt(result.total, 2) }} E</dd></div>
+        </dl>
+        <div class="bc-dose">
+          <span class="tile-label">Javasolt adag</span>
+          <span class="bc-dose-v">{{ fmt(result.dose) }} <small>E</small></span>
+          <span class="muted small">0,5 E-re lefelé kerekítve</span>
+        </div>
+      </div>
+
+      <div v-if="result" class="bc-warn small">
+        <p v-if="low" class="alert">Alacsony a vércukor: előbb kezeld gyors szénhidráttal. Étkezési bólust csak rendeződés után adj.</p>
+        <p v-if="result.capped" class="alert">A számított adag több a beállított maximális dózisnál ({{ fmt(data.maxBolus) }} E), ezért arra korlátoztuk.</p>
+        <p v-if="bgV != null && bgV >= KETONE_BG" class="notice">{{ fmt(KETONE_BG, 0) }} mmol/L fölött ketonvizsgálat javasolt.</p>
+        <p v-if="trendText && bgV != null" class="notice">{{ trendText }} A kalkulátor a trendet nem veszi figyelembe.</p>
+        <p v-if="result.correction > 0 && data.iob > 0 && !useIob" class="notice">Az aktív inzulin levonása ki van kapcsolva: az egymásra adott korrekciók összeadódnak.</p>
+      </div>
+
+      <p class="muted small bc-note">
+        Tájékoztató számítás a beállított terápiás értékekből{{ data.insulin ? ` (${data.insulin})` : '' }}. A beadott adagról te döntesz.
+        Az InPen app napszakonként lépcsősen számol; átmenettel ezért a napszakok vége felé eltérhet tőle.
+      </p>
+    </template>
+  </section>
+</template>

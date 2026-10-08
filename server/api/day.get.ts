@@ -4,10 +4,12 @@ import { glucoseStats, RANGE_LOW, RANGE_HIGH, RANGE_VERY_LOW, RANGE_VERY_HIGH } 
 import { targetRange } from '../utils/range'
 import { hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/time'
 import { groupByDay, summaryRows } from '../utils/summary'
-import { therapy, actionMinutesAt, daySegments } from '../utils/therapy'
+import { therapy, daySegments } from '../utils/therapy'
 import { changeTime, lastTrend } from '../utils/trend'
 import { insulinKind, MEAL_WINDOW_SEC } from '../utils/insulinKind'
 import { notesBetween } from '../utils/notes'
+import { rapidDoses, iobAt, bolusPeak } from '../utils/iob'
+import { detectHypos, hypoCount } from '../utils/hypo'
 
 export default defineEventHandler((event) => {
   const q = getQuery(event)
@@ -87,6 +89,7 @@ export default defineEventHandler((event) => {
     totals: { insulin: dayInsulin, meal: sumKind('meal'), correction: sumKind('correction'), basal: sumKind('basal'), carbs: dayCarbs },
     iobNow,
     trend: lastTrend(dayRows.glucose),
+    hypos: hypoCount(detectHypos(dayRows.glucose, low, RANGE_VERY_LOW)),
     change: changeTime(dayRows.glucose),
     coverage,
     summary,
@@ -105,26 +108,10 @@ function iobCurve(dayStart: number, dayEnd: number, carbTs: number[]) {
   const t = therapy()
   if (!t) return null
   const info = insulinById(t.bolusInsulin)
-  const peak = info?.peakMinutes ?? 75
+  const peak = bolusPeak(t)
   // A hatásidő a beadás napszakáé (ha ott külön meg van adva), különben a közös érték.
-  const maxDia = Math.max(t.actionMinutes, ...t.segments.map((s) => s.actionMinutes ?? 0))
-  const doses = (db()
-    .prepare("SELECT ts, value, subtype FROM entries WHERE type = 'insulin' AND (subtype IS NULL OR subtype != 'basal') AND ts >= ? AND ts < ? ORDER BY ts")
-    .all(dayStart - maxDia * 60, dayEnd) as any[]).map((r) => {
-    const ts = Number(r.ts)
-    const dia = actionMinutesAt(t, ts)
-    return { ts, v: Number(r.value), dia, kind: insulinKind(ts, r.subtype, carbTs).kind, model: insulinModel(peak, dia) }
-  })
-
-  const at = (ts: number, inclusive: boolean) => {
-    let sum = 0
-    for (const d of doses) {
-      const min = (ts - d.ts) / 60
-      if (min < 0 || (!inclusive && min === 0)) continue
-      sum += d.v * d.model.iob(min)
-    }
-    return sum
-  }
+  const doses = rapidDoses(t, dayStart, dayEnd, carbTs)
+  const at = (ts: number, inclusive: boolean) => iobAt(doses, ts, inclusive)
   // 5 perces rács, plusz minden adag pillanata előtte és utána, hogy az ugrás függőleges legyen.
   const times = new Set<number>()
   for (let ts = dayStart; ts <= dayEnd; ts += 300) times.add(ts)

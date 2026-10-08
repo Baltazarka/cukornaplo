@@ -238,7 +238,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
     </section>
 
     <StatTiles
-      :stats="data.stats.day" :change="data.change" :range="data.range" :coverage="data.coverage"
+      :stats="data.stats.day" :change="data.change" :range="data.range" :coverage="data.coverage" :hypos="data.hypos"
       :insulin="{ total: data.totals.insulin, meal: data.totals.meal, correction: data.totals.correction, basal: data.totals.basal }" :carbs="data.totals.carbs"
     />
 
@@ -401,6 +401,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
     <!-- Asztali nézetben bal oldali sáv, keskeny kijelzőn a tartalom alatt. -->
     <aside class="home-side">
       <TherapyCard />
+      <BolusCalc v-if="!readOnly" />
     </aside>
 
     <p class="muted small disclaimer">Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian és az InPen app értékeit használd.</p>

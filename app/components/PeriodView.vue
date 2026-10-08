@@ -29,7 +29,7 @@ const s = computed(() => props.data.stats)
     </section>
 
     <StatTiles
-      :stats="s" :change="data.change" :range="data.range" :coverage="data.coverage" per-day
+      :stats="s" :change="data.change" :range="data.range" :coverage="data.coverage" :hypos="data.hypos" per-day
       :insulin="{ total: data.totals.insulinPerDay, meal: data.totals.mealPerDay, correction: data.totals.correctionPerDay, basal: data.totals.basalPerDay }" :carbs="data.totals.carbsPerDay"
     />
 
@@ -44,6 +44,7 @@ const s = computed(() => props.data.stats)
       </ClientOnly>
     </section>
 
+    <HypoCard :end="data.end" :days="data.days" />
     <MealAnalysis :end="data.end" :days="data.days" />
     <BasalCheck :end="data.end" :days="data.days" />
 
@@ -70,7 +71,7 @@ const s = computed(() => props.data.stats)
         </div>
         <dl v-if="s.n" class="facts">
           <div><dt>Átlag</dt><dd>{{ fmt(s.avg) }} mmol/L</dd></div>
-          <div><dt>GMI (becsült HbA1c)</dt><dd>{{ fmt(s.gmi) }}%</dd></div>
+          <div><dt>GMI (becsült HbA1c)</dt><dd>{{ fmt(s.gmi) }}% <span class="muted">{{ Math.round((s.gmi - 2.15) * 10.929) }} mmol/mol</span></dd></div>
           <div><dt>Variabilitás (CV)</dt><dd>{{ fmt(s.cv, 0) }}%</dd></div>
         </dl>
         <p v-if="s.n && data.days < 14" class="muted small">A GMI csak legalább 14 napnyi, jó lefedettségű szenzoradatból megbízható.</p>
@@ -95,5 +96,7 @@ const s = computed(() => props.data.stats)
         </div>
       </section>
     </div>
+
+    <LabCard />
   </div>
 </template>

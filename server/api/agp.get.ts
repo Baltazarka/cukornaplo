@@ -7,6 +7,7 @@ import { startOfDayTs, todayYmd, addDaysYmd, minuteOfDayInTz } from '../utils/ti
 import { groupByDay, summaryRows } from '../utils/summary'
 import { changeTime, type GPoint } from '../utils/trend'
 import { insulinKind } from '../utils/insulinKind'
+import { detectHypos, hypoCount } from '../utils/hypo'
 
 const PERIODS = [7, 14, 30]
 const BIN_MIN = 15 // 96 sáv naponta
@@ -108,6 +109,7 @@ export default defineEventHandler((event) => {
       penDays,
     },
     change: changeTime(gPoints),
+    hypos: hypoCount(detectHypos(gPoints, low, RANGE_VERY_LOW)),
     coverage,
     summary: summaryRows(daily, end, days, low, high),
   }

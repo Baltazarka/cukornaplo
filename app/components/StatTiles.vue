@@ -8,6 +8,8 @@ const props = defineProps<{
   insulin: { total: number; meal: number; correction: number; basal: number }
   carbs: number
   coverage: number
+  /** Hipóesemények (≥ 15 perc a céltartomány alatt) száma, ebből 2. szint. */
+  hypos?: { n: number; level2: number } | null
   /** Időszakos nézetben „naponta” értendő az inzulin és a CH. */
   perDay?: boolean
 }>()
@@ -79,7 +81,7 @@ const donut = computed(() => {
     <div class="tile">
       <div class="tile-label">Alacsony<sub>TBR</sub></div>
       <div class="tile-value">{{ fmt(tbr, 0) }} <small>%</small></div>
-      <div class="tile-sub">&lt; {{ fmt(range.low) }} mmol/L</div>
+      <div class="tile-sub">&lt; {{ fmt(range.low) }} mmol/L<template v-if="hypos?.n"> · <b class="err-text">{{ hypos.n }} hipó</b><template v-if="hypos.level2">, {{ hypos.level2 }}× 3,0 alatt</template></template></div>
     </div>
     <div class="tile tile-insulin">
       <div class="tile-label">{{ perDay ? 'Inzulin naponta' : 'Összes inzulin' }}<sub title="Total Daily Dose: napi teljes inzulinmennyiség">TDD</sub></div>

@@ -73,6 +73,13 @@ export function db(): DatabaseSync {
     revoked INTEGER NOT NULL DEFAULT 0,
     used_at INTEGER
   )`)
+  // Laboreredmények: HbA1c (%), a GMI-vel összevetéshez.
+  d.exec(`CREATE TABLE IF NOT EXISTS lab_results (
+    id INTEGER PRIMARY KEY,
+    date TEXT NOT NULL,
+    hba1c REAL NOT NULL,
+    created_at INTEGER NOT NULL
+  )`)
   _db = d
   return d
 }

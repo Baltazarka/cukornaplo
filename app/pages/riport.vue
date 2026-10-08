@@ -11,12 +11,16 @@ const days = computed(() => (PERIODS.includes(Number(route.query.days)) ? Number
 const end = computed(() => (typeof route.query.end === 'string' ? route.query.end : ''))
 const q = computed(() => ({ end: end.value || undefined, days: days.value }))
 
-const [{ data: agp }, { data: an }, { data: rep }, { data: th }] = await Promise.all([
+const [{ data: agp }, { data: an }, { data: rep }, { data: th }, { data: hy }, { data: lab }] = await Promise.all([
   useFetch<any>('/api/agp', { query: q }),
   useFetch<any>('/api/analysis', { query: q }),
   useFetch<any>('/api/report', { query: q }),
   useFetch<{ therapy: Therapy | null }>('/api/therapy', { key: 'therapy' }),
+  useFetch<any>('/api/hypo', { query: q }),
+  useFetch<any>('/api/lab', { key: 'lab' }),
 ])
+const lastLab = computed(() => lab.value?.results?.[0] ?? null)
+const hypoDur = (min: number) => (min < 60 ? `${min} p` : `${Math.floor(min / 60)} ó ${min % 60} p`)
 const t = computed(() => th.value?.therapy ?? null)
 
 function setPeriod(d: number) {
@@ -114,6 +118,8 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
         <div class="report-kpis">
           <div><span>Átlag glükóz</span><b>{{ fmt(s.avg) }} <small>mmol/L</small></b></div>
           <div><span>GMI (becsült HbA1c)</span><b>{{ fmt(s.gmi) }} <small>%</small></b></div>
+          <div v-if="lastLab"><span>Labor HbA1c ({{ lastLab.date.replaceAll('-', '. ') }}.)</span><b>{{ fmt(lastLab.hba1c) }} <small>%</small></b></div>
+          <div v-if="hy"><span>Hipóesemények</span><b>{{ hy.summary.n }} <small>ebből 2. szint: {{ hy.summary.level2 }}</small></b></div>
           <div><span>Szórás (SD)</span><b>{{ fmt(s.sd) }} <small>mmol/L</small></b></div>
           <div><span>Variációs koefficiens (CV)</span><b>{{ fmt(s.cv, 0) }} <small>%</small></b></div>
           <div><span>Céltartományban (TIR)</span><b>{{ fmt(s.n ? s.pct.inRange : null, 0) }} <small>%</small></b></div>
@@ -175,6 +181,33 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
             </template>
           </MiniBandChart>
         </ClientOnly>
+      </section>
+
+      <section v-if="hy" class="report-section">
+        <h2>Hipók</h2>
+        <p v-if="!hy.summary.n" class="small">Az időszakban nem volt hipóesemény (legalább 15 perc {{ fmt(hy.low) }} mmol/L alatt).</p>
+        <template v-else>
+          <p class="small">
+            <b>{{ hy.summary.n }}</b> esemény (hetente {{ fmt(hy.summary.perWeek) }}), ebből <b>{{ hy.summary.level2 }}</b> 2. szintű (&lt; {{ fmt(hy.veryLow) }}),
+            {{ hy.summary.night }} éjszakai (0–6 óra); átlagos hossz {{ hy.summary.avgMinutes }} perc, legalacsonyabb {{ fmt(hy.summary.lowest) }} mmol/L.
+            Bólus utáni 4 órában: {{ hy.summary.afterBolus }}, túlkezelés (utána a céltartomány fölé): {{ hy.summary.overTreated }}.
+          </p>
+          <table class="table report-table">
+            <thead><tr><th>Mikor</th><th class="num">Hossz</th><th class="num">Legalacsonyabb</th><th>Előtte</th><th>Kezelés</th><th class="num">Utána max.</th></tr></thead>
+            <tbody>
+              <tr v-for="e in hy.events" :key="e.start">
+                <td>{{ e.date.slice(5).replace('-', '. ') }}. {{ e.time }}{{ e.night ? ' (éjjel)' : '' }}</td>
+                <td class="num">{{ hypoDur(e.minutes) }}</td>
+                <td class="num">{{ fmt(e.nadir) }}{{ e.level === 2 ? ' (2.)' : '' }}</td>
+                <td>
+                  {{ e.bolus ? `${fmt(e.bolus.v)} E, ${hypoDur(e.bolus.minutesBefore)} előtte` : '–' }}{{ e.iob != null && e.iob >= 0.1 ? ` · aktív ${fmt(e.iob)} E` : '' }}{{ e.notes.length ? ` · ${e.notes.map(noteTagLabel).join(', ')}` : '' }}
+                </td>
+                <td>{{ e.treatment ? `${fmt(e.treatment.carbs, 0)} g${e.treatment.fast ? ' (gyors)' : ''}` : '–' }}</td>
+                <td class="num">{{ e.rebound ? fmt(e.rebound.v) : '–' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
       </section>
 
       <section class="report-section">

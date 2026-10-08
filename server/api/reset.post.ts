@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
   db().exec('DELETE FROM entries')
   db().exec('DELETE FROM deleted_entries')
   db().exec('DELETE FROM notes')
+  db().exec('DELETE FROM lab_results')
   saveSettings({ last_ingest: null })
   return { ok: true, deleted: Number(before) }
 })
