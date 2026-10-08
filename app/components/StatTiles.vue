@@ -21,6 +21,27 @@ const tar = computed(() => (s.value.n ? s.value.pct.high + s.value.pct.veryHigh 
 const tbr = computed(() => (s.value.n ? s.value.pct.low + s.value.pct.veryLow : null))
 // Nemzetközi konszenzus (Battelino 2019): CV ≤ 36% stabil glükózszint.
 const CV_LIMIT = 36
+
+// Inzulin-megoszlás (TDD): kis fánkdiagram a csempe jobb felső sarkában. A kör kerülete 100, így a
+// dasharray közvetlenül százalék; a szeletek között 2 egységnyi rés.
+const INSULIN_PARTS = [
+  { key: 'meal', label: 'bólus', cls: 'insulin' },
+  { key: 'correction', label: 'korrekció', cls: 'correction' },
+  { key: 'basal', label: 'bázis', cls: 'basal' },
+] as const
+const insulinPct = computed(() =>
+  INSULIN_PARTS.map((p) => ({ ...p, v: props.insulin[p.key], pct: props.insulin.total > 0 ? (props.insulin[p.key] / props.insulin.total) * 100 : 0 })),
+)
+const donut = computed(() => {
+  const parts = insulinPct.value.filter((p) => p.pct > 0)
+  const gap = parts.length > 1 ? 2 : 0
+  let at = 0
+  return parts.map((p) => {
+    const seg = { ...p, dash: `${Math.max(p.pct - gap, 0.5)} ${100 - Math.max(p.pct - gap, 0.5)}`, offset: 25 - at }
+    at += p.pct
+    return seg
+  })
+})
 </script>
 
 <template>
@@ -60,13 +81,17 @@ const CV_LIMIT = 36
       <div class="tile-value">{{ fmt(tbr, 0) }} <small>%</small></div>
       <div class="tile-sub">&lt; {{ fmt(range.low) }} mmol/L</div>
     </div>
-    <div class="tile">
-      <div class="tile-label">{{ perDay ? 'Inzulin naponta' : 'Összes inzulin' }}</div>
+    <div class="tile tile-insulin">
+      <div class="tile-label">{{ perDay ? 'Inzulin naponta' : 'Összes inzulin' }}<sub title="Total Daily Dose: napi teljes inzulinmennyiség">TDD</sub></div>
       <div class="tile-value">{{ fmt(insulin.total) }} <small>E</small></div>
+      <svg v-if="donut.length" class="tile-donut" viewBox="0 0 42 42" role="img" :aria-label="insulinPct.map((p) => `${p.label} ${fmt(p.pct, 0)}%`).join(', ')">
+        <circle
+          v-for="p in donut" :key="p.key" :class="`donut-${p.cls}`" cx="21" cy="21" r="15.9155" fill="none" stroke-width="7"
+          :stroke-dasharray="p.dash" :stroke-dashoffset="p.offset"
+        ><title>{{ p.label }}: {{ fmt(p.pct, 0) }}% ({{ fmt(p.v) }} E)</title></circle>
+      </svg>
       <div class="tile-sub tile-split">
-        <span title="étkezési bólus"><i class="dot dot-insulin" />bólus {{ fmt(insulin.meal) }}</span>
-        <span><i class="dot dot-correction" />korrekció {{ fmt(insulin.correction) }}</span>
-        <span><i class="dot dot-basal" />bázis {{ fmt(insulin.basal) }}</span>
+        <span v-for="p in insulinPct" :key="p.key" :title="`${p.label}: ${fmt(p.v)} E`"><i class="dot" :class="`dot-${p.cls}`" />{{ p.label }} {{ fmt(p.pct, 0) }}%</span>
       </div>
     </div>
     <div class="tile">

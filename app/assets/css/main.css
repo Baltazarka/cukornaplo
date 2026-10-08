@@ -226,6 +226,13 @@ input[type=date], input[type=time] {
 .tile-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
 .tile-split, .tile-arrows { display: flex; flex-wrap: wrap; gap: 2px 10px; }
 .tile-split .dot { width: 8px; height: 8px; margin-right: 4px; }
+.tile-insulin { position: relative; }
+.tile-insulin .tile-label, .tile-insulin .tile-value { padding-right: 52px; }
+.tile-donut { position: absolute; top: 10px; right: 12px; width: 46px; height: 46px; }
+.tile-donut circle { transition: stroke-dasharray 0.3s; }
+.donut-insulin { stroke: var(--series-insulin); }
+.donut-correction { stroke: var(--series-correction); }
+.donut-basal { stroke: var(--series-basal); }
 .tile-arrows > span { display: inline-flex; align-items: center; gap: 2px; }
 .tile-arrows .trend svg { width: 7px; height: 12px; }
 
