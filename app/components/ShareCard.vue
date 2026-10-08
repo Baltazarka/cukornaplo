@@ -50,7 +50,7 @@ async function revoke(s: any) {
       <label>Címzett e-mail-címe
         <input v-model="email" type="email" required placeholder="orvos@example.com" :disabled="!ready">
       </label>
-      <label>Üzenet <span class="muted">(nem kötelező)</span>
+      <label><span>Üzenet <span class="muted">(nem kötelező)</span></span>
         <input v-model="message" type="text" maxlength="500" placeholder="pl. A múlt heti értékeim a kontrollhoz" :disabled="!ready">
       </label>
       <div class="btn-row">

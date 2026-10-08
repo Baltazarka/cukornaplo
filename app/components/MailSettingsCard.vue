@@ -57,9 +57,9 @@ async function test() {
         <input v-model="form.pass" type="password" autocomplete="new-password" :placeholder="data?.hasPass ? '•••• elmentve (üresen hagyva marad)' : '16 karakteres alkalmazásjelszó'">
       </label>
       <label>Feladó neve
-        <input v-model="form.fromName" type="text" maxlength="60" placeholder="pl. Dávid cukornaplója">
+        <input v-model="form.fromName" type="text" maxlength="60" placeholder="pl. Cukornapló">
       </label>
-      <label>Az oldal nyilvános címe <span class="muted">(a linkekhez; üresen automatikus)</span>
+      <label><span>Az oldal nyilvános címe <span class="muted">(a linkekhez; üresen automatikus)</span></span>
         <input v-model="form.publicUrl" type="text" placeholder="https://vc.baltazarka.com">
       </label>
       <details>

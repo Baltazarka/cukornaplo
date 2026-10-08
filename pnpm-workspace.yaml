@@ -2,3 +2,5 @@ allowBuilds:
   esbuild: true
 onlyBuiltDependencies:
   - esbuild
+# Ellátásilánc-védelem: 1 napnál frissebb csomagverziót nem telepít (percben).
+minimumReleaseAge: 1440

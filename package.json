@@ -11,11 +11,12 @@
   "dependencies": {
     "bcryptjs": "^3.0.0",
     "echarts": "^6.0.0",
-    "nodemailer": "^10.0.16",
+    "nodemailer": "^10.0.15",
     "nuxt": "4.5.2",
     "vue": "^3.5.0"
   },
   "devDependencies": {
     "@types/nodemailer": "^8.0.2"
-  }
+  },
+  "packageManager": "pnpm@10.18.1"
 }
