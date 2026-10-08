@@ -32,13 +32,17 @@ function cycleTheme() {
     }
   } catch { /* nincs localStorage */ }
 }
-const themeIcon = computed(() => (theme.value === 'dark' ? '🌙' : theme.value === 'light' ? '☀️' : '🖥️'))
+// Mobil menü (hamburger): oldalváltáskor automatikusan bezárul.
+const menuOpen = ref(false)
+watch(() => route.path, () => { menuOpen.value = false })
+
+const themeIcon =computed(() => (theme.value === 'dark' ? '🌙' : theme.value === 'light' ? '☀️' : '🖥️'))
 const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.value === 'light' ? 'Világos' : 'Rendszer'))
 </script>
 
 <template>
   <div>
-    <header class="topbar">
+    <header class="topbar" :class="{ 'menu-open': menuOpen }">
       <NuxtLink class="brand" to="/">Cukornapló</NuxtLink>
       <div class="topbar-right">
         <nav v-if="!auth.authed && auth.viewer">
@@ -56,6 +60,9 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.va
         </nav>
         <button class="theme-toggle" :title="'Téma: ' + themeLabel" aria-label="Téma váltása" @click="cycleTheme">
           <span aria-hidden="true">{{ themeIcon }}</span>
+        </button>
+        <button v-if="auth.authed || auth.viewer" class="menu-toggle" :aria-expanded="menuOpen" aria-label="Menü" @click="menuOpen = !menuOpen">
+          <span aria-hidden="true">{{ menuOpen ? '✕' : '☰' }}</span>
         </button>
       </div>
     </header>
