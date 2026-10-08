@@ -4,10 +4,10 @@ import type { Therapy, TherapySegment } from '#shared/types/therapy'
 
 const { data } = await useFetch<{ therapy: Therapy | null }>('/api/therapy', { key: 'therapy' })
 
-type EditSegment = { start: string; target: number | ''; isf: number | ''; icr: number | ''; key: number }
+type EditSegment = { start: string; target: number | ''; isf: number | ''; icr: number | ''; actionMinutes: number | ''; key: number }
 let nextKey = 0
 const toEdit = (s: Partial<TherapySegment>): EditSegment => ({
-  start: s.start ?? '00:00', target: s.target ?? '', isf: s.isf ?? '', icr: s.icr ?? '', key: nextKey++,
+  start: s.start ?? '00:00', target: s.target ?? '', isf: s.isf ?? '', icr: s.icr ?? '', actionMinutes: s.actionMinutes ?? '', key: nextKey++,
 })
 
 const t = data.value?.therapy
@@ -54,7 +54,7 @@ async function save() {
         maxBolus: maxBolus.value,
         actionMinutes: actionMinutes.value,
         byTimeOfDay: byTimeOfDay.value,
-        segments: segments.value.map(({ start, target, isf, icr }) => ({ start, target, isf, icr })),
+        segments: segments.value.map(({ start, target, isf, icr, actionMinutes }) => ({ start, target, isf, icr, actionMinutes: actionMinutes || null })),
       },
     })
     await refreshNuxtData('therapy')
@@ -132,6 +132,7 @@ async function save() {
               <th>Glükóz célértéke <small>mmol/L</small></th>
               <th>Inzulinérzékenységi tényező <small>mmol/L/E</small></th>
               <th>Inzulin-szénhidrát arány <small>g/E</small></th>
+              <th v-if="byTimeOfDay">Inzulinhatás időtartama <small>ebben a napszakban</small></th>
               <th v-if="byTimeOfDay"><span class="sr-only">Törlés</span></th>
             </tr>
           </thead>
@@ -141,6 +142,12 @@ async function save() {
               <td><input v-model.number="s.target" type="number" step="0.1" min="3.9" max="13.9" required aria-label="Glükóz célértéke"></td>
               <td><input v-model.number="s.isf" type="number" step="0.1" min="0.1" max="20" required aria-label="Inzulinérzékenységi tényező"></td>
               <td><input v-model.number="s.icr" type="number" step="0.1" min="0.5" max="150" required aria-label="Inzulin-szénhidrát arány"></td>
+              <td v-if="byTimeOfDay">
+                <select v-model.number="s.actionMinutes" aria-label="Inzulinhatás időtartama ebben a napszakban">
+                  <option value="">közös ({{ actionLabel(actionMinutes) }})</option>
+                  <option v-for="m in actionOptions" :key="m" :value="m">{{ actionLabel(m) }}</option>
+                </select>
+              </td>
               <td v-if="byTimeOfDay" class="act">
                 <button type="button" class="row-del" :disabled="segments.length < 2" :aria-label="`${s.start} napszak törlése`" title="Törlés" @click="removeSegment(s.key)">×</button>
               </td>
@@ -148,7 +155,8 @@ async function save() {
           </tbody>
         </table>
       </div>
-      <p v-if="byTimeOfDay" class="muted small">Minden napszak a következő kezdetéig tart, az utolsó éjfélen át az elsőig. Mentéskor időrendbe kerülnek.</p>
+      <p v-if="byTimeOfDay" class="muted small">Minden napszak a következő kezdetéig tart, az utolsó éjfélen át az elsőig. Mentéskor időrendbe kerülnek.
+        Ha egy napszakhoz külön inzulinhatás-időt adsz meg, a napi grafikonon az abban beadott bólusok hatásgörbéje ezzel rajzolódik; „közös” esetén a fenti érték érvényes.</p>
       <p v-else class="muted small">Kikapcsolva ezek az értékek egész nap érvényesek. A többi napszakot megőrzöm, visszakapcsolva újra látszanak.</p>
 
       <div class="btn-row">

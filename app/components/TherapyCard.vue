@@ -56,7 +56,10 @@ const updated = computed(() =>
         <tbody>
           <tr v-for="(s, i) in rows" :key="s.start" :class="{ active: i === active }" :aria-current="i === active ? 'time' : undefined">
             <td class="seg-time">
-              <template v-if="t.byTimeOfDay">{{ s.start }}<span class="muted">–{{ segmentEnd(rows, i) }}</span></template>
+              <template v-if="t.byTimeOfDay">
+                {{ s.start }}<span class="muted">–{{ segmentEnd(rows, i) }}</span>
+                <small v-if="s.actionMinutes" class="seg-action" title="Inzulinhatás időtartama ebben a napszakban">hatás {{ actionLabel(s.actionMinutes) }}</small>
+              </template>
               <template v-else>Egész nap</template>
             </td>
             <td class="num">{{ fmt(s.target) }}</td>

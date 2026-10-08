@@ -387,6 +387,7 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .therapy-table td.num { font-weight: 600; }
 .therapy-table .seg-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .therapy-table .seg-time .muted { font-size: 13px; }
+.therapy-table .seg-action { display: block; font-size: 11px; color: var(--series-insulin); }
 .therapy-table tr.active td { background: var(--page); }
 .therapy-table tr.active td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .therapy-foot { margin: 10px 0 0; display: flex; align-items: center; gap: 6px; }
@@ -407,6 +408,7 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .therapy-edit-table th small { display: block; font-size: 11px; font-weight: 400; }
 .therapy-edit-table td { padding: 6px 6px; }
 .therapy-edit-table input { min-width: 72px; }
+.therapy-edit-table select { min-width: 120px; }
 .therapy-edit-table input[type=time] { padding: 7px 8px; }
 .btn-row .spacer { flex: 1; }
 
