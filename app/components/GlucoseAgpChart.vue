@@ -161,7 +161,7 @@ function buildOption() {
 async function render() {
   if (!el.value) return
   if (!echarts) echarts = await import('echarts')
-  if (!chart) chart = echarts.init(el.value, null, { renderer: 'canvas' })
+  if (!chart) chart = echarts.init(el.value, null, { renderer: 'canvas', devicePixelRatio: Math.max(2, window.devicePixelRatio || 1) })
   chart.setOption(buildOption(), true)
 }
 

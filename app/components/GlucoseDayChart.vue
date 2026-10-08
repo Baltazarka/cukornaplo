@@ -13,6 +13,16 @@ let ro: ResizeObserver | null = null
 const GRID_LEFT = 52
 const GRID_RIGHT = 16
 const BAR_WIDTH = 6
+const INS_HEIGHT = 78
+const IOB_LINE = 1.5
+
+/** Kerek tengelymaximum két egyenlő osztással (pl. 6,5 → 10, 16 → 20, 23 → 30). */
+function niceMax(v: number): number {
+  const half = v / 2
+  const pow = 10 ** Math.floor(Math.log10(half))
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((x) => x >= half)!
+  return step * 2
+}
 
 function hm(ms: number): string {
   return new Date(ms).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' })
@@ -101,7 +111,13 @@ function buildOption() {
   const carbs = d.carbs.map((p: any[]) => [p[0], p[1]])
   // A bólusok még hatásban lévő inzulinja (a terápiás beállítások hatásidejével). Az oszlop helyén
   // megszakítjuk, és egy pixellel az oszlop alól indul: így nem lóg ki a teteje fölé, és nincs rés sem.
-  const iob = iobAroundBars(d.activeInsulin?.points ?? [], bolus, (BAR_WIDTH / 2 - 1) * msPerPx)
+  const iobRaw: [number, number | null][] = d.activeInsulin?.points ?? []
+  // Rögzített inzulin-skála, hogy pixelre tudjuk igazítani: a görbe vonala (félvastagsággal lejjebb
+  // tolva) pontosan az oszlop tetejével egy magasságban folytatódik, lépcső nélkül.
+  const insMax = niceMax(Math.max(1, ...d.insulin.map((p: any[]) => p[1]), ...iobRaw.map((p) => p[1] ?? 0)))
+  const halfLine = (IOB_LINE / 2) * (insMax / INS_HEIGHT)
+  const iob = iobAroundBars(iobRaw, bolus, (BAR_WIDTH / 2 - 1) * msPerPx)
+    .map(([x, v]) => [x, v == null ? null : Math.max(0, v - halfLine)])
 
   const fmtTooltip = (params: any) => {
     const x = Array.isArray(params) ? params[0]?.axisValue : params.axisValue
@@ -178,7 +194,7 @@ function buildOption() {
     ],
     grid: [
       { left: GRID_LEFT, right: GRID_RIGHT, top: 30, height: 208, outerBoundsMode: 'none' },
-      { left: GRID_LEFT, right: GRID_RIGHT, top: 294, height: 78, outerBoundsMode: 'none' },
+      { left: GRID_LEFT, right: GRID_RIGHT, top: 294, height: INS_HEIGHT, outerBoundsMode: 'none' },
       { left: GRID_LEFT, right: GRID_RIGHT, top: 422, height: 78, outerBoundsMode: 'none' },
     ],
     axisPointer: { link: [{ xAxisIndex: 'all' }], lineStyle: { color: C.axis } },
@@ -189,7 +205,7 @@ function buildOption() {
     xAxis: [xAxisFor(0), xAxisFor(1), xAxisFor(2)],
     yAxis: [
       { type: 'value', gridIndex: 0, min: 2, max: Math.max(16, Math.ceil(gMax + 1)), interval: 2, axisLabel, splitLine, axisLine: { show: false } },
-      { type: 'value', gridIndex: 1, min: 0, splitNumber: 2, axisLabel, splitLine, axisLine: { show: false } },
+      { type: 'value', gridIndex: 1, min: 0, max: insMax, interval: insMax / 2, axisLabel, splitLine, axisLine: { show: false } },
       { type: 'value', gridIndex: 2, min: 0, splitNumber: 2, axisLabel, splitLine, axisLine: { show: false } },
     ],
     series: [
@@ -215,7 +231,7 @@ function buildOption() {
       },
       {
         name: 'Aktív inzulin', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: iob, symbol: 'none', silent: true, z: 2,
-        connectNulls: false, lineStyle: { width: 1.5, color: C.insulin }, areaStyle: { color: rgba(C.insulin, 0.16) },
+        connectNulls: false, lineStyle: { width: IOB_LINE, color: C.insulin }, areaStyle: { color: rgba(C.insulin, 0.16) },
       },
       bar('Bólus', 1, bolus.map((p: number[]) => [p[0], p[1]]), C.insulin),
       bar('Bázis', 1, basal, C.basal),
@@ -227,7 +243,7 @@ function buildOption() {
 async function render() {
   if (!el.value) return
   if (!echarts) echarts = await import('echarts')
-  if (!chart) chart = echarts.init(el.value, null, { renderer: 'canvas' })
+  if (!chart) chart = echarts.init(el.value, null, { renderer: 'canvas', devicePixelRatio: Math.max(2, window.devicePixelRatio || 1) })
   chart.setOption(buildOption(), true)
 }
 
