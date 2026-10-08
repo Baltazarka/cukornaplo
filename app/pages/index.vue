@@ -110,7 +110,8 @@ const eventDot = (e: any) =>
 </script>
 
 <template>
-  <main v-if="data">
+  <main v-if="data" class="home">
+    <div class="home-main">
     <div class="filters">
       <template v-if="period === 1">
         <button class="ghost" aria-label="Előző nap" @click="go(data.prev)">←</button>
@@ -254,6 +255,12 @@ const eventDot = (e: any) =>
       </div>
     </section>
     </template>
+    </div>
+
+    <!-- Asztali nézetben bal oldali sáv, keskeny kijelzőn a tartalom alatt. -->
+    <aside class="home-side">
+      <TherapyCard />
+    </aside>
 
     <p class="muted small disclaimer">Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian és az InPen app értékeit használd.</p>
   </main>

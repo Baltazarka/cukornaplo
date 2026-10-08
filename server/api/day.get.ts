@@ -4,6 +4,7 @@ import { glucoseStats, RANGE_LOW, RANGE_HIGH, RANGE_VERY_LOW, RANGE_VERY_HIGH } 
 import { targetRange } from '../utils/range'
 import { hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/time'
 import { groupByDay, summaryRows } from '../utils/summary'
+import { therapy } from '../utils/therapy'
 
 export default defineEventHandler((event) => {
   const q = getQuery(event)
@@ -53,6 +54,7 @@ export default defineEventHandler((event) => {
   }
 
   const summary = summaryRows(daily, day, 14, low, high)
+  const activeInsulin = iobCurve(dayStart, dayEnd)
 
   return {
     day,
@@ -74,5 +76,52 @@ export default defineEventHandler((event) => {
     totals: { insulin: dayInsulin, carbs: dayCarbs },
     coverage,
     summary,
+    activeInsulin,
   }
 })
+
+/**
+ * A bólusok még aktív (hatásban lévő) inzulinja a napon, E-ben, 5 percenként: a terápiás beállítások
+ * inzulinjának csúcsidejével és hatásidejével (exponenciális modell). Az előző este beadott adagok
+ * is beleszámítanak. Terápiás beállítás nélkül null.
+ */
+function iobCurve(dayStart: number, dayEnd: number) {
+  const t = therapy()
+  if (!t) return null
+  const info = insulinById(t.bolusInsulin)
+  const dia = t.actionMinutes
+  const model = insulinModel(info?.peakMinutes ?? 75, dia)
+  const doses = (db()
+    .prepare("SELECT ts, value FROM entries WHERE type = 'insulin' AND (subtype IS NULL OR subtype != 'basal') AND ts >= ? AND ts < ? ORDER BY ts")
+    .all(dayStart - dia * 60, dayEnd) as any[]).map((r) => ({ ts: Number(r.ts), v: Number(r.value) }))
+
+  const at = (ts: number, inclusive: boolean) => {
+    let sum = 0
+    for (const d of doses) {
+      const min = (ts - d.ts) / 60
+      if (min < 0 || (!inclusive && min === 0)) continue
+      sum += d.v * model.iob(min)
+    }
+    return sum
+  }
+  // 5 perces rács, plusz minden adag pillanata előtte és utána, hogy az ugrás függőleges legyen.
+  const times = new Set<number>()
+  for (let ts = dayStart; ts <= dayEnd; ts += 300) times.add(ts)
+  const jumps = new Set<number>()
+  for (const d of doses) if (d.ts >= dayStart) { times.add(d.ts); jumps.add(d.ts) }
+  const points: [number, number | null][] = []
+  for (const ts of [...times].sort((a, b) => a - b)) {
+    if (jumps.has(ts)) points.push([ts * 1000 - 1, round2(at(ts, false))])
+    const v = at(ts, true)
+    points.push([ts * 1000, v >= 0.01 ? round2(v) : 0])
+  }
+  // A nullás szakaszokat kihagyjuk (ne fusson vonal az alapvonalon), a szélük 0 marad.
+  const out = points.map((p, i) =>
+    p[1] === 0 && (points[i - 1]?.[1] ?? 0) === 0 && (points[i + 1]?.[1] ?? 0) === 0 ? [p[0], null] : p,
+  )
+  return { insulin: info?.name ?? null, peakMinutes: model.peak, durationMinutes: dia, points: out }
+}
+
+function round2(v: number): number {
+  return Math.round(v * 100) / 100
+}

@@ -41,6 +41,7 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.va
       <div class="topbar-right">
         <nav v-if="auth.authed">
           <NuxtLink to="/" :class="{ active: route.path === '/' }">Napi nézet</NuxtLink>
+          <NuxtLink to="/terapia" :class="{ active: route.path === '/terapia' }">Terápia</NuxtLink>
           <NuxtLink to="/telefon" :class="{ active: route.path === '/telefon' }">Telefon beállítása</NuxtLink>
           <NuxtLink to="/adatok" :class="{ active: route.path === '/adatok' }">Adatok és import</NuxtLink>
           <a href="#" @click.prevent="logout">Kilépés</a>

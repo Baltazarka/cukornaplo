@@ -75,6 +75,8 @@ function buildOption() {
     else o[0] = b[0] + shiftMs
   }
   const carbs = d.carbs.map((p: any[]) => [p[0], p[1]])
+  // A bólusok még hatásban lévő inzulinja (a terápiás beállítások hatásidejével).
+  const iob: [number, number | null][] = d.activeInsulin?.points ?? []
 
   const fmtTooltip = (params: any) => {
     const x = Array.isArray(params) ? params[0]?.axisValue : params.axisValue
@@ -96,6 +98,15 @@ function buildOption() {
     for (const p of ins) {
       const b = p[2] === 'basal'
       html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${b ? C.basal : C.insulin};margin-right:6px"></span>${b ? 'Bázis' : 'Bólus'} <b>${num(p[1], 2)}</b> E</div>`
+    }
+    if (iob.length) {
+      let best: number | null = null
+      let bd = Infinity
+      for (const p of iob) {
+        const diff = Math.abs(p[0] - x)
+        if (diff < bd) { bd = diff; best = p[1] }
+      }
+      if (best) html += `<div><span style="display:inline-block;width:8px;height:2px;background:${C.insulin};margin:0 6px 3px 0"></span>Aktív inzulin <b>${num(best, 1)}</b> E</div>`
     }
     for (const p of ch) {
       html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${C.carbs};margin-right:6px"></span>Szénhidrát <b>${num(p[1], 0)}</b> g</div>`
@@ -177,6 +188,10 @@ function buildOption() {
           data: [{ yAxis: r.low }, { yAxis: r.high }],
         },
       },
+      {
+        name: 'Aktív inzulin', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: iob, symbol: 'none', silent: true, z: 2,
+        connectNulls: false, lineStyle: { width: 1.5, color: C.insulin }, areaStyle: { color: rgba(C.insulin, 0.16) },
+      },
       bar('Bólus', 1, bolus, C.insulin),
       bar('Bázis', 1, basal, C.basal),
       bar('Szénhidrát', 2, carbs, C.carbs),
@@ -239,6 +254,9 @@ const rr = computed(() => props.day.range)
       <span class="k"><span class="sw" style="background: var(--status-serious)" /> &gt; {{ f1(rr.veryHigh) }}</span>
       <span class="k"><span class="sw" style="background: var(--series-insulin)" /> bólus</span>
       <span class="k"><span class="sw" style="background: var(--series-basal)" /> bázis</span>
+      <span v-if="day.activeInsulin" class="k" :title="`${day.activeInsulin.insulin ?? 'Bólusinzulin'}, hatásidő ${actionLabel(day.activeInsulin.durationMinutes)}`">
+        <span class="sw iob" /> aktív inzulin ({{ actionLabel(day.activeInsulin.durationMinutes) }})
+      </span>
     </div>
     <div ref="el" class="chart-box" />
   </div>
