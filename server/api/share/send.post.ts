@@ -1,6 +1,6 @@
 // Megtekintési link küldése e-mailben (1 óráig érvényes, csak olvasás).
 import { createShare, SHARE_TTL_SEC } from '../../utils/share'
-import { sendMail, publicOrigin, mailSettings, EMAIL_RE, escapeHtml } from '../../utils/mail'
+import { sendMail, publicOrigin, mailSettings, EMAIL_RE, escapeHtml, mailLayout } from '../../utils/mail'
 import { hmInTz } from '../../utils/time'
 import { db } from '../../utils/db'
 
@@ -27,13 +27,17 @@ export default defineEventHandler(async (event) => {
     '',
     'Ha nem számítottál erre a levélre, nyugodtan hagyd figyelmen kívül.',
   ].join('\n')
-  const html = [
-    '<p>Szia!</p>',
-    `<p><b>${escapeHtml(sender)}</b> megosztotta veled a cukornaplóját. Az alábbi linken <b>${hours} óráig (${until}-ig)</b> megnézheted, csak olvasni lehet.</p>`,
-    message ? `<p style="white-space:pre-wrap;border-left:3px solid #ccc;padding-left:10px">${escapeHtml(message)}</p>` : '',
-    `<p><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 16px;background:#2a78d6;color:#fff;border-radius:8px;text-decoration:none">Cukornapló megnyitása</a></p>`,
-    `<p style="color:#888;font-size:12px">Ha a gomb nem működik: ${escapeHtml(link)}<br>Ha nem számítottál erre a levélre, nyugodtan hagyd figyelmen kívül.</p>`,
-  ].join('\n')
+  const html = mailLayout({
+    title: 'Megosztott cukornapló',
+    preheader: `${sender} megosztotta veled a cukornaplóját – ${until}-ig megnézheted.`,
+    bodyHtml: [
+      `<p style="margin:0 0 16px"><b>${escapeHtml(sender)}</b> megosztotta veled a cukornaplóját. A linken keresztül megnézheted az adatokat, de módosítani nem lehet.</p>`,
+      message ? `<p style="margin:0 0 16px;padding:12px 16px;background:#f3f6fb;border-left:4px solid #2a78d6;border-radius:6px;white-space:pre-wrap;font-style:italic">${escapeHtml(message)}</p>` : '',
+      `<p style="margin:0 0 8px;padding:12px 16px;background:#fff7e6;border-radius:8px;font-size:15px">⏱ Érvényes: <b>${escapeHtml(until)}-ig</b> (${hours} óra)</p>`,
+    ].join('\n'),
+    button: { label: 'Cukornapló megnyitása', href: link },
+    footerHtml: `Ha a gomb nem működik, másold be a böngészőbe:<br><a href="${escapeHtml(link)}" style="color:#2a78d6;word-break:break-all">${escapeHtml(link)}</a><br><br>Ha nem számítottál erre a levélre, nyugodtan hagyd figyelmen kívül.`,
+  })
   try {
     await sendMail(email, `Cukornapló – megtekintési link (${until}-ig érvényes)`, text, html)
   } catch (e: any) {
