@@ -400,8 +400,8 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
 
     <!-- Asztali nézetben bal oldali sáv, keskeny kijelzőn a tartalom alatt. -->
     <aside class="home-side">
-      <TherapyCard />
       <BolusCalc v-if="!readOnly" />
+      <TherapyCard />
     </aside>
 
     <p class="muted small disclaimer">Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian és az InPen app értékeit használd.</p>
