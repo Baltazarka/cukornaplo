@@ -65,6 +65,22 @@ async function setSub(e: any, v: string) {
   await refresh()
 }
 
+// Egy inzulin- vagy CH-sor törlése (megerősítéssel). A telefon később sem tölti vissza.
+const deletingId = ref<number | null>(null)
+async function deleteEvent(e: any) {
+  const amount = e.type === 'carbs' ? `${fmt(e.v, 0)} g` : `${fmt(e.v)} E`
+  if (!confirm(`Biztos törlöd ezt a bejegyzést?\n\n${e.time}  ${eventLabel(e)}  ${amount}`)) return
+  deletingId.value = e.id
+  try {
+    await $fetch('/api/entry-delete', { method: 'POST', body: { id: e.id } })
+    await refresh()
+  } catch (err: any) {
+    alert(err?.data?.error ?? 'A törlés nem sikerült.')
+  } finally {
+    deletingId.value = null
+  }
+}
+
 const lowPct = (s: any) => (s?.n ? s.pct.low + s.pct.veryLow : null)
 
 const eventLabel = (e: any) =>
@@ -124,12 +140,12 @@ const eventDot = (e: any) =>
           <span class="muted">E</span>
           <button type="submit" class="ghost sm">Mentés</button>
         </form>
-        <p class="muted small">Minden adag bólus, kivéve a pontosan ekkora újonnan érkezőt (üresen hagyva kikapcsolva). Egy sor típusát a legördülővel javíthatod.</p>
+        <p class="muted small">Minden adag bólus, kivéve a pontosan ekkora újonnan érkezőt (üresen hagyva kikapcsolva). Egy sor típusát a legördülővel javíthatod, a × gombbal törölheted (a telefon sem tölti vissza).</p>
         <div v-if="data.events.length" class="table-wrap">
           <table class="table">
-            <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num">Glükóz</th></tr></thead>
+            <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num">Glükóz</th><th><span class="sr-only">Törlés</span></th></tr></thead>
             <tbody>
-              <tr v-for="(e, i) in data.events" :key="i">
+              <tr v-for="e in data.events" :key="e.id">
                 <td class="num">{{ e.time }}</td>
                 <td>
                   <span class="dot" :class="'dot-' + eventDot(e)" />
@@ -142,6 +158,13 @@ const eventDot = (e: any) =>
                 </td>
                 <td class="num">{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : fmt(e.v) + ' E' }}</td>
                 <td class="num">{{ e.glucose != null ? fmt(e.glucose) : '–' }}</td>
+                <td class="act">
+                  <button
+                    type="button" class="row-del" :disabled="deletingId === e.id"
+                    :aria-label="`${e.time} ${eventLabel(e)} törlése`" :title="'Törlés'"
+                    @click="deleteEvent(e)"
+                  >×</button>
+                </td>
               </tr>
             </tbody>
           </table>

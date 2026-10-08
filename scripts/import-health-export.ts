@@ -31,7 +31,14 @@ const TYPES: Record<string, string> = {
   HKQuantityTypeIdentifierDietaryCarbohydrates: 'carbs',
 }
 
-const insert = db.prepare('INSERT OR IGNORE INTO entries (type, ts, value, subtype, source, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+db.exec(`CREATE TABLE IF NOT EXISTS deleted_entries (
+  type TEXT NOT NULL, ts INTEGER NOT NULL, value REAL NOT NULL, deleted_at INTEGER NOT NULL,
+  PRIMARY KEY (type, ts, value))`)
+
+// A naplóból kézzel törölt bejegyzéseket az import sem tölti vissza.
+const insert = db.prepare(`INSERT OR IGNORE INTO entries (type, ts, value, subtype, source, created_at)
+  SELECT ?, ?, ?, ?, ?, ?
+  WHERE NOT EXISTS (SELECT 1 FROM deleted_entries WHERE type = ? AND ts = ? AND value = ?)`)
 const now = Math.floor(Date.now() / 1000)
 let batch: any[] = []
 let seen = 0, inserted = 0, errors = 0
@@ -39,7 +46,7 @@ let seen = 0, inserted = 0, errors = 0
 function flush() {
   if (!batch.length) return
   db.exec('BEGIN')
-  for (const r of batch) inserted += Number(insert.run(r.type, r.ts, r.value, r.subtype, r.source, now).changes)
+  for (const r of batch) inserted += Number(insert.run(r.type, r.ts, r.value, r.subtype, r.source, now, r.type, r.ts, r.value).changes)
   db.exec('COMMIT')
   batch = []
 }

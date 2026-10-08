@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
     return { ok: false, error: 'Megerősítés szükséges.' }
   }
   db().exec('DELETE FROM entries')
+  db().exec('DELETE FROM deleted_entries')
   db().exec('DELETE FROM login_failures')
   resetSettings()
   try {
