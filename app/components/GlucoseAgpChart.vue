@@ -9,47 +9,13 @@ let chart: any = null
 let echarts: any = null
 let ro: ResizeObserver | null = null
 
-function token(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-}
+const token = cssToken
 function num(v: number, dec: number): string {
   return v.toLocaleString('hu-HU', { minimumFractionDigits: dec, maximumFractionDigits: dec })
 }
 function hm(min: number): string {
   const m = Math.round(min) % 1440
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
-}
-function rgba(hex: string, a: number): string {
-  const h = hex.replace('#', '')
-  const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16)
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
-}
-
-// Kitöltési minták (ECharts elfogad canvas-mintát színként).
-function hatch(color: string) {
-  const c = document.createElement('canvas')
-  c.width = c.height = 8
-  const x = c.getContext('2d')!
-  x.fillStyle = rgba(color, 0.18)
-  x.fillRect(0, 0, 8, 8)
-  x.strokeStyle = color
-  x.lineWidth = 2
-  x.beginPath()
-  x.moveTo(-2, 2); x.lineTo(2, -2)
-  x.moveTo(0, 8); x.lineTo(8, 0)
-  x.moveTo(6, 10); x.lineTo(10, 6)
-  x.stroke()
-  return { image: c, repeat: 'repeat' }
-}
-function dots(color: string) {
-  const c = document.createElement('canvas')
-  c.width = c.height = 6
-  const x = c.getContext('2d')!
-  x.fillStyle = color
-  x.beginPath()
-  x.arc(3, 3, 1, 0, Math.PI * 2)
-  x.fill()
-  return { image: c, repeat: 'repeat' }
 }
 
 function buildOption() {
@@ -67,10 +33,6 @@ function buildOption() {
     insulin: token('--series-insulin'),
     basal: token('--series-basal'),
     carbs: token('--series-carbs'),
-    good: token('--status-good'),
-    warning: token('--status-warning'),
-    serious: token('--status-serious'),
-    critical: token('--status-critical'),
   }
 
   const x = a.minutes as number[]
@@ -79,13 +41,7 @@ function buildOption() {
     hi.map((v, i) => (v == null || lo[i] == null ? [x[i], null] : [x[i], Math.max(0, v - (lo[i] as number))]))
 
   // A 25–75% sáv tartományonkénti szeletei: minden szeletnél [alap, magasság] halmozott terület.
-  const bands: [number, number, any][] = [
-    [0, r.veryLow, C.critical],
-    [r.veryLow, r.low, hatch(C.critical)],
-    [r.low, r.high, rgba(C.good, 0.55)],
-    [r.high, r.veryHigh, hatch(C.warning)],
-    [r.veryHigh, 40, C.serious],
-  ]
+  const bands: [number, number, any][] = Object.values(rangeFills(r)).map((b) => [b.lo, b.hi, b.color])
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
   const iqrSeries = bands.flatMap(([lo, hi, color], bi) => {
     const base = a.p25.map((v: number | null, i: number) => (v == null || a.p75[i] == null ? null : clamp(v, lo, hi)))
@@ -134,6 +90,7 @@ function buildOption() {
   const xAxisFor = (gridIndex: number) => ({
     type: 'value' as const,
     gridIndex,
+    containShape: false, // ECharts 6: különben az oszlopok miatt kitágítaná a tengelyt, és a panelek elcsúsznának
     min: 0,
     max: 1440,
     interval: 120,
@@ -163,9 +120,9 @@ function buildOption() {
       panelTitle('Szénhidrát', 'g / óra, napi átlag', 398),
     ],
     grid: [
-      { left: GRID_LEFT, right: 16, top: 30, height: 208 },
-      { left: GRID_LEFT, right: 16, top: 294, height: 78 },
-      { left: GRID_LEFT, right: 16, top: 422, height: 78 },
+      { left: GRID_LEFT, right: 16, top: 30, height: 208, outerBoundsMode: 'none' },
+      { left: GRID_LEFT, right: 16, top: 294, height: 78, outerBoundsMode: 'none' },
+      { left: GRID_LEFT, right: 16, top: 422, height: 78, outerBoundsMode: 'none' },
     ],
     axisPointer: { link: [{ xAxisIndex: 'all' }], lineStyle: { color: C.axis } },
     tooltip: {
@@ -183,7 +140,7 @@ function buildOption() {
       { type: 'line', xAxisIndex: 0, yAxisIndex: 0, stack: 'outer', data: pts(a.p5), symbol: 'none', silent: true,
         lineStyle: { width: 0 }, connectNulls: false, smooth: 0.3, z: 1, tooltip: { show: false } },
       { type: 'line', xAxisIndex: 0, yAxisIndex: 0, stack: 'outer', data: diff(a.p95, a.p5), symbol: 'none', silent: true,
-        lineStyle: { width: 0 }, areaStyle: { color: dots(C.muted), opacity: 1 }, connectNulls: false, smooth: 0.3, z: 1, tooltip: { show: false } },
+        lineStyle: { width: 0 }, areaStyle: { color: dotPattern(C.muted), opacity: 1 }, connectNulls: false, smooth: 0.3, z: 1, tooltip: { show: false } },
       ...iqrSeries,
       {
         name: 'Medián', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: pts(a.p50), symbol: 'none', z: 4,

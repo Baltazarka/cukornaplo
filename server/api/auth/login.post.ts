@@ -1,4 +1,4 @@
-import { verifyPassword, getSession, loginLockedFor, loginFailed, loginSucceeded } from '../../utils/auth'
+import { verifyPassword, authSession, loginLockedFor, loginFailed, loginSucceeded } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
   const wait = loginLockedFor(event)
@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   const body = (await readBody(event)) ?? {}
   if (await verifyPassword(String(body.password ?? ''))) {
     loginSucceeded(event)
-    const session = await getSession(event)
+    const session = await authSession(event)
     await session.update({ auth: true })
     return { ok: true }
   }

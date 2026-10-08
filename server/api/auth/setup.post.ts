@@ -1,5 +1,5 @@
 // Első jelszó beállítása (csak ha még nincs jelszó). Nyilvános szerveren beállító kóddal.
-import { hasPassword, setPassword, getSession, isLocalRequest, setupCodeMatches, loginLockedFor, loginFailed } from '../../utils/auth'
+import { hasPassword, setPassword, authSession, isLocalRequest, setupCodeMatches, loginLockedFor, loginFailed } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
   if (hasPassword()) {
@@ -34,6 +34,6 @@ export default defineEventHandler(async (event) => {
   await setPassword(p1)
   saveSettings({ setup_code: null })
   if (!setting('api_token')) saveSettings({ api_token: newToken() })
-  await (await getSession(event)).update({ auth: true })
+  await (await authSession(event)).update({ auth: true })
   return { ok: true }
 })

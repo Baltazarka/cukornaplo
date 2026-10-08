@@ -1,7 +1,7 @@
 // Minden elölről: a mért adatok ÉS az összes beállítás (jelszó, kulcs, CareLink) törlése.
 import { db } from '../utils/db'
 import { resetSettings } from '../utils/settings'
-import { getSession } from '../utils/auth'
+import { authSession } from '../utils/auth'
 import { CL_RAW_FILE } from '../utils/carelink'
 import { unlinkSync } from 'node:fs'
 import { join } from 'node:path'
@@ -19,6 +19,6 @@ export default defineEventHandler(async (event) => {
   try {
     unlinkSync(join(dataDir(), CL_RAW_FILE))
   } catch { /* nincs ilyen fájl */ }
-  await (await getSession(event)).clear()
+  await (await authSession(event)).clear()
   return { ok: true }
 })

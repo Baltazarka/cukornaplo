@@ -1,15 +1,35 @@
 // SQLite a Node beépített node:sqlite moduljával (nincs natív fordítás).
 // A séma a korábbi PHP-s változattal azonos, így a régi diabetes.sqlite gond nélkül átvihető.
-import { DatabaseSync } from 'node:sqlite'
+import type { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
 let _db: DatabaseSync | null = null
+
+/**
+ * A node:sqlite betöltése. A Node 22 betöltéskor „ExperimentalWarning: SQLite is an experimental
+ * feature” figyelmeztetést ír, amit a Nuxt dev szerver ERROR-ként mutat. Csak ezt az egyet némítjuk el.
+ */
+function loadSqlite(): typeof import('node:sqlite') {
+  const original = process.emitWarning
+  process.emitWarning = ((warning: any, ...args: any[]) => {
+    const type = typeof args[0] === 'string' ? args[0] : args[0]?.type ?? warning?.name
+    if (type === 'ExperimentalWarning' && String(warning?.message ?? warning).includes('SQLite')) return
+    return (original as any).call(process, warning, ...args)
+  }) as typeof process.emitWarning
+  try {
+    return createRequire(import.meta.url)('node:sqlite')
+  } finally {
+    process.emitWarning = original
+  }
+}
 
 export function db(): DatabaseSync {
   if (_db) return _db
   const dir = dataDir()
   mkdirSync(dir, { recursive: true })
+  const { DatabaseSync } = loadSqlite()
   const d = new DatabaseSync(join(dir, 'diabetes.sqlite'))
   d.exec('PRAGMA journal_mode = WAL')
   d.exec('PRAGMA busy_timeout = 5000')

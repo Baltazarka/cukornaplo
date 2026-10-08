@@ -36,7 +36,7 @@ function sessionSecret(): string {
   return s
 }
 
-export function getSession(event: H3Event) {
+export function authSession(event: H3Event) {
   return useSession<{ auth?: boolean }>(event, {
     password: sessionSecret(),
     name: 'cukornaplo_sess',
@@ -45,7 +45,7 @@ export function getSession(event: H3Event) {
 }
 
 export async function isAuthed(event: H3Event): Promise<boolean> {
-  return !!(await getSession(event)).data.auth
+  return !!(await authSession(event)).data.auth
 }
 
 export async function requireAuth(event: H3Event): Promise<void> {
