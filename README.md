@@ -52,10 +52,11 @@ használd az Adatok → Visszaállítás → *Minden elölről* gombot, majd ál
 
 ## Docker (Raspberry Pi)
 
-Image build és feltöltés a repó gyökeréből:
+Image build és feltöltés a repó gyökeréből (csak 64 bites Pi OS / DietPi: a `node:24-alpine`
+image-nek nincs 32 bites ARM változata):
 
 ```bash
-docker buildx build --platform linux/arm64,linux/arm/v7 -t baltazarka/cukornaplo-nuxt:latest --push .
+docker buildx build --platform linux/arm64 -t baltazarka/cukornaplo-nuxt:latest --push .
 ```
 
 Futtatás: a `docker-compose.yml` (vagy ugyanez Portainer-stackként). Környezeti változók:
