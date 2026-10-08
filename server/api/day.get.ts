@@ -8,6 +8,7 @@ import { therapy, daySegments } from '../utils/therapy'
 import { changeTime, lastTrend } from '../utils/trend'
 import { insulinKind, MEAL_WINDOW_SEC } from '../utils/insulinKind'
 import { notesBetween } from '../utils/notes'
+import { assumedBasalDose } from '../utils/basal'
 import { rapidDoses, iobAt, bolusPeak } from '../utils/iob'
 import { detectHypos, hypoCount } from '../utils/hypo'
 
@@ -46,6 +47,9 @@ export default defineEventHandler((event) => {
   const dayInsulin = dayRows.insulin.reduce((a, e) => a + e.v, 0)
   const sumKind = (k: string) => dayRows.insulin.filter((e) => e.kind === k).reduce((a, e) => a + e.v, 0)
   const dayCarbs = dayRows.carbs.reduce((a, e) => a + e.v, 0)
+  // Lezárt napon, ha volt InPen-adat, de bázis nem: a beállított bázisadaggal számolunk (becsült).
+  const basalDose = assumedBasalDose()
+  const basalAssumed = day < today && basalDose != null && sumKind('basal') === 0 && dayRows.insulin.length > 0
   // Lefedettség: a mérések száma az eltelt időhöz képest (ma csak a mostanáig eltelt rész számít).
   const elapsedSec = Math.min(dayEnd, Math.floor(Date.now() / 1000)) - dayStart
   const coverage = dayStats.n && elapsedSec > 0 ? Math.min(100, (100 * dayStats.n) / (elapsedSec / 300)) : 0
@@ -88,7 +92,14 @@ export default defineEventHandler((event) => {
       kind: (e as any).kind ?? null, auto: (e as any).auto ?? false, noCarbs: (e as any).noCarbs ?? false,
     })),
     stats: { day: dayStats, range14: rangeStats },
-    totals: { insulin: dayInsulin, meal: sumKind('meal'), correction: sumKind('correction'), basal: sumKind('basal'), carbs: dayCarbs },
+    totals: {
+      insulin: dayInsulin + (basalAssumed ? basalDose! : 0),
+      meal: sumKind('meal'),
+      correction: sumKind('correction'),
+      basal: basalAssumed ? basalDose! : sumKind('basal'),
+      basalAssumedDays: basalAssumed ? 1 : 0,
+      carbs: dayCarbs,
+    },
     iobNow,
     trend: lastTrend(dayRows.glucose),
     hypos: hypoCount(detectHypos(dayRows.glucose, low, RANGE_VERY_LOW)),

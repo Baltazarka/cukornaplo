@@ -8,6 +8,8 @@ import { groupByDay, summaryRows } from '../utils/summary'
 import { changeTime, type GPoint } from '../utils/trend'
 import { insulinKind } from '../utils/insulinKind'
 import { detectHypos, hypoCount } from '../utils/hypo'
+import { assumedBasalDose } from '../utils/basal'
+import { ymdInTz } from '../utils/time'
 
 const PERIODS = [7, 14, 30]
 const BIN_MIN = 15 // 96 sáv naponta
@@ -47,6 +49,7 @@ export default defineEventHandler((event) => {
   const glucose: number[] = []
   const gPoints: GPoint[] = []
   const carbTs = rows.filter((r) => r.type === 'carbs').map((r) => Number(r.ts))
+  const basalDays = new Set<string>()
   for (const r of rows) {
     const m = minuteOfDayInTz(Number(r.ts))
     const v = Number(r.value)
@@ -57,6 +60,7 @@ export default defineEventHandler((event) => {
     } else if (r.type === 'insulin') {
       const kind = insulinKind(Number(r.ts), r.subtype, carbTs).kind
       ;(kind === 'basal' ? basal : kind === 'meal' ? meal : correction)[Math.floor(m / 60)] += v
+      if (kind === 'basal') basalDays.add(ymdInTz(Number(r.ts)))
     } else {
       carbs[Math.floor(m / 60)] += v
     }
@@ -85,7 +89,13 @@ export default defineEventHandler((event) => {
   const coverage = elapsedSec > 0 ? Math.min(100, (100 * glucose.length) / (elapsedSec / 300)) : 0
 
   const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0)
-  const totalInsulin = sum(meal) + sum(correction) + sum(basal)
+  // Lezárt napok InPen-adattal, de bázis nélkül: a beállított bázisadaggal számolunk (becsült).
+  const basalDose = assumedBasalDose()
+  const assumedDays = basalDose == null
+    ? 0
+    : Object.entries(daily).filter(([k, d]) => k < today && d.insulin > 0 && !basalDays.has(k)).length
+  const totalBasal = sum(basal) + assumedDays * (basalDose ?? 0)
+  const totalInsulin = sum(meal) + sum(correction) + totalBasal
   const totalCarbs = carbs.reduce((a, b) => a + b, 0)
 
   return {
@@ -104,7 +114,8 @@ export default defineEventHandler((event) => {
       insulinPerDay: totalInsulin / penDays,
       mealPerDay: sum(meal) / penDays,
       correctionPerDay: sum(correction) / penDays,
-      basalPerDay: sum(basal) / penDays,
+      basalPerDay: totalBasal / penDays,
+      basalAssumedDays: assumedDays,
       carbsPerDay: totalCarbs / penDays,
       penDays,
     },

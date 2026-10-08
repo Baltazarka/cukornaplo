@@ -139,7 +139,7 @@ const trendText = computed(() => {
             <dd>{{ result.correction > 0 ? '+' : '' }}{{ fmt(result.correction, 2) }} E</dd>
           </div>
           <div v-if="result.iobUsed > 0">
-            <dt>Aktív inzulin <span class="muted">a korrekcióból</span></dt>
+            <dt>Aktív inzulin <span class="muted">{{ result.iobFromMeal ? 'célérték alatt az étkezésiből' : 'a korrekcióból' }}</span></dt>
             <dd>−{{ fmt(result.iobUsed, 2) }} E</dd>
           </div>
           <div class="bc-sum"><dt>Számított</dt><dd>{{ fmt(result.total, 2) }} E</dd></div>

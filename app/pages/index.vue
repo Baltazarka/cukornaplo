@@ -239,7 +239,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
 
     <StatTiles
       :stats="data.stats.day" :change="data.change" :range="data.range" :coverage="data.coverage" :hypos="data.hypos"
-      :insulin="{ total: data.totals.insulin, meal: data.totals.meal, correction: data.totals.correction, basal: data.totals.basal }" :carbs="data.totals.carbs"
+      :insulin="{ total: data.totals.insulin, meal: data.totals.meal, correction: data.totals.correction, basal: data.totals.basal, basalAssumedDays: data.totals.basalAssumedDays }" :carbs="data.totals.carbs" :partial="data.day === data.today"
     />
 
     <section class="card">

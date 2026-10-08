@@ -127,10 +127,13 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
           <div><span>Alacsony (TBR)</span><b>{{ fmt(tbr, 0) }} <small>%</small></b></div>
           <div><span>Változásban (≥ 0,06/perc)</span><b>{{ fmt(rep.change?.any, 0) }} <small>%</small></b></div>
           <div><span>Inzulin naponta</span><b>{{ fmt(agp.totals.insulinPerDay) }} <small>E</small></b></div>
-          <div><span>Bólus / korrekció / bázis</span><b class="kpi-split">{{ fmt(agp.totals.mealPerDay) }} / {{ fmt(agp.totals.correctionPerDay) }} / {{ fmt(agp.totals.basalPerDay) }} <small>E</small></b></div>
+          <div><span>Bólus / korrekció / bázis{{ agp.totals.basalAssumedDays ? '*' : '' }}</span><b class="kpi-split">{{ fmt(agp.totals.mealPerDay) }} / {{ fmt(agp.totals.correctionPerDay) }} / {{ fmt(agp.totals.basalPerDay) }} <small>E</small></b></div>
           <div><span>Szénhidrát naponta</span><b>{{ fmt(agp.totals.carbsPerDay, 0) }} <small>g</small></b></div>
           <div><span>Napok InPen-adattal</span><b>{{ agp.totals.penDays }}</b></div>
         </div>
+        <p v-if="agp.totals.basalAssumedDays" class="muted small">
+          * {{ agp.totals.basalAssumedDays }} napon nem volt bázis a naplóban; ott a beállított bázisadaggal számoltunk (becsült).
+        </p>
         <div v-if="s.n" class="report-tir">
           <div class="tir-hbar">
             <template v-for="[k] in BANDS" :key="k">
@@ -283,7 +286,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
               átlag {{ fmt(d.stats.n ? d.stats.avg : null) }} · TIR {{ fmt(d.stats.n ? d.stats.pct.inRange : null, 0) }}% ·
               TBR {{ fmt(d.stats.n ? d.stats.pct.low + d.stats.pct.veryLow : null, 0) }}% · CV {{ fmt(d.stats.n ? d.stats.cv : null, 0) }}% ·
               inzulin {{ fmt(d.totals.meal + d.totals.correction + d.totals.basal) }} E
-              ({{ fmt(d.totals.meal) }} / {{ fmt(d.totals.correction) }} / {{ fmt(d.totals.basal) }}) ·
+              ({{ fmt(d.totals.meal) }} / {{ fmt(d.totals.correction) }} / {{ fmt(d.totals.basal) }}{{ d.totals.basalAssumed ? '*' : '' }}) ·
               CH {{ fmt(d.totals.carbs, 0) }} g · szenzor {{ d.coverage }}%
             </span>
           </header>

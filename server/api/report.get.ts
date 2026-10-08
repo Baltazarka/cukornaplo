@@ -7,6 +7,7 @@ import { startOfDayTs, todayYmd, addDaysYmd, huWeekday, hmInTz, minuteOfDayInTz,
 import { insulinKind, MEAL_WINDOW_SEC } from '../utils/insulinKind'
 import { changeTime } from '../utils/trend'
 import { notesBetween } from '../utils/notes'
+import { assumedBasalDose } from '../utils/basal'
 
 const PERIODS = [7, 14, 30]
 
@@ -57,6 +58,7 @@ export default defineEventHandler((event) => {
   }
 
   const notes = notesBetween(from, to)
+  const basalDose = assumedBasalDose()
   const out = [...byDay.values()].map((d) => {
     // A bejegyzések mellé a legközelebbi (±10 perc) glükózérték.
     for (const e of d.events) {
@@ -69,6 +71,8 @@ export default defineEventHandler((event) => {
     }
     const stats = glucoseStats(d.glucose.map((g) => g[1]), low, high)
     const sum = (pred: (e: Day['events'][number]) => boolean) => d.events.filter(pred).reduce((a, e) => a + e.v, 0)
+    // Lezárt nap InPen-adattal, de bázis nélkül: a beállított bázisadag (becsült).
+    const basalAssumed = basalDose != null && d.date < today && sum((e) => e.kind === 'basal') === 0 && d.events.some((e) => e.type === 'insulin')
     return {
       ...d,
       notes: notes.filter((n) => n.day === d.date).map((n) => ({ time: n.time, minute: n.minute, tags: n.tags, text: n.text })),
@@ -77,7 +81,8 @@ export default defineEventHandler((event) => {
       totals: {
         meal: sum((e) => e.kind === 'meal' || e.kind === 'meal-nocarb'),
         correction: sum((e) => e.kind === 'correction'),
-        basal: sum((e) => e.kind === 'basal'),
+        basal: basalAssumed ? basalDose! : sum((e) => e.kind === 'basal'),
+        basalAssumed,
         carbs: sum((e) => e.type === 'carbs'),
       },
     }

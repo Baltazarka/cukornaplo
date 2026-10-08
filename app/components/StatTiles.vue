@@ -5,13 +5,16 @@ const props = defineProps<{
   stats: any
   change: { slow: number; moderate: number; rapid: number; any: number } | null
   range: { low: number; high: number }
-  insulin: { total: number; meal: number; correction: number; basal: number }
+  /** `basalAssumedDays`: hány napon számoltunk a beállított bázisadaggal, mert nem volt naplózva. */
+  insulin: { total: number; meal: number; correction: number; basal: number; basalAssumedDays?: number }
   carbs: number
   coverage: number
   /** Hipóesemények (≥ 15 perc a céltartomány alatt) száma, ebből 2. szint. */
   hypos?: { n: number; level2: number } | null
   /** Időszakos nézetben „naponta” értendő az inzulin és a CH. */
   perDay?: boolean
+  /** A mai, még le nem zárt nap: az inzulin és a CH csak az eddigi. */
+  partial?: boolean
 }>()
 
 function fmt(v: number | null | undefined, dec = 1): string {
@@ -93,12 +96,17 @@ const donut = computed(() => {
         ><title>{{ p.label }}: {{ fmt(p.pct, 0) }}% ({{ fmt(p.v) }} E)</title></circle>
       </svg>
       <div class="tile-sub tile-split">
-        <span v-for="p in insulinPct" :key="p.key" :title="`${p.label}: ${fmt(p.v)} E`"><i class="dot" :class="`dot-${p.cls}`" />{{ p.label }} {{ fmt(p.pct, 0) }}%</span>
+        <span v-for="p in insulinPct" :key="p.key" :title="`${p.label}: ${fmt(p.v)} E`"><i class="dot" :class="`dot-${p.cls}`" />{{ p.label }} {{ fmt(p.pct, 0) }}%<template v-if="p.key === 'basal' && insulin.basalAssumedDays">*</template></span>
       </div>
+      <div v-if="insulin.basalAssumedDays" class="tile-sub muted" title="Ezeken a napokon nem volt bázis a naplóban, ezért a főoldalon beállított bázisadaggal számoltunk.">
+        * becsült bázis{{ perDay ? ` (${insulin.basalAssumedDays} napon)` : '' }}
+      </div>
+      <div v-else-if="partial" class="tile-sub muted">ma eddig, a nap még nem zárult le</div>
     </div>
     <div class="tile">
       <div class="tile-label">{{ perDay ? 'Szénhidrát naponta' : 'Összes szénhidrát' }}</div>
       <div class="tile-value">{{ fmt(carbs, 0) }} <small>g</small></div>
+      <div v-if="partial" class="tile-sub muted">ma eddig</div>
     </div>
   </section>
 </template>
