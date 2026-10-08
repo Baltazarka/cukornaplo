@@ -31,27 +31,19 @@ function num(v: number, dec: number): string {
   return v.toLocaleString('hu-HU', { minimumFractionDigits: dec, maximumFractionDigits: dec })
 }
 
-/** Lineáris közelítés a görbe pontjai között (a hiányzó érték 0). */
-function interp(points: [number, number | null][], t: number): number {
-  let i = points.findIndex((p) => p[0] > t)
-  if (i <= 0) return i === 0 ? (points[0][1] ?? 0) : (points.at(-1)?.[1] ?? 0)
-  const [x0, y0] = points[i - 1]
-  const [x1, y1] = points[i]
-  return (y0 ?? 0) + (((y1 ?? 0) - (y0 ?? 0)) * (t - x0)) / (x1 - x0)
-}
-
-/** Az aktív inzulin görbéje az oszlopok helyén megszakítva, a széleken a görbe értékével. */
-function iobAroundBars(points: [number, number | null][], bars: number[][], halfMs: number) {
-  if (!points.length) return []
-  const gaps = bars.map((b) => [Math.min(b[0], b[2]) - halfMs, Math.max(b[0], b[2]) + halfMs])
-  const inGap = (t: number) => gaps.some(([a, b]) => t >= a && t <= b)
-  const out: [number, number | null][] = points.filter((p) => !inGap(p[0]))
-  const edge = (t: number): number | null => {
-    const v = interp(points, t)
-    return v >= 0.01 ? Math.round(v * 100) / 100 : null
+/**
+ * Egy bólus saját hatásgörbéje: a még aktív része E-ben, 5 percenként, az oszlop jobb szélétől
+ * (`startMs`) a hatásidő végéig. `drop`: a vonal félvastagsága E-ben, hogy a vonal teteje pontosan
+ * az oszlop tetejével essen egy magasságba.
+ */
+function doseCurve(model: ReturnType<typeof insulinModel>, dia: number, doseMs: number, dose: number, startMs: number, drop: number) {
+  const pts: [number, number][] = []
+  const endMs = doseMs + dia * 60000
+  for (let t = startMs; t < endMs; t = t + 5 * 60000 - ((t - doseMs) % (5 * 60000))) {
+    pts.push([t, Math.max(0, dose * model.iob((t - doseMs) / 60000) - drop)])
   }
-  for (const [a, b] of gaps) out.push([a, edge(a)], [(a + b) / 2, null], [b, edge(b)])
-  return out.sort((p, q) => p[0] - q[0])
+  pts.push([endMs, 0])
+  return pts
 }
 
 function buildOption() {
@@ -111,13 +103,22 @@ function buildOption() {
   const carbs = d.carbs.map((p: any[]) => [p[0], p[1]])
   // A bólusok még hatásban lévő inzulinja (a terápiás beállítások hatásidejével). Az oszlop helyén
   // megszakítjuk, és egy pixellel az oszlop alól indul: így nem lóg ki a teteje fölé, és nincs rés sem.
-  const iobRaw: [number, number | null][] = d.activeInsulin?.points ?? []
-  // Rögzített inzulin-skála, hogy pixelre tudjuk igazítani: a görbe vonala (félvastagsággal lejjebb
-  // tolva) pontosan az oszlop tetejével egy magasságban folytatódik, lépcső nélkül.
-  const insMax = niceMax(Math.max(1, ...d.insulin.map((p: any[]) => p[1]), ...iobRaw.map((p) => p[1] ?? 0)))
-  const halfLine = (IOB_LINE / 2) * (insMax / INS_HEIGHT)
-  const iob = iobAroundBars(iobRaw, bolus, (BAR_WIDTH / 2 - 1) * msPerPx)
-    .map(([x, v]) => [x, v == null ? null : Math.max(0, v - halfLine)])
+  // Minden bólus saját görbéje az oszlopa tetejéről indul, és mutatja, meddig hat még.
+  // (Az összesített aktív inzulint a buborék írja ki.)
+  const ai = d.activeInsulin
+  const iobTotal: [number, number | null][] = ai?.points ?? []
+  const insMax = niceMax(Math.max(1, ...d.insulin.map((p: any[]) => p[1]), ...iobTotal.map((p) => p[1] ?? 0)))
+  const drop = (IOB_LINE / 2) * (insMax / INS_HEIGHT)
+  const curves: [number, number][][] = []
+  if (ai) {
+    const model = insulinModel(ai.peakMinutes, ai.durationMinutes)
+    const edgeMs = (BAR_WIDTH / 2 - 1) * msPerPx
+    for (const [doseMs, dose] of ai.doses as [number, number][]) {
+      const bar = bolus.find((p: number[]) => p[2] === doseMs)
+      const startMs = bar ? bar[0] + edgeMs : doseMs
+      curves.push(doseCurve(model, ai.durationMinutes, doseMs, dose, startMs, drop))
+    }
+  }
 
   const fmtTooltip = (params: any) => {
     const x = Array.isArray(params) ? params[0]?.axisValue : params.axisValue
@@ -140,10 +141,10 @@ function buildOption() {
       const b = p[2] === 'basal'
       html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${b ? C.basal : C.insulin};margin-right:6px"></span>${b ? 'Bázis' : 'Bólus'} <b>${num(p[1], 2)}</b> E</div>`
     }
-    if (iob.length) {
+    if (iobTotal.length) {
       let best: number | null = null
       let bd = Infinity
-      for (const p of d.activeInsulin.points as [number, number | null][]) {
+      for (const p of iobTotal) {
         const diff = Math.abs(p[0] - x)
         if (diff < bd) { bd = diff; best = p[1] }
       }
@@ -229,10 +230,10 @@ function buildOption() {
           data: [{ yAxis: r.low }, { yAxis: r.high }],
         },
       },
-      {
-        name: 'Aktív inzulin', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: iob, symbol: 'none', silent: true, z: 2,
-        connectNulls: false, lineStyle: { width: IOB_LINE, color: C.insulin }, areaStyle: { color: rgba(C.insulin, 0.16) },
-      },
+      ...curves.map((data) => ({
+        name: 'Aktív inzulin', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data, symbol: 'none', silent: true, z: 2,
+        lineStyle: { width: IOB_LINE, color: C.insulin }, areaStyle: { color: rgba(C.insulin, 0.12) },
+      })),
       bar('Bólus', 1, bolus.map((p: number[]) => [p[0], p[1]]), C.insulin),
       bar('Bázis', 1, basal, C.basal),
       bar('Szénhidrát', 2, carbs, C.carbs),
@@ -296,7 +297,7 @@ const rr = computed(() => props.day.range)
       <span class="k"><span class="sw" style="background: var(--series-insulin)" /> bólus</span>
       <span class="k"><span class="sw" style="background: var(--series-basal)" /> bázis</span>
       <span v-if="day.activeInsulin" class="k" :title="`${day.activeInsulin.insulin ?? 'Bólusinzulin'}, hatásidő ${actionLabel(day.activeInsulin.durationMinutes)}`">
-        <span class="sw iob" /> aktív inzulin ({{ actionLabel(day.activeInsulin.durationMinutes) }})
+        <span class="sw iob" /> bólus hatása ({{ actionLabel(day.activeInsulin.durationMinutes) }})
       </span>
     </div>
     <div ref="el" class="chart-box" />

@@ -119,7 +119,14 @@ function iobCurve(dayStart: number, dayEnd: number) {
   const out = points.map((p, i) =>
     p[1] === 0 && (points[i - 1]?.[1] ?? 0) === 0 && (points[i + 1]?.[1] ?? 0) === 0 ? [p[0], null] : p,
   )
-  return { insulin: info?.name ?? null, peakMinutes: model.peak, durationMinutes: dia, points: out }
+  return {
+    insulin: info?.name ?? null,
+    peakMinutes: info?.peakMinutes ?? 75,
+    durationMinutes: dia,
+    points: out,
+    // Az egyes bólusok (az előző esti, még ható adagokkal együtt) a saját görbéjükhöz.
+    doses: doses.map((d) => [d.ts * 1000, d.v]),
+  }
 }
 
 function round2(v: number): number {
