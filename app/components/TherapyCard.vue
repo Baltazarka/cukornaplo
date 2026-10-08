@@ -19,6 +19,8 @@ const bolus = computed(() => insulinById(t.value?.bolusInsulin))
 const basal = computed(() => insulinById(t.value?.basalInsulin))
 const rows = computed(() => (t.value ? (t.value.byTimeOfDay ? t.value.segments : t.value.segments.slice(0, 1)) : []))
 const active = computed(() => (t.value ? activeSegment(t.value, minute.value) : -1))
+// A kártya görbéje a most érvényes napszak hatásidejével (ha annak van saját értéke).
+const activeAction = computed(() => (t.value ? rows.value[active.value]?.actionMinutes ?? t.value.actionMinutes : 0))
 
 function fmt(v: number, dec = 1): string {
   return v.toLocaleString('hu-HU', { minimumFractionDigits: dec, maximumFractionDigits: dec })
@@ -69,8 +71,11 @@ const updated = computed(() =>
         </tbody>
       </table>
       <div v-if="bolus?.peakMinutes" class="therapy-curve">
-        <h3>{{ bolus.name }} hatásgörbe</h3>
-        <ClientOnly><InsulinCurve :peak-minutes="bolus.peakMinutes" :duration-minutes="t.actionMinutes" /></ClientOnly>
+        <h3>
+          {{ bolus.name }} hatásgörbe
+          <span v-if="t.byTimeOfDay" class="muted small">most ({{ rows[active].start }}–{{ segmentEnd(rows, active) }})</span>
+        </h3>
+        <ClientOnly><InsulinCurve :peak-minutes="bolus.peakMinutes" :duration-minutes="activeAction" /></ClientOnly>
       </div>
       <p v-if="basal?.facts" class="muted small therapy-basal">
         <b>{{ basal.name }}:</b> {{ [basal.facts.peak, basal.facts.duration, basal.facts.note].filter(Boolean).join(', ') }}.
