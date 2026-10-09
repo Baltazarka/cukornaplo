@@ -42,7 +42,7 @@ function showGuide() {
   openGuide()
 }
 
-const themeIcon =computed(() => (theme.value === 'dark' ? '🌙' : theme.value === 'light' ? '☀️' : '🖥️'))
+const themeIcon = computed(() => (theme.value === 'dark' ? '🌙' : theme.value === 'light' ? '☀️' : '🖥️'))
 const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.value === 'light' ? 'Világos' : 'Rendszer'))
 </script>
 

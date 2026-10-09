@@ -161,11 +161,11 @@ export function analyze(from: number, to: number) {
   const maxDia = insulinById(t?.bolusInsulin)?.maxDurationMinutes ?? 300
   const targetAt = (ts: number) => (t ? segmentAt(t, ts).target : 6)
   // Bólusonkénti hatásmodell (a beadás napszakának hatásidejével) az ablakban hatott inzulinhoz.
-  const peakMin = insulinById(t?.bolusInsulin)?.peakMinutes ?? 75
+  const insulinPeakMin = insulinById(t?.bolusInsulin)?.peakMinutes ?? 75
   const models = new Map<number, ReturnType<typeof insulinModel>>()
   const modelOf = (ts: number) => {
     const dia = diaAt(ts)
-    if (!models.has(dia)) models.set(dia, insulinModel(peakMin, dia))
+    if (!models.has(dia)) models.set(dia, insulinModel(insulinPeakMin, dia))
     return models.get(dia)!
   }
   /** A bólusból a [t0, t1] ablakban hatott rész, E. */

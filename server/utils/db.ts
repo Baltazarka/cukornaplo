@@ -122,15 +122,15 @@ export interface Row {
   source: string | null
 }
 
-/**
- * Mentés; a már meglévő (azonos típus + időpont + érték) és a kézzel törölt sorokat kihagyja.
- * Visszaad [új, kihagyott].
- */
 /** A naplóba kézzel felvett inzulin / CH forrása. */
 export const MANUAL_SOURCE = 'manual'
 /** Ennyi időn belül azonos típusú és mennyiségű beérkező adat a kézi bejegyzés „párja”. */
 export const MANUAL_MATCH_SEC = 30 * 60
 
+/**
+ * Mentés; a már meglévő (azonos típus + időpont + érték) és a kézzel törölt sorokat kihagyja.
+ * Visszaad [új, kihagyott].
+ */
 export function storeRows(rows: Row[]): [number, number] {
   const d = db()
   // Kézi bejegyzés párja: ha az InPen / Health később ugyanazt az adagot küldi, a beérkező sor
