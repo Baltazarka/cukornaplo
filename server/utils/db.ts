@@ -126,8 +126,19 @@ export interface Row {
  * Mentés; a már meglévő (azonos típus + időpont + érték) és a kézzel törölt sorokat kihagyja.
  * Visszaad [új, kihagyott].
  */
+/** A naplóba kézzel felvett inzulin / CH forrása. */
+export const MANUAL_SOURCE = 'manual'
+/** Ennyi időn belül azonos típusú és mennyiségű beérkező adat a kézi bejegyzés „párja”. */
+export const MANUAL_MATCH_SEC = 30 * 60
+
 export function storeRows(rows: Row[]): [number, number] {
   const d = db()
+  // Kézi bejegyzés párja: ha az InPen / Health később ugyanazt az adagot küldi, a beérkező sor
+  // megmarad (pontosabb időpont), a kézi törlődik; a kézzel beállított típust / jelölést átvesszük.
+  const manualMatch = d.prepare(
+    'SELECT id, subtype FROM entries WHERE source = ? AND type = ? AND value = ? AND ts BETWEEN ? AND ? ORDER BY ABS(ts - ?) LIMIT 1',
+  )
+  const dropManual = d.prepare('DELETE FROM entries WHERE id = ?')
   const stmt = d.prepare(
     `INSERT OR IGNORE INTO entries (type, ts, value, subtype, source, created_at)
      SELECT ?, ?, ?, ?, ?, ?
@@ -142,8 +153,14 @@ export function storeRows(rows: Row[]): [number, number] {
   d.exec('BEGIN')
   try {
     for (const r of rows) {
-      const info = stmt.run(r.type, r.ts, r.value, r.subtype, r.source, now, r.type, r.ts, r.value)
+      const manual = r.type !== 'glucose' && r.source !== MANUAL_SOURCE
+        ? manualMatch.get(MANUAL_SOURCE, r.type, r.value, r.ts - MANUAL_MATCH_SEC, r.ts + MANUAL_MATCH_SEC, r.ts) as { id: number; subtype: string | null } | undefined
+        : undefined
+      // A beérkező általános „bolus” jelölésnél a kézi (étkezési / korrekció / bázis / zsíros / gyors) a pontosabb.
+      const sub = manual?.subtype && (r.subtype == null || r.subtype === 'bolus') ? manual.subtype : r.subtype
+      const info = stmt.run(r.type, r.ts, r.value, sub, r.source, now, r.type, r.ts, r.value)
       inserted += Number(info.changes)
+      if (manual && Number(info.changes) > 0) dropManual.run(manual.id)
       if (Number(info.changes) === 0 && r.subtype !== null) fill.run(r.subtype, r.type, r.ts, r.value)
     }
     d.exec('COMMIT')

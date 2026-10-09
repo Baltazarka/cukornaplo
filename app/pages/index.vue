@@ -151,11 +151,14 @@ const logRows = computed<any[]>(() =>
 const noteForm = ref<{ time: string; tags: string[]; text: string } | null>(null)
 const noteError = ref('')
 const noteSaving = ref(false)
-function openNoteForm() {
+function defaultTime() {
   const now = new Date()
-  const time = data.value?.day === data.value?.today
+  return data.value?.day === data.value?.today
     ? `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}` : '12:00'
-  noteForm.value = { time, tags: [], text: '' }
+}
+function openNoteForm() {
+  entryForm.value = null
+  noteForm.value = { time: defaultTime(), tags: [], text: '' }
   noteError.value = ''
 }
 function toggleNoteTag(id: string) {
@@ -175,6 +178,34 @@ async function saveNote() {
     noteSaving.value = false
   }
 }
+// Kézi inzulin / CH: időpont (mai napon most, különben 12:00), mennyiség, típus vagy jelölés.
+const entryForm = ref<{ type: 'insulin' | 'carbs'; time: string; value: string; sub: string } | null>(null)
+const entryError = ref('')
+const entrySaving = ref(false)
+function openEntryForm(type: 'insulin' | 'carbs') {
+  noteForm.value = null
+  entryForm.value = { type, time: defaultTime(), value: '', sub: '' }
+  entryError.value = ''
+}
+async function saveEntry(force = false) {
+  const f = entryForm.value!
+  entrySaving.value = true
+  entryError.value = ''
+  try {
+    await $fetch('/api/entry-add', { method: 'POST', body: { date: data.value!.day, ...f, force } })
+    entryForm.value = null
+    await refresh()
+  } catch (e: any) {
+    // Hasonló bejegyzés a közelben (pl. az InPen már elküldte): rákérdezünk.
+    if (e?.data?.duplicate && !force && confirm(`${e.data.error}
+
+Mégis felveszed?`)) return saveEntry(true)
+    entryError.value = e?.data?.duplicate ? '' : e?.data?.error ?? 'A mentés nem sikerült.'
+  } finally {
+    entrySaving.value = false
+  }
+}
+
 async function deleteNote(n: any) {
   const what = [...n.tags.map(noteTagLabel), n.text].filter(Boolean).join(', ')
   if (!confirm(`Biztos törlöd ezt a jegyzetet?\n\n${n.time}  ${what}`)) return
@@ -264,8 +295,41 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
       <section class="card">
         <div class="card-head">
           <h2>Napló</h2>
-          <button v-if="!readOnly && !noteForm" type="button" class="ghost sm" @click="openNoteForm">+ Jegyzet</button>
+          <div v-if="!readOnly && !noteForm && !entryForm" class="log-add">
+            <button type="button" class="ghost sm" @click="openEntryForm('insulin')">+ Inzulin</button>
+            <button type="button" class="ghost sm" @click="openEntryForm('carbs')">+ CH</button>
+            <button type="button" class="ghost sm" @click="openNoteForm">+ Jegyzet</button>
+          </div>
         </div>
+        <form v-if="entryForm" class="note-form" @submit.prevent="saveEntry()">
+          <b class="small">{{ entryForm.type === 'insulin' ? 'Inzulin felvétele' : 'Szénhidrát felvétele' }}</b>
+          <div class="note-form-row">
+            <label class="note-time">Időpont <input v-model="entryForm.time" type="time" required></label>
+            <label class="note-time">Mennyiség
+              <input
+                v-model="entryForm.value" type="text" required class="entry-amount"
+                :inputmode="entryForm.type === 'insulin' ? 'decimal' : 'numeric'" :placeholder="entryForm.type === 'insulin' ? 'pl. 4,5' : 'pl. 45'"
+              >
+              <span class="muted">{{ entryForm.type === 'insulin' ? 'E' : 'g' }}</span>
+            </label>
+            <select v-if="entryForm.type === 'insulin'" v-model="entryForm.sub" class="sub-select" aria-label="Típus">
+              <option value="">Automatikus</option>
+              <option value="meal">Étkezési bólus</option>
+              <option value="correction">Korrekció</option>
+              <option value="basal">Bázis</option>
+            </select>
+            <div v-else class="note-tags" role="group" aria-label="Jelölés">
+              <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fatty'" @click="entryForm.sub = entryForm.sub === 'fatty' ? '' : 'fatty'">zsíros</button>
+              <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fast'" @click="entryForm.sub = entryForm.sub === 'fast' ? '' : 'fast'">gyors</button>
+            </div>
+          </div>
+          <p class="muted small">Ha az InPen később ugyanezt elküldi (azonos mennyiség, 30 percen belül), a kézi sor beolvad, nem lesz dupla.</p>
+          <p v-if="entryError" class="err-text small">{{ entryError }}</p>
+          <div class="btn-row">
+            <button type="submit" class="sm" :disabled="entrySaving">Mentés</button>
+            <button type="button" class="ghost sm" @click="entryForm = null">Mégse</button>
+          </div>
+        </form>
         <form v-if="noteForm" class="note-form" @submit.prevent="saveNote">
           <div class="note-form-row">
             <label class="note-time">Időpont <input v-model="noteForm.time" type="time" required></label>
@@ -331,7 +395,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                       <span v-else-if="e.sub === 'fast'" class="note-chip">gyors</span>
                     </template>
                   </td>
-                  <td class="num">{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : fmt(e.v) + ' E' }}</td>
+                  <td class="num"><span v-if="e.manual" class="note-chip manual-chip" title="Kézzel felvett bejegyzés">kézi</span>{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : fmt(e.v) + ' E' }}</td>
                   <td class="num">{{ e.glucose != null ? fmt(e.glucose) : '–' }}</td>
                 </template>
                 <td v-if="!readOnly" class="act">

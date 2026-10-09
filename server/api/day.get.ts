@@ -1,5 +1,5 @@
 // Napi nézet adatai: glükózgörbe, inzulin, szénhidrát, napi statisztikák és 14 napos összesítő.
-import { db } from '../utils/db'
+import { db, MANUAL_SOURCE } from '../utils/db'
 import { glucoseStats, RANGE_LOW, RANGE_HIGH, RANGE_VERY_LOW, RANGE_VERY_HIGH } from '../utils/stats'
 import { targetRange } from '../utils/range'
 import { hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/time'
@@ -90,6 +90,7 @@ export default defineEventHandler((event) => {
     events: events.map((e) => ({
       id: e.id, ts: e.ts * 1000, time: hmInTz(e.ts), type: e.type, sub: e.sub ?? null, v: e.v, glucose: nearestGlucose(e.ts),
       kind: (e as any).kind ?? null, auto: (e as any).auto ?? false, noCarbs: (e as any).noCarbs ?? false,
+      manual: e.src === MANUAL_SOURCE,
     })),
     stats: { day: dayStats, range14: rangeStats },
     totals: {
