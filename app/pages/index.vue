@@ -237,6 +237,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
       </div>
       <NuxtLink v-if="!readOnly" to="/adatok" class="btn ghost sm">CareLink beállítás</NuxtLink>
     </div>
+    <HypoWarning v-if="!readOnly && period === 1 && data.day === data.today" />
     <div class="filters">
       <template v-if="period === 1">
         <button class="ghost" aria-label="Előző nap" @click="go(data.prev)">←</button>

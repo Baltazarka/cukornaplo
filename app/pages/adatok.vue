@@ -295,6 +295,7 @@ node scripts/import-health-export.ts C:\útvonal\export.xml 2026-01-01</pre>
     <ProfileCard />
     <MailSettingsCard />
     <ShareCard />
+    <NotifyCard />
 
     <section class="card danger">
       <h2>Visszaállítás</h2>

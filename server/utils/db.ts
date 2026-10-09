@@ -83,6 +83,14 @@ export function db(): DatabaseSync {
     created_at INTEGER NOT NULL,
     last_used INTEGER
   )`)
+  // Web Push előfizetések (iPhone / böngésző értesítések); a végpont az eszköz azonosítója.
+  d.exec(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+    endpoint TEXT PRIMARY KEY,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+  )`)
   // Laboreredmények: HbA1c (%), a GMI-vel összevetéshez.
   d.exec(`CREATE TABLE IF NOT EXISTS lab_results (
     id INTEGER PRIMARY KEY,

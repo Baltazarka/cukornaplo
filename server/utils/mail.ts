@@ -52,15 +52,18 @@ interface LayoutOpts {
   footerHtml?: string
   /** A levelezőben a tárgy mellett látszó előnézet. */
   preheader?: string
+  /** Fejléc- és gombszín (alap: az app kékje). */
+  accent?: string
 }
 
 /** Egységes, táblázatos (levelezőkompatibilis) levélkeret: szürke háttér, fehér kártya, kék fejléc, nagy gomb. */
 export function mailLayout(o: LayoutOpts): string {
   const brand = escapeHtml(mailSettings().fromName || 'Cukornapló')
+  const accent = /^#[0-9a-f]{6}$/i.test(o.accent ?? '') ? o.accent! : '#2a78d6'
   const font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
   const button = o.button
     ? `<tr><td align="center" style="padding:8px 32px 28px">
-        <a href="${escapeHtml(o.button.href)}" style="display:inline-block;padding:14px 32px;background:#2a78d6;color:#ffffff;font-size:16px;font-weight:600;border-radius:10px;text-decoration:none">${escapeHtml(o.button.label)}</a>
+        <a href="${escapeHtml(o.button.href)}" style="display:inline-block;padding:14px 32px;background:${accent};color:#ffffff;font-size:16px;font-weight:600;border-radius:10px;text-decoration:none">${escapeHtml(o.button.label)}</a>
       </td></tr>`
     : ''
   return `<!doctype html>
@@ -70,7 +73,7 @@ export function mailLayout(o: LayoutOpts): string {
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(o.preheader ?? '')}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f5"><tr><td align="center" style="padding:24px 12px">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
-    <tr><td style="background:#2a78d6;padding:20px 32px;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:.2px">🩸 ${brand}</td></tr>
+    <tr><td style="background:${accent};padding:20px 32px;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:.2px">🩸 ${brand}</td></tr>
     <tr><td style="padding:28px 32px 12px;font-size:16px;line-height:1.55">
       <h1 style="margin:0 0 14px;font-size:20px;line-height:1.3;color:#111827">${escapeHtml(o.title)}</h1>
       ${o.bodyHtml}
@@ -80,6 +83,32 @@ export function mailLayout(o: LayoutOpts): string {
   </table>
 </td></tr></table>
 </body></html>`
+}
+
+export interface StatItem { label: string; value: string; note?: string; color?: string }
+
+/** Számkártyák rácsa a levélben (levelezőkompatibilis táblázat), soronként `cols` darab. */
+export function mailStats(items: StatItem[], cols = 3): string {
+  const w = Math.floor(100 / cols)
+  const rows: string[] = []
+  for (let i = 0; i < items.length; i += cols) {
+    const cells = items.slice(i, i + cols).map((it) => `<td width="${w}%" valign="top" style="padding:4px">
+        <div style="background:#f3f6fb;border-radius:10px;padding:10px 12px">
+          <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.4px">${escapeHtml(it.label)}</div>
+          <div style="font-size:22px;font-weight:700;line-height:1.3;color:${it.color ?? '#111827'}">${escapeHtml(it.value)}</div>
+          ${it.note ? `<div style="font-size:12px;color:#6b7280">${escapeHtml(it.note)}</div>` : ''}
+        </div></td>`).join('')
+    const pad = '<td></td>'.repeat(Math.max(0, cols - items.slice(i, i + cols).length))
+    rows.push(`<tr>${cells}${pad}</tr>`)
+  }
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px">${rows.join('')}</table>`
+}
+
+/** Vízszintes sáv a tartományok megoszlásáról (kicsi / alacsony / cél / magas / nagyon magas, %). */
+export function mailRangeBar(pct: { veryLow: number; low: number; inRange: number; high: number; veryHigh: number }): string {
+  const parts: [number, string][] = [[pct.veryLow, '#a31f1f'], [pct.low, '#e0494b'], [pct.inRange, '#2e9e5b'], [pct.high, '#f0a93a'], [pct.veryHigh, '#e0782a']]
+  const cells = parts.filter(([v]) => v >= 0.5).map(([v, c]) => `<td width="${v.toFixed(1)}%" style="background:${c};height:12px;font-size:0;line-height:0">&nbsp;</td>`).join('')
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 4px;border-radius:6px;overflow:hidden"><tr>${cells}</tr></table>`
 }
 
 export const EMAIL_RE = /^[^\s@<>()",;]+@[^\s@<>()",;]+\.[^\s@<>()",;]{2,}$/
