@@ -7,6 +7,7 @@ import { startOfDayTs, todayYmd, addDaysYmd, minuteOfDayInTz } from '../utils/ti
 import { groupByDay, summaryRows } from '../utils/summary'
 import { changeTime, type GPoint } from '../utils/trend'
 import { insulinKind } from '../utils/insulinKind'
+import { bolusByDay, withAllocatedInsulin } from '../utils/dailyInsulin'
 import { detectHypos, hypoCount } from '../utils/hypo'
 import { assumedBasalDose } from '../utils/basal'
 import { ymdInTz } from '../utils/time'
@@ -122,6 +123,6 @@ export default defineEventHandler((event) => {
     change: changeTime(gPoints),
     hypos: hypoCount(detectHypos(gPoints, low, RANGE_VERY_LOW)),
     coverage,
-    summary: summaryRows(daily, end, days, low, high),
+    summary: withAllocatedInsulin(summaryRows(daily, end, days, low, high), bolusByDay(start, end)),
   }
 })

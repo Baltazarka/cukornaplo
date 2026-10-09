@@ -12,6 +12,7 @@ import { assumedBasalDose } from '../utils/basal'
 import { rapidDoses, iobAt, bolusPeak } from '../utils/iob'
 import { detectHypos, hypoCount } from '../utils/hypo'
 import { carbCurve, cobAt, absorbCategory } from '../utils/absorption'
+import { bolusByDay, withAllocatedInsulin } from '../utils/dailyInsulin'
 
 export default defineEventHandler((event) => {
   const q = getQuery(event)
@@ -70,7 +71,10 @@ export default defineEventHandler((event) => {
     return best
   }
 
-  const summary = summaryRows(daily, day, 14, low, high)
+  // Az inzulin a hatás szerint oszlik meg a napok között: az éjfél előtt késő este beadott adagnak csak az éjfélig
+  // ható része számít az adott napba, a fennmaradó a következőbe. (Terápiás beállítás nélkül a naplózott idő számít.)
+  const alloc = bolusByDay(addDaysYmd(day, -13), day)
+  const summary = withAllocatedInsulin(summaryRows(daily, day, 14, low, high), alloc)
   const activeInsulin = iobCurve(dayStart, dayEnd, carbTs)
   // A még aktív gyors hatású inzulin most (csak a mai napon, és ha a terápia be van állítva).
   const iobNow = activeInsulin && day === today ? round2(activeInsulin.at(Math.floor(Date.now() / 1000))) : null
@@ -102,9 +106,9 @@ export default defineEventHandler((event) => {
     })),
     stats: { day: dayStats, range14: rangeStats },
     totals: {
-      insulin: dayInsulin + (basalAssumed ? basalDose! : 0),
-      meal: sumKind('meal'),
-      correction: sumKind('correction'),
+      insulin: alloc ? alloc[day].meal + alloc[day].correction + (basalAssumed ? basalDose! : sumKind('basal')) : dayInsulin + (basalAssumed ? basalDose! : 0),
+      meal: alloc ? alloc[day].meal : sumKind('meal'),
+      correction: alloc ? alloc[day].correction : sumKind('correction'),
       basal: basalAssumed ? basalDose! : sumKind('basal'),
       basalAssumedDays: basalAssumed ? 1 : 0,
       carbs: dayCarbs,

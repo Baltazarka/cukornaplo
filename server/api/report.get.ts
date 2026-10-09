@@ -5,6 +5,7 @@ import { glucoseStats } from '../utils/stats'
 import { targetRange } from '../utils/range'
 import { startOfDayTs, todayYmd, addDaysYmd, huWeekday, hmInTz, minuteOfDayInTz, ymdInTz } from '../utils/time'
 import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from '../utils/insulinKind'
+import { bolusByDay } from '../utils/dailyInsulin'
 import { changeTime } from '../utils/trend'
 import { notesBetween } from '../utils/notes'
 import { assumedBasalDose } from '../utils/basal'
@@ -59,6 +60,8 @@ export default defineEventHandler((event) => {
 
   const notes = notesBetween(from, to)
   const basalDose = assumedBasalDose()
+  // A bólus a hatás szerint oszlik meg a napok között (az éjfél körül beadott adag fennmaradó része a következő napé).
+  const alloc = bolusByDay(start, end)
   const out = [...byDay.values()].map((d) => {
     // A bejegyzések mellé a legközelebbi (±10 perc) glükózérték.
     for (const e of d.events) {
@@ -79,8 +82,8 @@ export default defineEventHandler((event) => {
       stats,
       coverage: coverageOf(d.date, d.glucose.length),
       totals: {
-        meal: sum((e) => e.kind === 'meal' || e.kind === 'meal-nocarb'),
-        correction: sum((e) => e.kind === 'correction'),
+        meal: alloc ? alloc[d.date].meal : sum((e) => e.kind === 'meal' || e.kind === 'meal-nocarb'),
+        correction: alloc ? alloc[d.date].correction : sum((e) => e.kind === 'correction'),
         basal: basalAssumed ? basalDose! : sum((e) => e.kind === 'basal'),
         basalAssumed,
         carbs: sum((e) => e.type === 'carbs'),

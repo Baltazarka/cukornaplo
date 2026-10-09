@@ -82,6 +82,29 @@ function buildOption() {
   GRID_LEFT = narrowWidth() ? 34 : 52
   const d = props.day
   const r = d.range
+  // Kifutás a következő napra: ha az inzulin vagy a szénhidrát hatása éjfél után is tart, a tengely meghosszabbodik
+  // (legfeljebb 8 órával, 2 órás lépcsőkben), és a hatásgörbék kifutása látszik. A következő napon ugyanez a maradék indul.
+  const tailEnds: number[] = []
+  for (const [doseMs, , dia] of (d.activeInsulin?.doses ?? []) as [number, number, number, string][]) tailEnds.push(doseMs + dia * 60000)
+  for (const [ts, , , prof] of (d.absorption?.carbs ?? []) as [number, number, string | null, number[]][]) {
+    const i = prof.findIndex((v) => v >= 0.995)
+    tailEnds.push(ts + (i < 0 ? prof.length - 1 : i) * 15 * 60000)
+  }
+  const overshoot = Math.max(0, ...tailEnds) - d.dayEndMs
+  const tailMs = overshoot > 5 * 60000 ? Math.min(8 * 3600000, Math.ceil(overshoot / (2 * 3600000)) * 2 * 3600000) : 0
+  const axisMax = d.dayEndMs + tailMs
+  // Átlógás az előző napról: ha egy előző napi adag vagy étkezés hatása még tart, a tengely balra is meghosszabbodik
+  // (legfeljebb 8 óra), és látszik az adag oszlopa meg a görbe eleje.
+  let headStart = d.dayStartMs
+  for (const [doseMs, , dia] of (d.activeInsulin?.doses ?? []) as [number, number, number, string][]) {
+    if (doseMs < d.dayStartMs && doseMs + dia * 60000 > d.dayStartMs) headStart = Math.min(headStart, doseMs)
+  }
+  for (const [ts, , , prof] of (d.absorption?.carbs ?? []) as [number, number, string | null, number[]][]) {
+    const i = prof.findIndex((v) => v >= 0.995)
+    if (ts < d.dayStartMs && ts + (i < 0 ? prof.length - 1 : i) * 15 * 60000 > d.dayStartMs) headStart = Math.min(headStart, ts)
+  }
+  const headMs = d.dayStartMs - headStart > 5 * 60000 ? Math.min(8 * 3600000, Math.ceil((d.dayStartMs - headStart) / (2 * 3600000)) * 2 * 3600000) : 0
+  const axisMin = d.dayStartMs - headMs
   const C = {
     text: cssToken('--text-secondary'),
     muted: cssToken('--text-muted'),
@@ -123,10 +146,13 @@ function buildOption() {
 
   // Oszlopok: ha egy bólus és egy bázis 5 percen belül esik, a kisebbiket egy oszlopnyival eltoljuk.
   const plotWidth = Math.max(200, (chart?.getWidth?.() ?? el.value?.clientWidth ?? 800) - GRID_LEFT - GRID_RIGHT)
-  const msPerPx = (d.dayEndMs - d.dayStartMs) / plotWidth
+  const msPerPx = (axisMax - axisMin) / plotWidth
   const shiftMs = (BAR_WIDTH + 2) * msPerPx
   // [oszlop helye, adag, eredeti időpont, típus]; étkezési bólus és korrekció egy csoportban.
-  const bolus = d.insulin.filter((p: any[]) => p[2] !== 'basal').map((p: any[]) => [p[0], p[1], p[0], p[2]])
+  const carryDoses = ((d.activeInsulin?.doses ?? []) as [number, number, number, string][])
+    .filter((x) => x[0] < d.dayStartMs)
+    .map((x) => [x[0], x[1], x[0], x[3]])
+  const bolus = [...carryDoses, ...d.insulin.filter((p: any[]) => p[2] !== 'basal').map((p: any[]) => [p[0], p[1], p[0], p[2]])]
   const basal = d.insulin.filter((p: any[]) => p[2] === 'basal').map((p: any[]) => [p[0], p[1]])
   for (const b of basal) {
     const o = bolus.find((p: number[]) => Math.abs(p[0] - b[0]) <= 5 * 60000)
@@ -135,7 +161,8 @@ function buildOption() {
     else o[0] = b[0] + shiftMs
   }
   // A zsírosnak jelölt étkezés oszlopa halványabb, keretes.
-  const carbs = d.carbs.map((p: any[]) => (p[2] === 'fatty'
+  const carryCarbs = ((d.absorption?.carbs ?? []) as [number, number, string | null][]).filter((x) => x[0] < d.dayStartMs)
+  const carbs = [...carryCarbs, ...d.carbs].map((p: any[]) => (p[2] === 'fatty'
     ? { value: [p[0], p[1]], itemStyle: { color: rgba(C.carbs, 0.35), borderColor: C.carbs, borderWidth: 1.5 } }
     : [p[0], p[1]]))
 
@@ -305,8 +332,8 @@ function buildOption() {
     type: 'value' as const,
     gridIndex,
     containShape: false, // ECharts 6: különben az oszlopok miatt kitágítaná a tengelyt, és a panelek elcsúsznának
-    min: d.dayStartMs,
-    max: d.dayEndMs,
+    min: axisMin,
+    max: axisMax,
     interval: 2 * 3600000,
     axisLabel: { ...axisLabel, formatter: (v: number) => hm(v).slice(0, 2) },
     axisLine,
@@ -351,6 +378,24 @@ function buildOption() {
     ],
     series: [
       ...segmentSeries,
+      ...(tailMs || headMs
+        ? [0, 1, 2].map((gi) => ({
+            type: 'line', xAxisIndex: gi, yAxisIndex: gi, data: [], silent: true, z: 0, tooltip: { show: false },
+            markArea: {
+              silent: true,
+              label: { position: 'insideTop', distance: 4, color: C.muted, fontSize: 10 },
+              data: [
+                ...(headMs ? [[{ xAxis: axisMin, itemStyle: { color: rgba(C.primary, 0.07) }, label: gi === 0 ? { show: true, formatter: 'előző nap' } : { show: false } }, { xAxis: d.dayStartMs }]] : []),
+                ...(tailMs ? [[{ xAxis: d.dayEndMs, itemStyle: { color: rgba(C.primary, 0.07) }, label: gi === 0 ? { show: true, formatter: 'következő nap' } : { show: false } }, { xAxis: axisMax }]] : []),
+              ],
+            },
+            markLine: {
+              silent: true, symbol: 'none', label: { show: false },
+              lineStyle: { color: C.muted, width: 1, type: [4, 3] },
+              data: [...(headMs ? [{ xAxis: d.dayStartMs }] : []), ...(tailMs ? [{ xAxis: d.dayEndMs }] : [])],
+            },
+          }))
+        : []),
       ...(notes.length
         ? [{
             type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: [], silent: true, z: 5, tooltip: { show: false },

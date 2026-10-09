@@ -179,12 +179,14 @@ async function saveNote() {
   }
 }
 // Kézi inzulin / CH: időpont (mai napon most, különben 12:00), mennyiség, típus vagy jelölés.
-const entryForm = ref<{ type: 'insulin' | 'carbs'; time: string; value: string; sub: string } | null>(null)
+const entryForm = ref<{ type: 'insulin' | 'carbs'; date: string; time: string; value: string; sub: string } | null>(null)
 const entryError = ref('')
 const entrySaving = ref(false)
 function openEntryForm(type: 'insulin' | 'carbs') {
   noteForm.value = null
-  entryForm.value = { type, time: defaultTime(), value: '', sub: '' }
+  // Alapból a megnézett nap, de átírható (pl. tegnapi adag utólagos felvétele).
+  const date = data.value?.day ?? ''
+  entryForm.value = { type, date, time: date === data.value?.today ? defaultTime() : '12:00', value: '', sub: '' }
   entryError.value = ''
 }
 async function saveEntry(force = false) {
@@ -192,9 +194,11 @@ async function saveEntry(force = false) {
   entrySaving.value = true
   entryError.value = ''
   try {
-    await $fetch('/api/entry-add', { method: 'POST', body: { date: data.value!.day, ...f, force } })
+    await $fetch('/api/entry-add', { method: 'POST', body: { ...f, force } })
     entryForm.value = null
-    await refresh()
+    // Másik napra vett bejegyzésnél oda ugrunk, hogy látszódjon.
+    if (f.date && f.date !== data.value!.day) go(f.date)
+    else await refresh()
   } catch (e: any) {
     // Hasonló bejegyzés a közelben (pl. az InPen már elküldte): rákérdezünk.
     if (e?.data?.duplicate && !force && confirm(`${e.data.error}
@@ -305,6 +309,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
         <form v-if="entryForm" class="note-form" @submit.prevent="saveEntry()">
           <b class="small">{{ entryForm.type === 'insulin' ? 'Inzulin felvétele' : 'Szénhidrát felvétele' }}</b>
           <div class="note-form-row">
+            <label class="note-time">Dátum <input v-model="entryForm.date" type="date" :max="data.today" required></label>
             <label class="note-time">Időpont <input v-model="entryForm.time" type="time" required></label>
             <label class="note-time">Mennyiség
               <input
