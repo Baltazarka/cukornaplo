@@ -5,6 +5,31 @@
 // összeköti, a tooltip egyszerre mutatja az értékeket.
 const props = defineProps<{ day: any }>()
 
+// Előrejelzés a mai napon (szaggatott vonal): a felvett inzulinból, szénhidrátból és a trendből.
+// Az időtáv (0 = ki) a böngészőben megmarad.
+const readOnly = useReadOnly()
+const forecastHours = ref(3)
+const forecast = ref<[number, number][]>([])
+const forecastAvailable = computed(() => !readOnly.value && props.day?.day === props.day?.today)
+let forecastSeq = 0
+async function loadForecast() {
+  const seq = ++forecastSeq
+  let pts: [number, number][] = []
+  if (forecastAvailable.value && forecastHours.value > 0) {
+    try {
+      const r = await $fetch<any>('/api/predict', { query: { series: forecastHours.value } })
+      pts = r.series ?? []
+    } catch { /* nincs előrejelzés */ }
+  }
+  if (seq !== forecastSeq) return // közben újabb kérés indult
+  forecast.value = pts
+  await render()
+}
+function setForecastHours() {
+  try { localStorage.setItem('forecastHours', String(forecastHours.value)) } catch { /* nincs localStorage */ }
+  loadForecast()
+}
+
 const el = ref<HTMLElement | null>(null)
 let chart: any = null
 let echarts: any = null
@@ -202,6 +227,12 @@ function buildOption() {
       const col = gNear < r.low ? C.low : C.primary
       html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:6px"></span>Glükóz <b>${num(gNear, 1)}</b> mmol/L</div>`
     }
+    if (forecast.value.length > 1 && x > forecast.value[0][0] + 60000) {
+      const f = forecast.value.reduce((b, p) => (Math.abs(p[0] - x) < Math.abs(b[0] - x) ? p : b))
+      if (Math.abs(f[0] - x) <= 6 * 60000) {
+        html += `<div><span style="display:inline-block;width:10px;border-top:2px dashed ${C.primary};margin:0 6px 3px 0"></span>Előrejelzés <b>~${num(f[1], 1)}</b> mmol/L</div>`
+      }
+    }
     for (const p of ins) {
       const k = KIND[p[2] as keyof typeof KIND] ?? KIND.meal
       // A bólus hatásideje (a beadás napszakáé) és a napszak kezdete.
@@ -277,7 +308,7 @@ function buildOption() {
     },
     xAxis: [xAxisFor(0), xAxisFor(1), xAxisFor(2)],
     yAxis: [
-      { type: 'value', gridIndex: 0, min: 2, max: Math.max(16, Math.ceil(gMax + 1)), interval: 2, axisLabel, splitLine, axisLine: { show: false } },
+      { type: 'value', gridIndex: 0, min: 2, max: Math.max(16, Math.ceil(Math.max(gMax, ...forecast.value.map((p) => p[1])) + 1)), interval: 2, axisLabel, splitLine, axisLine: { show: false } },
       { type: 'value', gridIndex: 1, min: 0, max: insMax, interval: insMax / 2, axisLabel, splitLine, axisLine: { show: false } },
       { type: 'value', gridIndex: 2, min: 0, splitNumber: 2, axisLabel, splitLine, axisLine: { show: false } },
     ],
@@ -314,6 +345,12 @@ function buildOption() {
           data: [{ yAxis: r.low }, { yAxis: r.high }],
         },
       },
+      ...(forecast.value.length > 1
+        ? [{
+            name: 'Előrejelzés', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: forecast.value, symbol: 'none', silent: true, z: 4,
+            lineStyle: { width: 2, type: [5, 4], color: C.primary, opacity: 0.7 }, tooltip: { show: false },
+          }]
+        : []),
       ...curves.map(({ kind, data }) => {
         const color = kind === 'correction' ? C.correction : C.insulin
         return {
@@ -337,7 +374,12 @@ async function render() {
 }
 
 onMounted(async () => {
+  try {
+    const h = Number(localStorage.getItem('forecastHours') ?? 3)
+    forecastHours.value = [0, 2, 3, 4].includes(h) ? h : 3
+  } catch { /* nincs localStorage */ }
   await render()
+  loadForecast()
   // Átméretezéskor újraszámoljuk az oszlopok eltolását is (pixelben értendő).
   ro = new ResizeObserver(() => {
     chart?.resize()
@@ -345,7 +387,7 @@ onMounted(async () => {
   })
   ro.observe(el.value!)
 })
-watch(() => props.day, render)
+watch(() => props.day, loadForecast)
 onBeforeUnmount(() => {
   ro?.disconnect()
   chart?.dispose()
@@ -397,9 +439,22 @@ const actionText = computed(() => {
       <span class="k"><span class="sw" style="background: var(--series-insulin)" /> étkezési bólus</span>
       <span class="k"><span class="sw" style="background: var(--series-correction)" /> korrekció</span>
       <span class="k"><span class="sw" style="background: var(--series-basal)" /> bázis</span>
+      <span v-if="forecast.length > 1" class="k"><span class="sw line" style="background: repeating-linear-gradient(90deg, var(--text-primary) 0 5px, transparent 5px 9px)" /> előrejelzés</span>
       <span v-if="day.activeInsulin" class="k" :title="`${day.activeInsulin.insulin ?? 'Bólusinzulin'}, hatásidő ${actionLabel(day.activeInsulin.durationMinutes)}`">
         <span class="sw iob" /> bólus hatása ({{ actionText }})
       </span>
+    </div>
+    <div v-if="forecastAvailable" class="forecast-pick">
+      <label>
+        <span class="muted small">Előrejelzés:</span>
+        <select v-model.number="forecastHours" aria-label="Előrejelzés időtávja" @change="setForecastHours">
+          <option :value="0">ki</option>
+          <option :value="2">2 óra</option>
+          <option :value="3">3 óra</option>
+          <option :value="4">4 óra</option>
+        </select>
+      </label>
+      <span v-if="forecast.length > 1" class="muted small">A szaggatott vonal becslés a felvett inzulinból, CH-ból és a trendből; új étkezést vagy adagot nem ismer, nem helyettesíti a szenzor riasztását.</span>
     </div>
     <div ref="el" class="chart-box" />
   </div>

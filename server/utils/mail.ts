@@ -104,13 +104,6 @@ export function mailStats(items: StatItem[], cols = 3): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px">${rows.join('')}</table>`
 }
 
-/** Vízszintes sáv a tartományok megoszlásáról (kicsi / alacsony / cél / magas / nagyon magas, %). */
-export function mailRangeBar(pct: { veryLow: number; low: number; inRange: number; high: number; veryHigh: number }): string {
-  const parts: [number, string][] = [[pct.veryLow, '#a31f1f'], [pct.low, '#e0494b'], [pct.inRange, '#2e9e5b'], [pct.high, '#f0a93a'], [pct.veryHigh, '#e0782a']]
-  const cells = parts.filter(([v]) => v >= 0.5).map(([v, c]) => `<td width="${v.toFixed(1)}%" style="background:${c};height:12px;font-size:0;line-height:0">&nbsp;</td>`).join('')
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 4px;border-radius:6px;overflow:hidden"><tr>${cells}</tr></table>`
-}
-
 export const EMAIL_RE = /^[^\s@<>()",;]+@[^\s@<>()",;]+\.[^\s@<>()",;]{2,}$/
 
 export function escapeHtml(s: string): string {

@@ -30,9 +30,36 @@ export interface Prediction {
   /** Még fel nem szívódott szénhidrát, g. */
   cob: number
   treated: boolean
+  /** A legalacsonyabb becsült érték az előrejelzési távolságon belül. */
+  nadir: number
+  /** Hány perc múlva éri el a legalacsonyabb értéket. */
+  nadirIn: number
+  /** Hosszú távon kialakuló érték, ha nem történik semmi más (aktív inzulin és CH teljes hatásával). */
+  eventual: number
+  /** Javasolt gyors szénhidrát, g (hipó-veszélynél). */
+  carbsNeeded: number | null
+  /** Javasolt korrekciós inzulin, E (magas vércukornál, aktív inzulin levonva). */
+  insulinNeeded: number | null
 }
 
-export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 1000)): Prediction | null {
+interface Model {
+  latest: Latest
+  low: number
+  iob: number
+  cob: number
+  treated: boolean
+  target: number
+  high: number
+  isf: number
+  perG: number
+  maxBolus: number
+  eventual: number
+  /** A becsült vércukor `h` perccel a `nowTs` után (mmol/L). */
+  at: (h: number) => number
+}
+
+/** A becslés összetevői (adagok, szénhidrát, lendület) egyszer kiszámítva; `at(h)` bármely távolságra ad értéket. */
+function build(nowTs: number): Model | null {
   const t = therapy()
   if (!t) return null
   const latest = latestGlucose(nowTs)
@@ -45,50 +72,100 @@ export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 100
     .all(nowTs - 6 * 3600, nowTs) as { ts: number; value: number; subtype: string | null }[]
   const doses = rapidDoses(t, nowTs, nowTs + 1, carbRows.map((c) => Number(c.ts)))
 
-  let insulinEffect = 0
   let insulinRate = 0
-  for (const d of doses) {
-    const m = (nowTs - d.ts) / 60
-    insulinEffect += d.v * (d.model.iob(m) - d.model.iob(m + horizon)) * seg.isf
-    insulinRate += d.v * d.model.activity(m) * seg.isf
-  }
+  for (const d of doses) insulinRate += d.v * d.model.activity((nowTs - d.ts) / 60) * seg.isf
 
-  let carbEffect = 0
+  const meals = carbRows
+    .map((c) => ({ grams: Number(c.value), ts: Number(c.ts), dur: c.subtype === 'fatty' ? ABSORB_MIN.fatty : c.subtype === 'fast' ? ABSORB_MIN.fast : ABSORB_MIN.normal }))
+    .filter((c) => (nowTs - c.ts) / 60 < c.dur)
   let carbRate = 0
   let cob = 0
   let treated = false
-  for (const c of carbRows) {
-    const grams = Number(c.value)
-    const dur = c.subtype === 'fatty' ? ABSORB_MIN.fatty : c.subtype === 'fast' ? ABSORB_MIN.fast : ABSORB_MIN.normal
-    const m = (nowTs - Number(c.ts)) / 60
-    if (m >= dur) continue
-    const a = Math.max(0, m) / dur
-    const b = Math.min(1, (m + horizon) / dur)
-    carbEffect += grams * (b - a) * perG
-    carbRate += (grams / dur) * perG
-    cob += grams * (1 - a)
-    if (nowTs - Number(c.ts) <= RECENT_TREAT_SEC && grams >= 10) treated = true
+  for (const c of meals) {
+    const a = Math.max(0, (nowTs - c.ts) / 60) / c.dur
+    carbRate += (c.grams / c.dur) * perG
+    cob += c.grams * (1 - a)
+    if (nowTs - c.ts <= RECENT_TREAT_SEC && c.grams >= 10) treated = true
   }
 
   // Lendület: ami a modellből nem magyarázható, az még pár percig folytatódik.
   const pts = glucosePoints(nowTs - 40 * 60, nowTs + 60)
   const obsRate = pts.length ? rateAt(pts, pts.length - 1) : null
   const residual = obsRate == null ? 0 : Math.max(-0.15, Math.min(0.15, obsRate - (carbRate - insulinRate)))
-  const momentum = residual * Math.min(horizon, MOMENTUM_MIN)
 
-  const predicted = Math.max(1.5, latest.v - insulinEffect + carbEffect + momentum)
-  const { low } = targetRange()
-  const currentLow = latest.v < low
-  const round = (x: number, k: number) => Math.round(x * k) / k
+  const at = (h: number) => {
+    let insulinEffect = 0
+    for (const d of doses) {
+      const m = (nowTs - d.ts) / 60
+      insulinEffect += d.v * (d.model.iob(m) - d.model.iob(m + h)) * seg.isf
+    }
+    let carbEffect = 0
+    for (const c of meals) {
+      const m = (nowTs - c.ts) / 60
+      carbEffect += c.grams * (Math.min(1, (m + h) / c.dur) - Math.max(0, m) / c.dur) * perG
+    }
+    return Math.max(1.5, latest.v - insulinEffect + carbEffect + residual * Math.min(h, MOMENTUM_MIN))
+  }
+  // Hosszú távú érték: a teljes még aktív inzulin és a még fel nem szívódó CH hatásával.
+  let eventual = latest.v
+  for (const d of doses) eventual -= d.v * d.model.iob((nowTs - d.ts) / 60) * seg.isf
+  for (const c of meals) eventual += c.grams * (1 - Math.max(0, (nowTs - c.ts) / 60) / c.dur) * perG
+  const range = targetRange()
+  return { latest, low: range.low, high: range.high, target: seg.target, isf: seg.isf, perG, maxBolus: t.maxBolus, eventual, iob: iobAt(doses, nowTs), cob, treated, at }
+}
+
+const round = (x: number, k: number) => Math.round(x * k) / k
+
+const roundTo = (x: number, step: number) => Math.round(x / step) * step
+
+export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 1000)): Prediction | null {
+  const m = build(nowTs)
+  if (!m) return null
+  const predicted = m.at(horizon)
+  let nadir = m.latest.v
+  let nadirIn = 0
+  for (let h = 5; h <= horizon; h += 5) {
+    const v = m.at(h)
+    if (v < nadir) { nadir = v; nadirIn = h }
+  }
+  const currentLow = m.latest.v < m.low
+  const risk = (nadir < m.low || currentLow) && !m.treated
+  // Szénhidrát: annyi, hogy a mélypont a célértékre emelkedjen (5 g-ra kerekítve, 10–30 g között).
+  const carbsNeeded = risk ? Math.min(30, Math.max(10, roundTo((m.target - nadir) / m.perG, 5))) : null
+  // Inzulin: csak ha a vércukor most is és a hosszú távú értéke is a céltartomány fölött van, nincs hipó-veszély,
+  // és nem esik gyorsan. A javaslat (hosszú távú érték − cél) ÷ ISF, 0,5 E-re kerekítve, a maximális bólusig.
+  const fallingFast = (m.latest.rate ?? 0) <= -0.11
+  let insulinNeeded: number | null = null
+  if (!risk && !fallingFast && m.latest.v > m.high && m.eventual > m.high) {
+    const dose = Math.min(m.maxBolus, roundTo((m.eventual - m.target) / m.isf, 0.5))
+    if (dose >= 0.5) insulinNeeded = dose
+  }
   return {
-    now: latest,
+    now: m.latest,
     horizon,
     predicted: round(predicted, 10),
     currentLow,
-    risk: (predicted < low || currentLow) && !treated,
-    low,
-    iob: round(iobAt(doses, nowTs), 100),
-    cob: Math.round(cob),
-    treated,
+    risk,
+    low: m.low,
+    iob: round(m.iob, 100),
+    cob: Math.round(m.cob),
+    treated: m.treated,
+    nadir: round(nadir, 10),
+    nadirIn,
+    eventual: round(m.eventual, 10),
+    carbsNeeded,
+    insulinNeeded,
   }
+}
+
+/**
+ * A várható vércukorgörbe a következő `hours` órára, 5 percenként: [időpont ms, mmol/L].
+ * Csak a már felvett adagokból és szénhidrátból számol (a jövőbeli étkezést / adagot nem ismeri).
+ */
+export function predictSeries(hours = 3, nowTs = Math.floor(Date.now() / 1000)): [number, number][] {
+  const m = build(nowTs)
+  if (!m) return []
+  const out: [number, number][] = [[nowTs * 1000, m.latest.v]]
+  for (let h = 5; h <= hours * 60; h += 5) out.push([(nowTs + h * 60) * 1000, round(m.at(h), 10)])
+  return out
 }

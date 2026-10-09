@@ -792,3 +792,7 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
 .clean-meals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .clean-meal p { margin: 4px 0 0; }
 @media (max-width: 760px) { .clean-meals { grid-template-columns: minmax(0, 1fr); } }
+
+.forecast-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 8px; }
+.forecast-pick label { display: inline-flex; align-items: center; gap: 6px; }
+.forecast-pick select { padding: 4px 8px; }

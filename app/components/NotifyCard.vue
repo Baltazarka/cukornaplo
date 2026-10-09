@@ -1,13 +1,14 @@
 <script setup lang="ts">
-// E-mailes értesítések: hipó-előjelzés és heti riport (az e-mail-küldést a fenti kártyán kell beállítani).
+// Telefonos (push) értesítések: hipó-veszély, szénhidrát-javaslat, inzulinjavaslat.
+// Az eszköz engedélyezése itt történik; minden értesítéstípushoz van tesztgomb.
 const { data, refresh } = await useFetch<any>('/api/notify/settings', { key: 'notify-settings' })
+const { data: push, refresh: pushRefresh } = await useFetch<any>('/api/push/key', { key: 'push-key' })
 
-const form = reactive({ email: '', hypo: false, hypoPush: true, hypoHorizon: 30, weekly: false, weeklyDay: 1, weeklyHour: 8 })
+const form = reactive({ hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1 })
 watchEffect(() => {
   if (data.value?.settings) Object.assign(form, data.value.settings)
 })
 
-const DAYS = ['hétfő', 'kedd', 'szerda', 'csütörtök', 'péntek', 'szombat', 'vasárnap']
 const msg = ref('')
 const err = ref<string[]>([])
 const busy = ref('')
@@ -21,26 +22,32 @@ async function save() {
     await refresh()
     msg.value = 'Mentve.'
   } catch (e: any) {
-    err.value = e?.data?.errors ?? [e?.data?.error ?? 'A mentés nem sikerült.']
+    err.value = [e?.data?.error ?? 'A mentés nem sikerült.']
   } finally {
     busy.value = ''
   }
 }
-async function test(kind: 'weekly' | 'hypo') {
-  busy.value = kind
+
+const TESTS = [
+  { kind: 'hypo', label: 'Hipó-veszély teszt' },
+  { kind: 'carbs', label: 'CH-javaslat teszt' },
+  { kind: 'insulin', label: 'Inzulinjavaslat teszt' },
+] as const
+async function test(kind: string) {
+  busy.value = `test-${kind}`
   msg.value = ''
   err.value = []
   try {
     const r = await $fetch<any>('/api/notify/test', { method: 'POST', body: { kind } })
-    msg.value = `${kind === 'weekly' ? 'Heti riport' : 'Mintariasztás'} elküldve ide: ${r.to}.`
+    msg.value = `Tesztértesítés elküldve ${r.sent} eszközre. Pár másodperc múlva meg kell érkeznie.`
   } catch (e: any) {
-    err.value = [e?.data?.error ?? 'A küldés nem sikerült.']
+    err.value = [e?.data?.error ?? 'A tesztértesítés nem sikerült.']
   } finally {
     busy.value = ''
   }
 }
-// ---- Telefonos (push) értesítés ----
-const { data: push, refresh: pushRefresh } = await useFetch<any>('/api/push/key', { key: 'push-key' })
+
+// ---- eszköz engedélyezése ----
 const supported = ref(false)
 const standalone = ref(false)
 const isIos = ref(false)
@@ -78,14 +85,14 @@ async function enablePush() {
   try {
     const perm = await Notification.requestPermission()
     permission.value = perm
-    if (perm !== 'granted') throw new Error('Az értesítések nincsenek engedélyezve ezen az eszközön (Beállítások → Értesítések).')
+    if (perm !== 'granted') throw new Error('Az értesítések nincsenek engedélyezve ezen az eszközön.')
     const reg = await navigator.serviceWorker.ready
     const sub = (await reg.pushManager.getSubscription())
       ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(push.value.publicKey) }))
     await $fetch('/api/push/subscribe', { method: 'POST', body: { subscription: sub.toJSON(), name: deviceName() } })
     thisEndpoint.value = sub.endpoint
     await pushRefresh()
-    msg.value = 'Az értesítés engedélyezve ezen az eszközön. Próbáld ki a tesztgombbal.'
+    msg.value = 'Az értesítés engedélyezve ezen az eszközön. Próbáld ki a tesztgombokkal.'
   } catch (e: any) {
     err.value = [e?.data?.error ?? e?.message ?? 'Az értesítés engedélyezése nem sikerült.']
   } finally {
@@ -110,94 +117,28 @@ async function disablePush() {
     busy.value = ''
   }
 }
-async function testPush() {
-  busy.value = 'pushtest'
-  msg.value = ''
-  err.value = []
-  try {
-    const r = await $fetch<any>('/api/push/test', { method: 'POST', body: {} })
-    msg.value = `Tesztértesítés elküldve ${r.sent} eszközre. Pár másodperc múlva meg kell érkeznie.`
-  } catch (e: any) {
-    err.value = [e?.data?.error ?? 'A tesztértesítés nem sikerült.']
-  } finally {
-    busy.value = ''
-  }
-}
-const when = (ts: number | null) => (ts ? new Date(ts * 1000).toLocaleString('hu-HU', { dateStyle: 'short', timeStyle: 'short' }) : '–')
+const noDevice = computed(() => !push.value?.devices?.length)
 </script>
 
 <template>
   <section id="ertesitesek" class="card">
-    <h2>Értesítések (e-mail)</h2>
-    <p class="muted">A levelek a fenti e-mail-beállításon keresztül mennek ki.</p>
-    <p v-if="data && !data.mailReady" class="alert">Az e-mail-küldés még nincs beállítva (Gmail-cím és alkalmazásjelszó).</p>
+    <h2>Értesítések a telefonra (push)</h2>
+    <p class="muted">
+      A rendszer a felvett inzulinból, szénhidrátból és a trendből megbecsüli a vércukrodat, és értesítést küld.
+      Ez <b>nem helyettesíti a szenzor és a pumpa riasztásait</b>: a CareLink adata késhet, az iPhone pedig a némítást és a „Ne zavarjanak” módot nem töri át.
+    </p>
     <p v-if="msg" class="notice">{{ msg }}</p>
     <p v-for="e in err" :key="e" class="alert">{{ e }}</p>
     <p v-if="data?.lastError" class="alert">Utolsó hiba: {{ data.lastError }}</p>
 
-    <form class="stack" @submit.prevent="save">
-      <label>Értesítések címzettje
-        <input v-model="form.email" type="text" inputmode="email" autocomplete="email" placeholder="valaki@example.com">
-      </label>
-
-      <fieldset class="notify-block">
-        <label class="check"><input v-model="form.hypo" type="checkbox"> Hipó-előjelzés e-mailben</label>
-        <p class="muted small">
-          A rendszer az aktív inzulinból, a szénhidrátból és a trendből megbecsüli a vércukrot, és levelet küld, ha a céltartomány alá esne.
-          Óránként legfeljebb egyet küld. Ez <b>nem helyettesíti a szenzor és a pumpa riasztásait</b>, és a CareLink-adatok késhetnek.
-        </p>
-        <label>Előrejelzés távolsága
-          <select v-model.number="form.hypoHorizon">
-            <option :value="15">15 perc</option>
-            <option :value="30">30 perc</option>
-            <option :value="45">45 perc</option>
-            <option :value="60">60 perc</option>
-          </select>
-        </label>
-        <p v-if="data?.lastHypo" class="muted small">Utolsó riasztás: {{ when(data.lastHypo) }}</p>
-      </fieldset>
-
-      <fieldset class="notify-block">
-        <label class="check"><input v-model="form.hypoPush" type="checkbox"> A hipó-riasztás a telefonra is menjen (push értesítés)</label>
-        <p class="muted small">Az e-mail mellett értesítést is küld a lenti módon engedélyezett eszközökre.</p>
-      </fieldset>
-
-      <fieldset class="notify-block">
-        <label class="check"><input v-model="form.weekly" type="checkbox"> Heti riport e-mailben</label>
-        <p class="muted small">Az elmúlt 7 nap átlaga, célban töltött ideje, hipói és inzulinja, az előző héthez hasonlítva.</p>
-        <div class="notify-when">
-          <label>Nap
-            <select v-model.number="form.weeklyDay">
-              <option v-for="(d, i) in DAYS" :key="d" :value="i + 1">{{ d }}</option>
-            </select>
-          </label>
-          <label>Óra
-            <select v-model.number="form.weeklyHour">
-              <option v-for="h in 24" :key="h" :value="h - 1">{{ String(h - 1).padStart(2, '0') }}:00</option>
-            </select>
-          </label>
-        </div>
-        <p v-if="data?.lastWeekly" class="muted small">Utoljára küldve: {{ data.lastWeekly }}</p>
-      </fieldset>
-
-      <div class="notify-actions">
-        <button type="submit" :disabled="busy !== ''">Mentés</button>
-        <button type="button" class="ghost" :disabled="busy !== ''" @click="test('weekly')">Heti riport küldése most</button>
-        <button type="button" class="ghost" :disabled="busy !== ''" @click="test('hypo')">Mintariasztás küldése</button>
-      </div>
-    </form>
-
-    <h3 class="notify-sub">Értesítés ezen az eszközön (push)</h3>
+    <h3 class="notify-sub">1. Eszköz engedélyezése</h3>
     <p v-if="!supported" class="alert">
       <template v-if="isIos && !standalone">iPhone-on az értesítés csak a kezdőképernyőre tett appban működik (iOS 16.4 vagy újabb): Safari → Megosztás → „Hozzáadás a kezdőképernyőhöz”, majd nyisd meg onnan, és gyere vissza ide.</template>
       <template v-else>Ez a böngésző nem támogatja a push értesítéseket.</template>
     </p>
     <template v-else>
       <p v-if="permission === 'denied'" class="alert">Az értesítések le vannak tiltva ehhez az oldalhoz. Engedélyezd az eszköz beállításaiban (iPhone: Beállítások → Értesítések → Cukornapló), majd töltsd újra az oldalt.</p>
-      <p class="muted small">
-        Állapot ezen az eszközön: <b>{{ thisDeviceOn ? 'engedélyezve' : 'ki van kapcsolva' }}</b>.
-        Az iPhone értesítései nem törik át a némítást vagy a „Ne zavarjanak” módot, és a CareLink adata késhet, ezért ez nem helyettesíti a szenzor riasztásait.
-      </p>
+      <p class="muted small">Állapot ezen az eszközön: <b>{{ thisDeviceOn ? 'engedélyezve' : 'ki van kapcsolva' }}</b>.</p>
       <ul v-if="push?.devices?.length" class="plain">
         <li v-for="d in push.devices" :key="d.endpoint" class="copyrow">
           <span>{{ d.name }} <span class="muted small">· {{ new Date(d.createdAt * 1000).toLocaleDateString('hu-HU') }}<template v-if="d.endpoint === thisEndpoint"> · ez az eszköz</template></span></span>
@@ -206,9 +147,49 @@ const when = (ts: number | null) => (ts ? new Date(ts * 1000).toLocaleString('hu
       <div class="notify-actions">
         <button v-if="!thisDeviceOn" type="button" :disabled="busy !== ''" @click="enablePush">Értesítések engedélyezése ezen az eszközön</button>
         <button v-else type="button" class="ghost" :disabled="busy !== ''" @click="disablePush">Kikapcsolás ezen az eszközön</button>
-        <button type="button" class="ghost" :disabled="busy !== '' || !push?.devices?.length" @click="testPush">Tesztértesítés küldése</button>
       </div>
     </template>
+
+    <h3 class="notify-sub">2. Mikor szóljon?</h3>
+    <form class="stack" @submit.prevent="save">
+      <fieldset class="notify-block">
+        <label class="check"><input v-model="form.hypoPush" type="checkbox"> Hipó-veszély</label>
+        <p class="muted small">Szól, ha a becsült vércukor a céltartomány alá esne, vagy már alatta van. Óránként legfeljebb egyszer.</p>
+        <label>Előrejelzés távolsága
+          <select v-model.number="form.hypoHorizon">
+            <option :value="15">15 perc</option>
+            <option :value="30">30 perc</option>
+            <option :value="45">45 perc</option>
+            <option :value="60">60 perc</option>
+          </select>
+        </label>
+        <p v-if="data?.lastHypo" class="muted small">Utolsó: {{ new Date(data.lastHypo * 1000).toLocaleString('hu-HU', { dateStyle: 'short', timeStyle: 'short' }) }}</p>
+      </fieldset>
+
+      <fieldset class="notify-block">
+        <label class="check"><input v-model="form.carbsPush" type="checkbox"> Szénhidrát-javaslat (pl. „kb. 15 g CH kellene”)</label>
+        <p class="muted small">Hipó-veszélynél megmondja, mennyi gyors szénhidrát kellene (10–30 g). Ha a hipó-veszély értesítés is be van kapcsolva, a kettő egy közös értesítésben érkezik.</p>
+      </fieldset>
+
+      <fieldset class="notify-block">
+        <label class="check"><input v-model="form.insulinPush" type="checkbox"> Inzulinjavaslat (pl. „kb. 3 E inzulin javasolt”)</label>
+        <p class="muted small">Magas vércukornál, ha az aktív inzulin levonása után is a céltartomány fölött maradna. A javaslat a napszak ISF-jéből és célértékéből számolódik, a maximális bólusig. Legfeljebb 2 óránként.</p>
+        <label>Legalább ennyi E-nél szóljon
+          <input v-model.number="form.insulinMin" type="number" step="0.5" min="0.5" max="10">
+        </label>
+        <p v-if="data?.lastInsulin" class="muted small">Utolsó: {{ new Date(data.lastInsulin * 1000).toLocaleString('hu-HU', { dateStyle: 'short', timeStyle: 'short' }) }}</p>
+      </fieldset>
+
+      <div class="notify-actions">
+        <button type="submit" :disabled="busy !== ''">Mentés</button>
+      </div>
+    </form>
+
+    <h3 class="notify-sub">3. Tesztek</h3>
+    <p class="muted small">Mintaadatokkal küld egy értesítést az engedélyezett eszközökre (nem a valós vércukrodat használja).</p>
+    <div class="notify-actions">
+      <button v-for="t in TESTS" :key="t.kind" type="button" class="ghost" :disabled="busy !== '' || noDevice" @click="test(t.kind)">{{ t.label }}</button>
+    </div>
   </section>
 </template>
 
@@ -216,7 +197,6 @@ const when = (ts: number | null) => (ts ? new Date(ts * 1000).toLocaleString('hu
 .notify-block { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin: 0; display: flex; flex-direction: column; gap: 8px; }
 .notify-block p { margin: 0; }
 .check { display: flex; align-items: center; gap: 8px; font-weight: 600; }
-.notify-when { display: flex; gap: 12px; flex-wrap: wrap; }
 .notify-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .notify-sub { margin: 20px 0 8px; font-size: 14px; font-weight: 600; }
 ul.plain { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }

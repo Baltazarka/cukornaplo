@@ -1,5 +1,5 @@
-// Háttérciklus az e-mailes értesítésekhez (hipó-előjelzés, heti riport): percenként ellenőriz.
-import { checkHypoAlert, checkWeekly } from '../utils/notify'
+// Háttérciklus a push értesítésekhez (hipó-veszély, szénhidrát- és inzulinjavaslat): percenként ellenőriz.
+import { checkAlerts } from '../utils/notify'
 
 export default defineNitroPlugin(() => {
   let running = false
@@ -7,8 +7,7 @@ export default defineNitroPlugin(() => {
     if (running) return
     running = true
     try {
-      await checkHypoAlert()
-      await checkWeekly()
+      await checkAlerts()
     } catch (e) {
       console.error('[notifier]', e)
     } finally {

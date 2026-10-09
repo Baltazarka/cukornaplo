@@ -1,30 +1,22 @@
-// Próbaküldés a beállított címre: heti riport most, vagy mintariasztás az aktuális értékekkel.
-import { notifySettings, sendWeekly, hypoMail } from '../../utils/notify'
-import { predictGlucose } from '../../utils/predict'
-import { sendMail, mailConfigured } from '../../utils/mail'
+// Tesztértesítés a feliratkozott eszközökre: kind = hypo | carbs | insulin (mintaadatokkal).
+import { testPayload } from '../../utils/notify'
+import { sendPush, listSubscriptions } from '../../utils/push'
 
 export default defineEventHandler(async (event) => {
   const b = (await readBody(event)) ?? {}
-  const to = notifySettings().email
-  if (!to || !mailConfigured()) {
+  const payload = testPayload(String(b.kind ?? ''))
+  if (!payload) {
     setResponseStatus(event, 400)
-    return { ok: false, error: 'Előbb add meg és mentsd az e-mail-címet, és állítsd be az e-mail-küldést.' }
+    return { ok: false, error: 'Ismeretlen értesítéstípus.' }
   }
-  try {
-    if (b.kind === 'weekly') {
-      await sendWeekly(to)
-    } else {
-      const p = predictGlucose(notifySettings().hypoHorizon)
-      if (!p) {
-        setResponseStatus(event, 400)
-        return { ok: false, error: 'Nincs friss vércukorérték vagy terápiás beállítás a mintalevélhez.' }
-      }
-      const m = hypoMail(p)
-      await sendMail(to, `[Minta] ${m.subject}`, m.text, m.html)
-    }
-    return { ok: true, to }
-  } catch (e: any) {
+  if (!listSubscriptions().length) {
+    setResponseStatus(event, 400)
+    return { ok: false, error: 'Még nincs eszköz feliratkozva az értesítésekre.' }
+  }
+  const r = await sendPush(payload, { urgency: 'normal', ttl: 120 })
+  if (!r.sent) {
     setResponseStatus(event, 502)
-    return { ok: false, error: `A küldés nem sikerült: ${e?.message ?? e}` }
+    return { ok: false, error: `Az értesítés nem ment ki${r.lastError ? `: ${r.lastError}` : ' (az eszköz előfizetése lejárt, engedélyezd újra).'}` }
   }
+  return { ok: true, sent: r.sent, failed: r.failed }
 })
