@@ -1,6 +1,6 @@
 // Inzulinadagok besorolása: étkezési bólus, korrekció vagy bázis.
 // A Health-adatban csak „bólus” vagy „bázis” szerepel, ezért a bólusokat becsüljük:
-//  - ha a beadás előtt vagy után 30 percen belül szénhidrát is van → étkezési bólus;
+//  - ha a beadás után 60 percen belül (előbólus) vagy előtte 30 percen belül szénhidrát is van → étkezési bólus;
 //  - ha nincs szénhidrát, de a vércukor a beadáskor a napszak célértéke + 2 mmol/L alatt volt →
 //    étkezési bólus szénhidrát nélkül (valószínűleg étkezés volt, csak a CH nem lett beírva);
 //  - különben (magas vércukor, vagy nincs mérés) → korrekció.
@@ -12,6 +12,8 @@ import { therapy, segmentAt } from './therapy'
 export type InsulinKind = 'meal' | 'correction' | 'basal'
 
 export const MEAL_WINDOW_SEC = 30 * 60
+/** Előbólus: az étkezés (CH) előtt legfeljebb ennyivel beadott bólus is étkezési. */
+export const PREBOLUS_SEC = 60 * 60
 /** Ennyivel a célérték fölött már korrekciónak tekintjük a szénhidrát nélküli bólust (mmol/L). */
 export const CORRECTION_MARGIN = 2
 /** Célérték, ha nincs terápiás beállítás (mmol/L). */
@@ -33,7 +35,7 @@ function glucoseAt(ts: number): number | null {
  */
 export function insulinKind(ts: number, subtype: string | null, carbTs: number[]): { kind: InsulinKind; auto: boolean; noCarbs: boolean } {
   if (subtype === 'basal' || subtype === 'meal' || subtype === 'correction') return { kind: subtype, auto: false, noCarbs: false }
-  if (carbTs.some((c) => Math.abs(c - ts) <= MEAL_WINDOW_SEC)) return { kind: 'meal', auto: true, noCarbs: false }
+  if (carbTs.some((c) => c - ts >= -MEAL_WINDOW_SEC && c - ts <= PREBOLUS_SEC)) return { kind: 'meal', auto: true, noCarbs: false }
   const bg = glucoseAt(ts)
   const t = therapy()
   const target = t ? segmentAt(t, ts).target : DEFAULT_TARGET

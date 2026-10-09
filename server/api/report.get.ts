@@ -4,7 +4,7 @@ import { db } from '../utils/db'
 import { glucoseStats } from '../utils/stats'
 import { targetRange } from '../utils/range'
 import { startOfDayTs, todayYmd, addDaysYmd, huWeekday, hmInTz, minuteOfDayInTz, ymdInTz } from '../utils/time'
-import { insulinKind, MEAL_WINDOW_SEC } from '../utils/insulinKind'
+import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from '../utils/insulinKind'
 import { changeTime } from '../utils/trend'
 import { notesBetween } from '../utils/notes'
 import { assumedBasalDose } from '../utils/basal'
@@ -24,7 +24,7 @@ export default defineEventHandler((event) => {
 
   const rows = db()
     .prepare('SELECT type, ts, value, subtype FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
-    .all(from - MEAL_WINDOW_SEC, to + MEAL_WINDOW_SEC) as { type: string; ts: number; value: number; subtype: string | null }[]
+    .all(from - MEAL_WINDOW_SEC, to + PREBOLUS_SEC) as { type: string; ts: number; value: number; subtype: string | null }[]
   const carbTs = rows.filter((r) => r.type === 'carbs').map((r) => Number(r.ts))
 
   type Day = {

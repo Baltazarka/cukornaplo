@@ -116,7 +116,9 @@ const actYTicks = computed(() => {
     </div>
     <p class="muted small">
       <b>Tiszta korrekció:</b> magas vércukorra adott bólus, előtte 1 óráig és utána a napszakra beállított inzulinhatás-időtartamig étel és más bólus nélkül; ebből látszik az érzékenységi tényező és a valódi hatásidő.
-      <b>Tiszta étkezés:</b> beírt CH-val és bólussal, utána 4 óráig más étel és bólus nélkül; ebből becsülhető a CH-arány.
+      <b>Tiszta étkezés:</b> beírt CH-val és bólussal; 1 órával előtte és utána a napszak hatásidejéig (legalább 4 óráig) más bólus,
+      2 órával előtte és utána más étel nélkül, sport-, betegség- vagy alkohol-jegyzet nélkül, és nem gyorsan változó kezdő vércukorral.
+      A korábbi bólusok még ható részét beszámítja; ebből becsülhető a CH-arány.
       Napszakonként legalább {{ MIN }} kell a becsléshez, {{ GOOD }} a megbízhatóhoz.
     </p>
     <p v-if="!a.therapySet" class="alert small">Előbb add meg a terápiás beállításokat: a becslések a napszakokhoz és a jelenlegi értékekhez viszonyítanak.</p>

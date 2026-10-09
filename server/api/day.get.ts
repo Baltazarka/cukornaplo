@@ -6,7 +6,7 @@ import { hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/
 import { groupByDay, summaryRows } from '../utils/summary'
 import { therapy, daySegments } from '../utils/therapy'
 import { changeTime, lastTrend } from '../utils/trend'
-import { insulinKind, MEAL_WINDOW_SEC } from '../utils/insulinKind'
+import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from '../utils/insulinKind'
 import { notesBetween } from '../utils/notes'
 import { assumedBasalDose } from '../utils/basal'
 import { rapidDoses, iobAt, bolusPeak } from '../utils/iob'
@@ -39,7 +39,7 @@ export default defineEventHandler((event) => {
   }
 
   // Bólusok besorolása (étkezési / korrekció / bázis): a nap széleinél a szomszédos napok CH-ja is számít.
-  const carbTs = carbTimes(dayStart - 8 * 3600 - MEAL_WINDOW_SEC, dayEnd + MEAL_WINDOW_SEC)
+  const carbTs = carbTimes(dayStart - 8 * 3600 - MEAL_WINDOW_SEC, dayEnd + PREBOLUS_SEC)
   for (const e of dayRows.insulin) Object.assign(e, insulinKind(e.ts, e.sub, carbTs))
 
   const dayStats = glucoseStats(dayRows.glucose.map((g) => g.v), low, high)

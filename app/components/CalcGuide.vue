@@ -169,7 +169,7 @@ onBeforeUnmount(() => {
               <p>Az InPen csak annyit küld, hogy bólus volt; a típust így becsüljük (a naplóban kézzel bármikor felülírható, és a kézi beállítás mindig erősebb):</p>
               <ol class="guide-ol">
                 <li><b>Bázis</b>, ha a beérkező adag pontosan akkora, mint a főoldalon beállított „Bázisadagom” (±0,05 E), vagy kézzel bázisnak jelölted.</li>
-                <li><b>Étkezési bólus</b>, ha a beadás előtt vagy után 30 percen belül szénhidrát van a naplóban.</li>
+                <li><b>Étkezési bólus</b>, ha a beadás után 60 percen belül (előbólus) vagy előtte 30 percen belül szénhidrát van a naplóban.</li>
                 <li><b>Étkezési bólus CH nélkül</b>, ha nincs szénhidrát, de a vércukor a beadáskor (a 15 perccel előtte – 5 perccel utána mért legközelebbi érték) a napszak célértéke + 2 mmol/L alatt volt: valószínűleg evés volt, csak a CH nem lett beírva.</li>
                 <li>Egyébként <b>korrekció</b> (magas vércukor, vagy nincs mérés).</li>
               </ol>
@@ -242,9 +242,9 @@ korrekció     = (vércukor − célérték) ÷ érzékenység (mmol/L/E)</pre>
             <section id="guide-etkezes">
               <h3>Étkezéselemzés (időszakos nézet)</h3>
               <ul class="guide-ul">
-                <li><b>Étkezés</b>: a 30 percen belül egymást követő CH-bejegyzések együtt; hozzá tartozik a 30 percen belüli étkezési bólus. CH nélküli étkezési bólus külön étkezésnek számít.</li>
+                <li><b>Étkezés</b>: a 30 percen belül egymást követő CH-bejegyzések együtt; hozzá tartozik az étkezés előtt legfeljebb 60 perccel (előbólus) vagy az utolsó CH után legfeljebb 30 perccel beadott étkezési bólus. CH nélküli étkezési bólus külön étkezésnek számít.</li>
                 <li><b>Görbe</b>: 5 percenként, a kezdő vércukorhoz képest, 30 perccel előtte kezdve 4 óráig (zsíros / fehérjedús étkezésnél 6 óráig). Csak akkor számít, ha az ablak legalább 70%-ában van szenzoradat.</li>
-                <li><b>Tiszta étkezés</b>: nincs más bólus a hatásidőn belül előtte és 4 órán belül utána, nincs más CH 2 órával előtte és 4 órán belül, és nem követte korrekció.</li>
+                <li><b>Tiszta étkezés</b> (a CH-arány becsléséhez): az étkezés / saját bólus előtt 1 óráig és utána a végpontig (a napszak hatásideje, de legalább 4 óra) nincs más bólus; 2 órával előtte és a végpontig nincs más CH; nincs sport-, betegség- vagy alkohol-jegyzet 2 órával előtte és a végpontig; a kezdő vércukor nem változik gyorsan (15 perc alatt kevesebb mint 0,11 mmol/L/perc, vagyis kevesebb mint 2 nyíl).</li>
                 <li><b>Mutatók</b> (mediánok): emelkedés (csúcs − kezdő érték), a csúcs ideje, eltérés 2 és 4 óra múlva, előbólus (a bólus és az étkezés közti idő; negatív = előre adott). A sáv a 25–75%.</li>
                 <li><b>Értékelés</b>: <i>alacsony</i>, ha a céltartomány alá ment vagy 4 óra múlva több mint 2 mmol/L-rel alacsonyabb; <i>magas</i>, ha korrekció követte vagy 4 óra múlva több mint 2-vel magasabb; <i>kiugrás</i>, ha a csúcs a céltartomány fölé ment; különben <i>rendben</i>.</li>
                 <li><b>Zsíros / fehérjedús</b> jelölés: külön mutatjuk 6 órás görbével, és kimarad a CH-arány becsléséből. <b>Gyors CH</b>: benne marad.</li>
@@ -257,17 +257,23 @@ korrekció     = (vércukor − célérték) ÷ érzékenység (mmol/L/E)</pre>
               <p>Napszakonként legalább 3 tiszta esemény kell a becsléshez, 5 a megbízhatóhoz; a végeredmény a medián.</p>
               <h4>Hatásidő és érzékenység (ISF) – tiszta korrekciókból</h4>
               <ul class="guide-ul">
-                <li><b>Tiszta korrekció</b>: 1 órával előtte és utána a beadás napszakára beállított hatásidőig nincs CH és más bólus; ebben az ablakban legalább 70%-ban van szenzoradat; legalább 1 mmol/L-t esett. Ha utána sem jön étel vagy bólus, a görbét legfeljebb 6 óráig, az első ilyen eseményig tovább használjuk (a hatásidő illesztéséhez).</li>
+                <li><b>Tiszta korrekció</b>: 1 órával előtte és utána a beadás napszakára beállított hatásidőig nincs CH, más bólus, sem sport-, betegség- vagy alkohol-jegyzet; ebben az ablakban legalább 70%-ban van szenzoradat; legalább 1 mmol/L-t esett. Ha utána sem jön étel vagy bólus, a görbét legfeljebb 6 óráig, az első ilyen eseményig tovább használjuk (a hatásidő illesztéséhez).</li>
                 <li>Minden korrekció esését 1 egységre vetítjük (esés ÷ adag), és 5 percenként vesszük a korrekciók mediánját.</li>
                 <li>Erre illesztjük a fenti inzulinmodellt: hatásidő 2 órától a Terápia oldalon kiválasztott bólusinzulin alkalmazási előírás szerinti leghosszabb hatásidejéig (NovoRapid: 5 óra), 15 percenként; csúcs 40–120 perc (5 percenként, legfeljebb a hatásidő 40%-a). Minden párra az esés nagysága zárt alakban adódik: <code class="guide-f">esés(t) ≈ ISF × (1 − aktív(t))</code>, a legkisebb négyzetek módszerével; a legkisebb eltérésű pár nyer. Az amplitúdó az ISF.</li>
                 <li><b>Nem megbízható</b>, ha határ nélkül hosszabb hatásidő illene jobban, vagyis a vércukor az inzulin leghosszabb hatásidején túl is esett. Ezt az inzulin nem magyarázza (inkább a bázis vagy más tényező), ezért ilyenkor a hatásidő és az érzékenység nem kerül át a szerkesztőbe.</li>
                 <li><b>Napszakhatár</b>: minden esemény a beadás (étkezés) időpontjának napszakához tartozik, akkor is, ha a hatása átnyúlik a következőbe; a hatásidő is a beadás napszakáé.</li>
               </ul>
               <h4>CH-arány – tiszta étkezésekből</h4>
-              <pre class="guide-pre">étkezésre jutó inzulin = beadott bólus + (4 órás érték − kezdő érték) ÷ ISF
+              <pre class="guide-pre">végpont = a napszak hatásideje, de legalább 4 és legfeljebb 6 óra
+hatott inzulin = Σ bólus × (aktív(étkezéskor) − aktív(végpontban))
+étkezésre jutó inzulin = hatott inzulin + (érték a végpontban − kezdő érték) ÷ ISF
 CH-arány = szénhidrát ÷ étkezésre jutó inzulin</pre>
               <p>
-                Vagyis: ha 4 óra múlva magasabb vagy, több inzulin kellett volna (kisebb g/E), ha alacsonyabb, kevesebb. Az ISF itt a
+                A „hatott inzulin” az étkezés és a végpont között ténylegesen hatott rész: a saját bólus(ok), és a korábbi (de
+                1 óránál régebbi) bólusok még ható maradéka, a fenti inzulinmodellel, a beadás napszakának hatásidejével.
+              </p>
+              <p>
+                Vagyis: ha a végpontban magasabb vagy, több inzulin kellett volna (kisebb g/E), ha alacsonyabb, kevesebb. Az ISF itt a
                 beállított érték, ezért ha az ISF rossz, a CH-arány becslése is torz – előbb az ISF-et érdemes rendbe tenni.
                 Zsíros étkezések nem számítanak; 0,2 E-nél kisebb eredményt kihagyunk.
               </p>
@@ -284,7 +290,7 @@ CH-arány = szénhidrát ÷ étkezésre jutó inzulin</pre>
               <ul class="guide-ul">
                 <li><b>Kizárt időszakok</b>: étkezés után 4 óra (zsírosnál 6, gyors CH-nál 2), minden bólus után a hatásideje, és minden céltartomány alatti mérés után 2 óra.</li>
                 <li>A maradék „böjt” időben 5 percenként vesszük a 15 perccel későbbi értékhez képesti változást, és óránkénti sebességre váltjuk (mmol/L/óra), ha mindkét időpont böjt.</li>
-                <li>Óránként és három napszakra (0–4, 4–8, 8–24 óra) átlagolunk. <b>Stabil</b>: ±0,3 mmol/L/óra (6 óra alatt kb. ±1,7); fölötte emelkedik, alatta csökken. 1 óránál kevesebb adatnál „kevés adat”.</li>
+                <li>Óránként és négy napszakra (0–4, 4–8, 8–12, 12–24 óra) átlagolunk. <b>Stabil</b>: ±0,3 mmol/L/óra (6 óra alatt kb. ±1,7); fölötte emelkedik, alatta csökken. 1 óránál kevesebb adatnál „kevés adat”.</li>
                 <li>Tartós emelkedés vagy esés egy napszakban a bázis vagy a napszak beállításának jele lehet.</li>
               </ul>
             </section>

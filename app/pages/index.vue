@@ -353,7 +353,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
           <span class="muted">E</span>
           <button type="submit" class="ghost sm">Mentés</button>
         </form>
-        <p v-if="!readOnly" class="muted small">A pontosan ekkora újonnan érkező adag bázis (üresen hagyva kikapcsolva). A többi bólus automatikusan: étkezési, ha 30 percen belül szénhidrát is van; „CH nélküli” étkezési, ha nincs szénhidrát, de a vércukor a célérték + 2 mmol/L alatt volt; különben korrekció. Az „(auto)” sorokat a legördülővel bármikor átállíthatod (pl. korrekcióról étkezési bólusra), a × gombbal törölheted (a telefon sem tölti vissza).</p>
+        <p v-if="!readOnly" class="muted small">A pontosan ekkora újonnan érkező adag bázis (üresen hagyva kikapcsolva). A többi bólus automatikusan: étkezési, ha 60 percen belül utána (előbólus) vagy 30 percen belül előtte szénhidrát is van; „CH nélküli” étkezési, ha nincs szénhidrát, de a vércukor a célérték + 2 mmol/L alatt volt; különben korrekció. Az „(auto)” sorokat a legördülővel bármikor átállíthatod (pl. korrekcióról étkezési bólusra), a × gombbal törölheted (a telefon sem tölti vissza).</p>
         <div v-if="logRows.length" class="table-wrap">
           <table class="table log-table">
             <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num">Glükóz</th><th v-if="!readOnly"><span class="sr-only">Törlés</span></th></tr></thead>

@@ -4,7 +4,8 @@
 import type { Therapy, TherapySegment } from '#shared/types/therapy'
 import { db } from './db'
 import { therapy, activeSegments, segmentAt, actionMinutesAt } from './therapy'
-import { insulinKind, MEAL_WINDOW_SEC } from './insulinKind'
+import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from './insulinKind'
+import { notesBetween } from './notes'
 import { targetRange } from './range'
 import { minuteOfDayInTz, ymdInTz } from './time'
 
@@ -21,6 +22,10 @@ const CORR_WINDOW_MIN = 360 // a korrekció utáni görbe legfeljebb 6 óráig t
 const CORR_PRE_MIN = 60 // tiszta korrekció: előtte 1 óráig nincs étel és más bólus
 const MIN_COVERAGE = 0.7 // a vizsgált ablak legalább 70%-ában legyen szenzoradat
 const MIN_DROP = 1 // mmol/L: ennél kisebb esésből nem becsülünk hatásidőt
+const CLEAN_PRE_MIN = 60 // tiszta étkezés: az étkezés / saját bólus előtt 1 óráig nincs más bólus
+const STEEP_RATE = 0.11 // mmol/L/perc (2 nyíl): ilyen gyorsan változó kezdő vércukornál nem tiszta az étkezés
+/** Ezek a jegyzetek erősen befolyásolják az érzékenységet: az ablakban nem tiszta az esemény. */
+const DISTURBING_TAGS = ['sport', 'betegseg', 'alkohol']
 
 interface G { ts: number; v: number }
 interface Carb extends G { fatty: boolean; fast: boolean }
@@ -96,6 +101,12 @@ export interface MealEvent {
   clean: boolean
   /** Zsíros / fehérjedús étkezésnek jelölve (a naplóban): a CH-arány becsléséből kimarad. */
   fatty: boolean
+  /** A CH-arány végpontja (perc): a napszak hatásideje, de legalább 4 óra. */
+  endMin: number
+  /** Vércukor-eltérés a végpontban a kezdőhöz képest. */
+  dEnd: number | null
+  /** Az ablakban (étkezéstől a végpontig) ténylegesen hatott inzulin, E: a saját bólus és az előző bólusok maradéka. */
+  acted: number
   /** Gyors CH-nak jelölve: a CH-arány becslésében marad, csak a darabszám miatt tartjuk számon. */
   fast: boolean
   d6h: number | null
@@ -149,6 +160,22 @@ export function analyze(from: number, to: number) {
   // előírás szerinti leghosszabb hatásideje (ha nincs megadva inzulin vagy adat, 5 óra).
   const maxDia = insulinById(t?.bolusInsulin)?.maxDurationMinutes ?? 300
   const targetAt = (ts: number) => (t ? segmentAt(t, ts).target : 6)
+  // Bólusonkénti hatásmodell (a beadás napszakának hatásidejével) az ablakban hatott inzulinhoz.
+  const peakMin = insulinById(t?.bolusInsulin)?.peakMinutes ?? 75
+  const models = new Map<number, ReturnType<typeof insulinModel>>()
+  const modelOf = (ts: number) => {
+    const dia = diaAt(ts)
+    if (!models.has(dia)) models.set(dia, insulinModel(peakMin, dia))
+    return models.get(dia)!
+  }
+  /** A bólusból a [t0, t1] ablakban hatott rész, E. */
+  const actedIn = (b: Bolus, t0: number, t1: number) => {
+    const m = modelOf(b.ts)
+    return b.v * (m.iob(Math.max(0, (t0 - b.ts) / 60)) - m.iob(Math.max(0, (t1 - b.ts) / 60)))
+  }
+  // Zavaró jegyzetek (sport, betegség, alkohol) időpontjai.
+  const disturbTs = notesBetween(loadFrom, loadTo).filter((n) => n.tags.some((x) => DISTURBING_TAGS.includes(x))).map((n) => n.ts)
+  const disturbed = (t0: number, t1: number) => disturbTs.some((ts) => ts >= t0 && ts <= t1)
 
   // --- Étkezések: a 30 percen belüli CH-bejegyzések egy étkezés; a CH nélküli étkezési bólusok is.
   const groups: { ts: number; last: number; carbs: number | null; fatty: boolean; fast: boolean; boluses: Bolus[] }[] = []
@@ -162,7 +189,8 @@ export function analyze(from: number, to: number) {
     } else groups.push({ ts: c.ts, last: c.ts, carbs: c.v, fatty: c.fatty, fast: c.fast, boluses: [] })
   }
   for (const b of boluses.filter((x) => x.kind === 'meal')) {
-    const g = groups.find((x) => x.carbs != null && b.ts >= x.ts - MEAL_WINDOW_SEC && b.ts <= x.last + MEAL_WINDOW_SEC)
+    // Előbólus: legfeljebb 60 perccel az étkezés előtt, vagy legfeljebb 30 perccel az utolsó CH után.
+    const g = groups.find((x) => x.carbs != null && b.ts >= x.ts - PREBOLUS_SEC && b.ts <= x.last + MEAL_WINDOW_SEC)
     if (g) g.boluses.push(b)
     else if (b.noCarbs) groups.push({ ts: b.ts, last: b.ts, carbs: null, fatty: false, fast: false, boluses: [b] })
   }
@@ -183,9 +211,22 @@ export function analyze(from: number, to: number) {
     const own = new Set(g.boluses)
     const end = g.ts + MEAL_WINDOW_MIN * 60
     const firstBolus = g.boluses.length ? Math.min(...g.boluses.map((b) => b.ts)) : null
-    const otherBolus = boluses.some((b) => !own.has(b) && b.ts >= g.ts - diaAt(g.ts) * 60 && b.ts <= end)
-    const otherCarbs = carbs.some((c) => (c.ts < g.ts || c.ts > g.last) && c.ts >= g.ts - 2 * 3600 && c.ts <= end)
+    // A CH-arány végpontja: a napszak hatásideje, de legalább 4 (és legfeljebb 6) óra, hogy a bólus
+    // a végére kifusson. Tiszta: 1 órával az étkezés / saját bólus előtt és a végpontig nincs más bólus,
+    // 2 órával előtte és a végpontig nincs más CH, nincs zavaró jegyzet, és a kezdő vércukor nem változik gyorsan.
+    const endMin = Math.min(FATTY_WINDOW_MIN, Math.max(MEAL_WINDOW_MIN, diaAt(g.ts)))
+    const tEnd = g.ts + endMin * 60
+    const startTs = Math.min(g.ts, firstBolus ?? g.ts)
+    const otherBolus = boluses.some((b) => !own.has(b) && b.ts >= startTs - CLEAN_PRE_MIN * 60 && b.ts <= tEnd)
+    const otherCarbs = carbs.some((c) => (c.ts < g.ts || c.ts > g.last) && c.ts >= g.ts - 2 * 3600 && c.ts <= tEnd)
     const correctionAfter = boluses.some((b) => b.kind === 'correction' && b.ts > g.ts + MEAL_WINDOW_SEC && b.ts <= end)
+    const before = sample(g.ts - 900)
+    const steep = before != null && Math.abs(startBG - before) / 15 >= STEEP_RATE
+    // Az ablakban ténylegesen hatott inzulin: a saját bólus(ok) és a korábbi bólusok még ható része.
+    const acted = boluses
+      .filter((b) => b.ts <= tEnd && b.ts > g.ts - diaAt(b.ts) * 60)
+      .reduce((a, b) => a + actedIn(b, g.ts, tEnd), 0)
+    const vEnd = values[(MEAL_PRE_MIN + endMin) / STEP] ?? null
     let peak = -Infinity
     let peakMin = 0
     let min = Infinity
@@ -218,8 +259,11 @@ export function analyze(from: number, to: number) {
       min: r1(min),
       rating,
       correctionAfter,
-      clean: !otherBolus && !otherCarbs && !correctionAfter,
+      clean: !otherBolus && !otherCarbs && !correctionAfter && !steep && !disturbed(g.ts - 2 * 3600, tEnd),
       fatty: g.fatty,
+      endMin,
+      dEnd: vEnd != null ? r2(vEnd - startBG) : null,
+      acted: r2(acted),
       fast: g.fast && !g.fatty,
       d6h: d6h != null ? r1(d6h) : null,
       // Sima étkezésnél 4 óra után a görbe már más étkezésekkel keveredne: ott levágjuk.
@@ -240,6 +284,7 @@ export function analyze(from: number, to: number) {
     const pre = b.ts - CORR_PRE_MIN * 60
     if (boluses.some((x) => x !== b && x.ts >= pre && x.ts <= cleanEnd)) continue
     if (carbs.some((c) => c.ts >= pre && c.ts <= cleanEnd)) continue
+    if (disturbed(pre, cleanEnd)) continue
     const startBG = sample(b.ts)
     if (startBG == null) continue
     // A következő étkezés vagy bólus (a hatásidő után): onnantól a görbe már nem tiszta.
@@ -273,26 +318,22 @@ export function analyze(from: number, to: number) {
     const segMeals = segAll.filter((m) => !m.fatty)
     const fattyMeals = segAll.filter((m) => m.fatty)
     // A zsíros / fehérjedús étkezések kimaradnak a CH-arány becsléséből (a késői emelkedés torzítana).
-    const cleanCarbMeals = segMeals.filter((m) => m.clean && m.carbs && m.bolus > 0 && m.d4h != null)
+    const cleanCarbMeals = segMeals.filter((m) => m.clean && m.carbs && m.bolus > 0 && m.dEnd != null)
     const segCorr = corrections.filter((c) => c.seg === sg.index)
 
     // ISF és hatásidő: a tiszta korrekciók egységnyi esési görbéjére illesztett modellből.
     const actionFit = segCorr.length >= MIN_EVENTS ? fitAction(segCorr, maxDia) : null
 
-    // CH-arány: mennyi inzulin kellett volna, hogy 4 óra múlva a célértéken legyen?
-    //   szükséges = beadott + (4 órás érték − cél) ÷ ISF;  ebből az étkezésre jutó rész a
-    //   kezdő vércukor korrekciója nélkül; CH-arány = CH ÷ étkezésre jutó inzulin.
-    //   A korrekció célérték alatt negatív (mint a kalkulátorban): így az étkezésre jutó rész
-    //   mindig beadott + (4 órás érték − kezdő érték) ÷ ISF, a kezdő értéktől függetlenül.
+    // CH-arány: mennyi inzulin kellett volna ahhoz, hogy a végpontban (a napszak hatásideje, de legalább
+    // 4 óra) a kezdő értéken legyen?
+    //   étkezésre jutó inzulin = az ablakban ténylegesen hatott inzulin + (végpont − kezdő érték) ÷ ISF
+    // A ténylegesen hatott inzulin a saját bólus(ok)nak és a korábbi bólusok még ható maradékának az
+    // a része, ami az étkezés és a végpont között hatott (inzulinmodellből).
     const isfForIcr = sg.seg?.isf ?? null
     const icrValues: number[] = []
     if (isfForIcr) {
       for (const m of cleanCarbMeals) {
-        const target = sg.seg!.target
-        const end = m.startBG + m.d4h!
-        const needed = m.bolus + (end - target) / isfForIcr
-        const corr = (m.startBG - target) / isfForIcr
-        const mealNeeded = needed - corr
+        const mealNeeded = m.acted + m.dEnd! / isfForIcr
         if (mealNeeded > 0.2) icrValues.push(m.carbs! / mealNeeded)
       }
     }
@@ -467,8 +508,8 @@ function basalCheck(
   }
 
   const hours = Array.from({ length: 24 }, () => ({ sum: 0, n: 0 }))
-  const blockDays: Set<string>[] = [new Set(), new Set(), new Set()]
-  const blockOf = (h: number) => (h < 4 ? 0 : h < 8 ? 1 : 2)
+  const blockDays: Set<string>[] = [new Set(), new Set(), new Set(), new Set()]
+  const blockOf = (h: number) => (h < 4 ? 0 : h < 8 ? 1 : h < 12 ? 2 : 3)
   const lagSteps = LAG / 300
   for (let i = 0; i + lagSteps < steps; i++) {
     if (!ok[i] || !ok[i + lagSteps]) continue
@@ -484,7 +525,8 @@ function basalCheck(
   const BLOCKS = [
     { label: 'Éjszaka', from: 0, to: 4 },
     { label: 'Hajnal, kora reggel', from: 4, to: 8 },
-    { label: 'Nappal, este', from: 8, to: 24 },
+    { label: 'Délelőtt', from: 8, to: 12 },
+    { label: 'Délután, este', from: 12, to: 24 },
   ]
   return {
     hours: hours.map((x, h) => ({ h, slope: x.n ? r2(x.sum / x.n) : null, hours: r1((x.n * 5) / 60) })),
