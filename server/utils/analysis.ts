@@ -17,7 +17,8 @@ const MEAL_WINDOW_MIN = 240 // az étkezés utáni 4 óra
 const FATTY_WINDOW_MIN = 360 // zsíros / fehérjedús étkezésnél 6 óra (később emel)
 const FAST_WINDOW_MIN = 120 // gyors CH (pl. hipó kezelése): 2 óra alatt felszívódik
 const MEAL_PRE_MIN = 30 // a görbe az étkezés előtt 30 perccel indul
-const CORR_WINDOW_MIN = 360 // a korrekció utáni 6 óra
+const CORR_WINDOW_MIN = 360 // a korrekció utáni görbe legfeljebb 6 óráig tart
+const CORR_PRE_MIN = 60 // tiszta korrekció: előtte 1 óráig nincs étel és más bólus
 const MIN_COVERAGE = 0.7 // a vizsgált ablak legalább 70%-ában legyen szenzoradat
 const MIN_DROP = 1 // mmol/L: ennél kisebb esésből nem becsülünk hatásidőt
 
@@ -223,19 +224,32 @@ export function analyze(from: number, to: number) {
     })
   }
 
-  // --- Tiszta korrekciók: étel és más bólus nélkül, a vércukor esése 6 órán át.
+  // --- Tiszta korrekciók: előtte 1 óráig és utána a beadás napszakára beállított hatásidőig étel és
+  // más bólus nélkül. Ha utána sem jön semmi, a görbét tovább (legfeljebb 6 óráig) is használjuk a
+  // hatásidő illesztéséhez, de csak az első étkezésig / bólusig.
   const corrections: CorrectionEvent[] = []
   let correctionCount = 0
   for (const b of boluses) {
     if (b.kind !== 'correction' || b.ts < from || b.ts >= to) continue
     correctionCount++
-    const end = b.ts + CORR_WINDOW_MIN * 60
-    if (boluses.some((x) => x !== b && x.ts >= b.ts - diaAt(b.ts) * 60 && x.ts <= end)) continue
-    if (carbs.some((c) => c.ts >= b.ts - 2 * 3600 && c.ts <= end)) continue
+    const dia = diaAt(b.ts)
+    const cleanEnd = b.ts + dia * 60
+    const pre = b.ts - CORR_PRE_MIN * 60
+    if (boluses.some((x) => x !== b && x.ts >= pre && x.ts <= cleanEnd)) continue
+    if (carbs.some((c) => c.ts >= pre && c.ts <= cleanEnd)) continue
     const startBG = sample(b.ts)
     if (startBG == null) continue
-    const { values, covered } = curveAround(sample, b.ts, 0, CORR_WINDOW_MIN)
-    if (covered < MIN_COVERAGE) continue
+    // A következő étkezés vagy bólus (a hatásidő után): onnantól a görbe már nem tiszta.
+    const nextEvent = Math.min(
+      ...boluses.filter((x) => x !== b && x.ts > cleanEnd).map((x) => x.ts),
+      ...carbs.filter((c) => c.ts > cleanEnd).map((c) => c.ts),
+      b.ts + CORR_WINDOW_MIN * 60 + 1,
+    )
+    const raw = curveAround(sample, b.ts, 0, CORR_WINDOW_MIN).values
+    const values = raw.map((v, i) => (b.ts + i * STEP * 60 < nextEvent ? v : null))
+    // A lefedettséget a kötelezően tiszta ablakra (a hatásidőre) nézzük.
+    const win = values.slice(0, Math.floor(Math.min(dia, CORR_WINDOW_MIN) / STEP) + 1)
+    if (win.filter((v) => v != null).length / win.length < MIN_COVERAGE) continue
     const drops = values.map((v) => (v == null ? null : startBG - v))
     const best = Math.max(...drops.map((d) => d ?? 0))
     if (best < MIN_DROP) continue

@@ -257,7 +257,7 @@ korrekció     = (vércukor − célérték) ÷ érzékenység (mmol/L/E)</pre>
               <p>Napszakonként legalább 3 tiszta esemény kell a becsléshez, 5 a megbízhatóhoz; a végeredmény a medián.</p>
               <h4>Hatásidő és érzékenység (ISF) – tiszta korrekciókból</h4>
               <ul class="guide-ul">
-                <li><b>Tiszta korrekció</b>: nincs CH 2 órával előtte és 6 órán belül utána, nincs más bólus a hatásidőn belül előtte és 6 órán belül; az ablak legalább 70%-ában van szenzoradat; legalább 1 mmol/L-t esett.</li>
+                <li><b>Tiszta korrekció</b>: 1 órával előtte és utána a beadás napszakára beállított hatásidőig nincs CH és más bólus; ebben az ablakban legalább 70%-ban van szenzoradat; legalább 1 mmol/L-t esett. Ha utána sem jön étel vagy bólus, a görbét legfeljebb 6 óráig, az első ilyen eseményig tovább használjuk (a hatásidő illesztéséhez).</li>
                 <li>Minden korrekció esését 1 egységre vetítjük (esés ÷ adag), és 5 percenként vesszük a korrekciók mediánját.</li>
                 <li>Erre illesztjük a fenti inzulinmodellt: hatásidő 120–480 perc (15 percenként), csúcs 40–120 perc (5 percenként, legfeljebb a hatásidő 40%-a). Minden párra az esés nagysága zárt alakban adódik: <code class="guide-f">esés(t) ≈ ISF × (1 − aktív(t))</code>, a legkisebb négyzetek módszerével; a legkisebb eltérésű pár nyer. Az amplitúdó az ISF.</li>
               </ul>

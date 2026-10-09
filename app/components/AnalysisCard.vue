@@ -50,7 +50,7 @@ const pctFmt = (v: number) => `${Math.round(v * 100)}%`
       <span class="muted small">utolsó 30 nap · szenzoradat {{ fmt(a.coverage, 0) }}%</span>
     </div>
     <p class="muted small">
-      <b>Tiszta korrekció:</b> magas vércukorra adott bólus, előtte 2 és utána 6 óráig étel és más bólus nélkül; ebből látszik az érzékenységi tényező és a valódi hatásidő.
+      <b>Tiszta korrekció:</b> magas vércukorra adott bólus, előtte 1 óráig és utána a napszakra beállított inzulinhatás-időtartamig étel és más bólus nélkül; ebből látszik az érzékenységi tényező és a valódi hatásidő.
       <b>Tiszta étkezés:</b> beírt CH-val és bólussal, utána 4 óráig más étel és bólus nélkül; ebből becsülhető a CH-arány.
       Napszakonként legalább {{ MIN }} kell a becsléshez, {{ GOOD }} a megbízhatóhoz.
     </p>
