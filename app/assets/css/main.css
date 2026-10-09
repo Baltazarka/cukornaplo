@@ -786,3 +786,4 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
 .shot-single { margin: 8px 0 0; width: 200px; }
 .shot-single img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--border); }
 .shot-single figcaption { margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
+.analysis-period { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }

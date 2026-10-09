@@ -1,10 +1,28 @@
 <script setup lang="ts">
-// Terápia oldal: mennyi tiszta korrekció és étkezés gyűlt össze napszakonként (az utolsó 30 napban),
+// Terápia oldal: mennyi tiszta korrekció és étkezés gyűlt össze napszakonként (a választott időszakban,
+// alapból az utolsó 14 napban),
 // és ha elég, becslés az érzékenységi tényezőre, a CH-arányra és a hatásidőre, a mért hatásgörbével.
 // Az „Átvétel” csak a szerkesztő mezőit tölti ki; menteni a felhasználó ment.
 const emit = defineEmits<{ (e: 'apply', values: { start: string; isf?: number; icr?: number; actionMinutes?: number }[]): void }>()
 
-const { data } = await useFetch<any>('/api/analysis', { query: { days: 30 }, key: 'analysis-30' })
+// Időszak: alapból 14 nap; a választás ebben a böngészőben megmarad.
+const PERIODS = [7, 14, 30, 60, 90]
+const DAYS_KEY = 'cukornaplo.analysisDays'
+const days = ref(14)
+onMounted(() => {
+  try {
+    const v = Number(localStorage.getItem(DAYS_KEY))
+    if (PERIODS.includes(v)) days.value = v
+  } catch { /* nincs tároló */ }
+})
+function setDays(d: number) {
+  days.value = d
+  try { localStorage.setItem(DAYS_KEY, String(d)) } catch { /* nincs tároló */ }
+}
+const { data } = await useFetch<any>('/api/analysis', {
+  query: computed(() => ({ days: days.value })),
+  key: computed(() => `analysis-${days.value}`),
+})
 const a = computed(() => data.value)
 
 const MIN = 3
@@ -47,7 +65,12 @@ const pctFmt = (v: number) => `${Math.round(v * 100)}%`
   <section v-if="a" class="card analysis-card">
     <div class="card-head">
       <h2>Becslés az adataidból <GuideLink section="becsles" /></h2>
-      <span class="muted small">utolsó 30 nap · szenzoradat {{ fmt(a.coverage, 0) }}%</span>
+      <div class="analysis-period">
+        <div class="segmented" role="group" aria-label="Időszak">
+          <button v-for="d in PERIODS" :key="d" type="button" :aria-pressed="days === d" @click="setDays(d)">{{ d }} nap</button>
+        </div>
+        <span class="muted small">szenzoradat {{ fmt(a.coverage, 0) }}%</span>
+      </div>
     </div>
     <p class="muted small">
       <b>Tiszta korrekció:</b> magas vércukorra adott bólus, előtte 1 óráig és utána a napszakra beállított inzulinhatás-időtartamig étel és más bólus nélkül; ebből látszik az érzékenységi tényező és a valódi hatásidő.
