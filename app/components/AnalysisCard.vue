@@ -35,14 +35,44 @@ const pct = (n: number) => `${Math.min(100, (100 * n) / GOOD)}%`
 const count = (n: number) => (n >= GOOD ? `${n} ✓` : `${n}/${GOOD}`)
 const quality = (n: number) => (n >= GOOD ? 'megbízható' : n >= MIN ? 'előzetes' : `még ${MIN - n}`)
 
-const hasEstimate = computed(() => a.value?.segments.some((s: any) => s.estimate.isf || s.estimate.icr || s.estimate.action))
+// A felső határon akadt illesztés (a vércukor az inzulin leghosszabb hatásidején túl is esett) nem
+// megbízható: az érzékenységet és a hatásidőt ilyenkor nem írjuk be a szerkesztőbe.
+const reliableIsf = (s: any) => (s.estimate.isf && !s.estimate.isf.unreliable ? s.estimate.isf.value : undefined)
+const reliableDia = (s: any) => (s.estimate.action && !s.estimate.action.atLimit ? s.estimate.action.dia : undefined)
+const hasEstimate = computed(() => a.value?.segments.some((s: any) => reliableIsf(s) != null || s.estimate.icr || reliableDia(s) != null))
 function apply() {
   emit('apply', a.value.segments.map((s: any) => ({
     start: s.start,
-    isf: s.estimate.isf?.value,
+    isf: reliableIsf(s),
     icr: s.estimate.icr?.value,
-    actionMinutes: s.estimate.action?.dia,
+    actionMinutes: reliableDia(s),
   })))
+}
+
+// Tiszta étkezések görbéje napszakonként: a vércukor változása a kezdő értékhez képest.
+const cleanSegs = computed(() => (a.value?.segments ?? []).filter((s: any) => s.clean))
+function cleanChart(s: any) {
+  const c = s.clean.curve
+  const vals = [...c.p25, ...c.p75, ...c.p50].filter((v: number | null) => v != null) as number[]
+  const lo = Math.min(-2, Math.floor(Math.min(...vals) / 2) * 2)
+  const hi = Math.max(4, Math.ceil(Math.max(...vals) / 2) * 2)
+  const yTicks: number[] = []
+  for (let v = lo; v <= hi; v += 2) yTicks.push(v)
+  return {
+    x: c.minutes,
+    lines: [{ y: c.p50, color: 'var(--series-glucose)', label: 'medián' }],
+    bands: [{ lo: c.p25, hi: c.p75, color: 'color-mix(in srgb, var(--series-glucose) 18%, transparent)' }],
+    yTicks,
+  }
+}
+const signed = (v: number | null | undefined) => (v == null ? '–' : `${v > 0 ? '+' : ''}${fmt(v)}`)
+const minLabel = (v: number) => (v === 0 ? '0' : v < 0 ? `${v} p` : actionLabel(v))
+/** A 4 órás eltérés értelmezése a CH-arány szempontjából (±1 mmol/L-en belül rendben). */
+function cleanVerdict(d4h: number | null | undefined): string {
+  if (d4h == null) return ''
+  if (d4h > 1) return 'a kezdő érték fölött marad, a CH-arány gyenge lehet (több inzulin kellene, kisebb g/E)'
+  if (d4h < -1) return 'a kezdő érték alá megy, a CH-arány erős lehet (kevesebb inzulin kellene, nagyobb g/E)'
+  return 'visszaér a kezdő érték közelébe, a CH-arány rendben lehet'
 }
 
 // Mért hatásgörbe: a tiszta korrekciók esése a teljes eséshez viszonyítva, a modellekkel.
@@ -102,8 +132,8 @@ const pctFmt = (v: number) => `${Math.round(v * 100)}%`
             </td>
             <td class="num">
               <span class="muted">{{ fmt(s.therapy?.isf) }} →</span>
-              <b v-if="s.estimate.isf">{{ fmt(s.estimate.isf.value) }}</b><span v-else class="muted">?</span>
-              <small class="est-q">{{ quality(s.counts.cleanCorrections) }}</small>
+              <b v-if="s.estimate.isf" :class="{ 'est-bad': s.estimate.isf.unreliable }">{{ fmt(s.estimate.isf.value) }}</b><span v-else class="muted">?</span>
+              <small class="est-q">{{ s.estimate.isf?.unreliable ? 'nem megbízható' : quality(s.counts.cleanCorrections) }}</small>
             </td>
             <td class="num">
               <span class="muted">{{ fmt(s.therapy?.icr) }} →</span>
@@ -112,8 +142,8 @@ const pctFmt = (v: number) => `${Math.round(v * 100)}%`
             </td>
             <td class="num">
               <span class="muted">{{ s.therapy ? actionLabel(s.therapy.actionMinutes) : '–' }} →</span>
-              <b v-if="s.estimate.action">{{ actionLabel(s.estimate.action.dia) }}</b><span v-else class="muted">?</span>
-              <small class="est-q">{{ quality(s.counts.cleanCorrections) }}</small>
+              <b v-if="s.estimate.action" :class="{ 'est-bad': s.estimate.action.atLimit }">{{ s.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(s.estimate.action.dia) }}</b><span v-else class="muted">?</span>
+              <small class="est-q">{{ s.estimate.action?.atLimit ? 'nem megbízható' : quality(s.counts.cleanCorrections) }}</small>
             </td>
           </tr>
         </tbody>
@@ -139,13 +169,45 @@ const pctFmt = (v: number) => `${Math.round(v * 100)}%`
             <template #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
           </MiniBandChart>
         </ClientOnly>
-        <p v-if="act.fit" class="muted small">
+        <p v-if="act.fit?.atLimit" class="alert small">
+          A vércukor a kiválasztott inzulin leghosszabb hatásidején ({{ actionLabel(act.fit.maxDia) }}) túl is tovább esett, ezt az
+          inzulin már nem magyarázza: valószínűleg más is csökkentette (pl. a bázis abban a napszakban erős, vagy éjszaka a
+          szenzoron feküdtél). Az illesztett hatásidő és érzékenység ezért nem megbízható, a szerkesztőbe nem írjuk be;
+          érdemes a Bázisellenőrzést is megnézni.
+        </p>
+        <p v-else-if="act.fit" class="muted small">
           Illesztett modell: csúcs {{ actionLabel(act.fit.peak) }}, hatásidő {{ actionLabel(act.fit.dia) }}, érzékenység {{ fmt(act.fit.isf) }} mmol/L/E.
           A szenzor kb. 10–15 percet késik, ezért a valódi csúcs valamivel korábban lehet.
         </p>
         <p v-else class="muted small">A görbe illesztéséhez legalább {{ MIN }} tiszta korrekció kell (most {{ act.n }}).</p>
       </template>
       <p v-else class="muted small">Még nincs tiszta korrekció. Akkor kerül ide, ha magas vércukorra étkezésen kívül adsz bólust, és utána pár óráig nem eszel.</p>
+    </div>
+
+    <div class="analysis-action">
+      <h3>Tiszta étkezések görbéje</h3>
+      <p class="muted small">
+        A CH-arány becsléséhez használt étkezések: a vércukor változása a kezdő értékhez képest, 30 perccel előtte kezdve 4 óráig.
+        Ha 4 óra múlva a görbe a kezdő érték fölött marad, a CH-arány gyenge lehet; ha alatta, erős.
+      </p>
+      <div v-if="cleanSegs.length" class="clean-meals">
+        <div v-for="s in cleanSegs" :key="s.index" class="clean-meal">
+          <div class="tile-label">{{ s.start }}–{{ s.end }} <span class="muted">· {{ s.clean.n }} tiszta étkezés</span></div>
+          <ClientOnly>
+            <MiniBandChart
+              :x="cleanChart(s).x" :lines="cleanChart(s).lines" :bands="s.clean.n >= 2 ? cleanChart(s).bands : []"
+              :x-ticks="[0, 60, 120, 180, 240]" :x-format="minLabel"
+              :y-ticks="cleanChart(s).yTicks" :y-format="(v: number) => signed(v)"
+              :ref-y="[0]" :ref-x="[0]" :height="140"
+              :caption="`Emelkedés ${signed(s.clean.rise)} mmol/L, csúcs ${fmt(s.clean.peakMin, 0)} perc után, 4 óra múlva ${signed(s.clean.d4h)}`"
+            >
+              <template v-if="s.clean.n >= 2" #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
+            </MiniBandChart>
+          </ClientOnly>
+          <p class="muted small">4 óra múlva {{ signed(s.clean.d4h) }} mmol/L: {{ cleanVerdict(s.clean.d4h) }}.</p>
+        </div>
+      </div>
+      <p v-else class="muted small">Még nincs tiszta étkezés. Akkor kerül ide, ha beírt CH-val és bólussal eszel, és utána 4 óráig nem eszel és nem adsz más bólust.</p>
     </div>
   </section>
 </template>

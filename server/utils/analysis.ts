@@ -145,6 +145,9 @@ export function analyze(from: number, to: number) {
   }
   const sample = sampler(glucose)
   const diaAt = (ts: number) => (t ? actionMinutesAt(t, ts) : 240)
+  // A mért hatásgörbe illesztésének felső határa: a terápiában kiválasztott bólusinzulin alkalmazási
+  // előírás szerinti leghosszabb hatásideje (ha nincs megadva inzulin vagy adat, 5 óra).
+  const maxDia = insulinById(t?.bolusInsulin)?.maxDurationMinutes ?? 300
   const targetAt = (ts: number) => (t ? segmentAt(t, ts).target : 6)
 
   // --- Étkezések: a 30 percen belüli CH-bejegyzések egy étkezés; a CH nélküli étkezési bólusok is.
@@ -274,7 +277,7 @@ export function analyze(from: number, to: number) {
     const segCorr = corrections.filter((c) => c.seg === sg.index)
 
     // ISF és hatásidő: a tiszta korrekciók egységnyi esési görbéjére illesztett modellből.
-    const actionFit = segCorr.length >= MIN_EVENTS ? fitAction(segCorr) : null
+    const actionFit = segCorr.length >= MIN_EVENTS ? fitAction(segCorr, maxDia) : null
 
     // CH-arány: mennyi inzulin kellett volna, hogy 4 óra múlva a célértéken legyen?
     //   szükséges = beadott + (4 órás érték − cél) ÷ ISF;  ebből az étkezésre jutó rész a
@@ -309,8 +312,12 @@ export function analyze(from: number, to: number) {
       },
       meals: mealSummary(segMeals),
       fatty: mealSummary(fattyMeals),
+      // A CH-arány becsléséhez használt tiszta étkezések görbéje (Terápia oldal).
+      clean: mealSummary(cleanCarbMeals),
       estimate: {
-        isf: actionFit ? { value: actionFit.isf, n: actionFit.n } : null,
+        // Ha az illesztés az inzulin leghosszabb hatásidején akadt meg, más is csökkentette a
+        // vércukrot (pl. bázis): az érzékenység és a hatásidő ilyenkor nem megbízható.
+        isf: actionFit ? { value: actionFit.isf, n: actionFit.n, unreliable: actionFit.atLimit } : null,
         icr: icrEst != null ? { value: icrEst, n: icrValues.length } : null,
         action: actionFit,
       },
@@ -322,7 +329,8 @@ export function analyze(from: number, to: number) {
     coverage: glucoseCoverage(glucose, from, Math.min(to, Math.floor(Date.now() / 1000))),
     counts: { meals: meals.length, corrections: correctionCount, cleanCorrections: corrections.length },
     segments,
-    action: actionSummary(corrections, t),
+    action: actionSummary(corrections, t, maxDia),
+    maxDia,
     basal: basalCheck(glucose, carbs, boluses, diaAt, low, from, Math.min(to, Math.floor(Date.now() / 1000))),
   }
 }
@@ -374,10 +382,14 @@ function medianCurve(events: CorrectionEvent[]): (number | null)[] {
  * hatásidő) párra a teljes esés nagysága (= ISF, mmol/L/E) zárt alakban adódik a legkisebb
  * négyzetek módszerével: medián esés(t) ≈ ISF × (1 − IOB(t)). A legkisebb eltérésű pár nyer.
  */
-function fitAction(events: CorrectionEvent[]) {
+function fitAction(events: CorrectionEvent[], maxDia: number) {
   const med = medianCurve(events)
   let best: { peak: number; dia: number; isf: number; err: number } | null = null
-  for (let dia = 120; dia <= 480; dia += 15) {
+  // A határ nélküli (2 órával tovább engedett) legjobb illesztés csak annak eldöntésére kell, hogy a
+  // vércukor a határon túl is esett-e.
+  let free: { dia: number; err: number } | null = null
+  // A hatásidő legfeljebb az inzulin alkalmazási előírás szerinti leghosszabb hatásideje lehet.
+  for (let dia = 120; dia <= maxDia + 120; dia += 15) {
     for (let peak = 40; peak <= Math.min(120, dia * 0.4); peak += 5) {
       const m = insulinModel(peak, dia)
       const g = med.map((_, i) => 1 - m.iob(i * STEP))
@@ -390,20 +402,24 @@ function fitAction(events: CorrectionEvent[]) {
       let n = 0
       med.forEach((o, i) => { if (o != null) { err += (o - A * g[i]) ** 2; n++ } })
       const rmse = Math.sqrt(err / Math.max(1, n))
-      if (A > 0 && (!best || rmse < best.err)) best = { peak, dia, isf: A, err: rmse }
+      if (A <= 0) continue
+      if (!free || rmse < free.err) free = { dia, err: rmse }
+      if (dia <= maxDia && (!best || rmse < best.err)) best = { peak, dia, isf: A, err: rmse }
     }
   }
-  return best && { peak: best.peak, dia: best.dia, isf: r1(best.isf), rmse: r2(best.err), n: events.length }
+  // atLimit: határ nélkül hosszabb hatásidő illene jobban, vagyis a vércukor a határon túl is esett.
+  const atLimit = !!free && free.dia > maxDia
+  return best && { peak: best.peak, dia: best.dia, isf: r1(best.isf), rmse: r2(best.err), n: events.length, maxDia, atLimit }
 }
 
 /**
  * Az összes tiszta korrekció együtt: az esési görbék a teljes eséshez viszonyítva (0 → 1),
  * medián és sáv, mellette az illesztett és a jelenleg beállított modell.
  */
-function actionSummary(events: CorrectionEvent[], t: Therapy | null) {
+function actionSummary(events: CorrectionEvent[], t: Therapy | null, maxDia: number) {
   const current = t ? { peak: insulinById(t.bolusInsulin)?.peakMinutes ?? 75, dia: t.actionMinutes } : null
   if (!events.length) return { n: 0, observed: null, fit: null, current }
-  const fit = events.length >= MIN_EVENTS ? fitAction(events) : null
+  const fit = events.length >= MIN_EVENTS ? fitAction(events, maxDia) : null
   // Viszonyítás: az illesztett teljes esés, vagy illesztés nélkül az események legnagyobb esése.
   const scale = (e: CorrectionEvent) => fit?.isf ?? e.isf
   const minutes = events[0].perUnit.map((_, i) => i * STEP)

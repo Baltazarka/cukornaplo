@@ -13,19 +13,24 @@ export interface InsulinInfo {
   kind: 'bolus' | 'basal'
   /** Bólusinzulinnál: a hatás csúcsideje percben (exponenciális modell). */
   peakMinutes?: number
+  /**
+   * Bólusinzulinnál: az alkalmazási előírás szerinti leghosszabb hatásidő, perc. A mért hatásgörbe
+   * illesztése ennél hosszabb hatásidőt nem adhat (ami ezen túl esik, az már nem ennek az inzulinnak tudható be).
+   */
+  maxDurationMinutes?: number
   /** Az alkalmazási előírás szerinti hatásprofil, ha rögzítettük. */
   facts?: { onset?: string; peak?: string; duration?: string; note?: string }
 }
 
 export const INSULINS: InsulinInfo[] = [
   {
-    id: 'novorapid', name: 'NovoRapid', generic: 'aszpart', kind: 'bolus', peakMinutes: 75,
+    id: 'novorapid', name: 'NovoRapid', generic: 'aszpart', kind: 'bolus', peakMinutes: 75, maxDurationMinutes: 300,
     facts: { onset: '10–20 perc', peak: '1–3 óra', duration: '3–5 óra' },
   },
-  { id: 'fiasp', name: 'Fiasp', generic: 'gyorsabb hatású aszpart', kind: 'bolus', peakMinutes: 55 },
-  { id: 'humalog', name: 'Humalog', generic: 'lizpro', kind: 'bolus', peakMinutes: 75 },
-  { id: 'lyumjev', name: 'Lyumjev', generic: 'lizpro (ultragyors)', kind: 'bolus', peakMinutes: 55 },
-  { id: 'apidra', name: 'Apidra', generic: 'glulizin', kind: 'bolus', peakMinutes: 75 },
+  { id: 'fiasp', name: 'Fiasp', generic: 'gyorsabb hatású aszpart', kind: 'bolus', peakMinutes: 55, maxDurationMinutes: 300 },
+  { id: 'humalog', name: 'Humalog', generic: 'lizpro', kind: 'bolus', peakMinutes: 75, maxDurationMinutes: 300 },
+  { id: 'lyumjev', name: 'Lyumjev', generic: 'lizpro (ultragyors)', kind: 'bolus', peakMinutes: 55, maxDurationMinutes: 300 },
+  { id: 'apidra', name: 'Apidra', generic: 'glulizin', kind: 'bolus', peakMinutes: 75, maxDurationMinutes: 300 },
   {
     id: 'toujeo', name: 'Toujeo', generic: 'glargin 300 E/ml', kind: 'basal',
     facts: { peak: 'nincs kifejezett csúcs', duration: '24 óránál tovább, akár 36 óra', note: 'egyensúlyi állapot 3–4 nap után' },
