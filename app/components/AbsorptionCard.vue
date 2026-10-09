@@ -37,6 +37,10 @@ async function saveDefs(reset = false) {
   }
 }
 const MIN = 3
+const GOOD = 5
+const pct = (n: number) => `${Math.min(100, (100 * n) / GOOD)}%`
+const count = (n: number) => (n >= GOOD ? `${n} ✓` : `${n}/${GOOD}`)
+const quality = (n: number) => (n >= GOOD ? 'megbízható' : n >= MIN ? 'előzetes' : `még ${MIN - n} kell a használathoz`)
 
 // Szemléltető étkezésméret: a görbék és az óránkénti táblázat erre vonatkoznak.
 const REF_GRAMS = 50
@@ -86,7 +90,9 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
     <p class="muted">
       A tiszta étkezésekből (étkezés és inzulin, korrekció vagy ráétkezés nélkül) kiszámolja, milyen ütemben szívódik fel a szénhidrát nálad.
       Az inzulin hatását levonja a vércukor-változásból, és ami marad, az a szénhidrát hatása. Az előrejelzés és az aktív CH ezt használja.
-      Legalább {{ MIN }} tiszta étkezés kell kategóriánként; addig az alapértelmezett érvényes. Az utolsó 60 napot nézi.
+      Kategóriánként legalább {{ MIN }} tiszta étkezés kell a használathoz, {{ GOOD }} a megbízhatóhoz; addig az alapértelmezett érvényes. Az utolsó 60 napot nézi.
+      Tiszta az étkezés, ha szénhidrát és inzulin volt, és utána a felszívódási idő végéig nem volt korrekció, ráétkezés vagy más bólus, sport / betegség / alkohol jegyzet, és a vércukor nem változott gyorsan az étkezés előtt.
+      A gyors CH-hoz nem kell inzulin.
     </p>
     <div class="absorb-grid">
       <div v-for="c in CATS" :key="c.key" class="absorb-item">
@@ -100,13 +106,17 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
           <polyline v-if="learnedOf(c)" :points="curve(c, true)" class="absorb-learned" />
         </svg>
         <div class="absorb-axis muted small"><span>0</span><span>4 óra</span><span>8 óra</span></div>
+        <div class="gather" :title="`Tiszta étkezés: ${MIN} kell a használathoz, ${GOOD} a megbízható becsléshez`">
+          <span class="gather-bar"><i :style="{ width: pct(abs[c.key].n) }" /></span>{{ count(abs[c.key].n) }}
+          <span class="muted small">{{ quality(abs[c.key].n) }}</span>
+        </div>
         <p v-if="learnedOf(c)" class="absorb-stats">
           <span><b>{{ min(abs[c.key].t50) }}</b> alatt a fele</span>
           <span><b>{{ min(abs[c.key].t90) }}</b> alatt 90%-a</span>
           <span class="muted small">{{ abs[c.key].n }} étkezésből, kb. {{ abs[c.key].refGrams }} g-os étkezésre</span>
         </p>
         <p v-else class="muted small">
-          Még {{ MIN - abs[c.key].n }} tiszta étkezés kell ({{ abs[c.key].n }}/{{ MIN }}). Addig az alapértelmezett érvényes: {{ c.rate }} g/óra, vagyis {{ REF_GRAMS }} g kb. {{ hours(totalMin(c)) }} óra alatt szívódik fel.
+          Addig az alapértelmezett érvényes: {{ c.rate }} g/óra, vagyis {{ REF_GRAMS }} g kb. {{ hours(totalMin(c)) }} óra alatt szívódik fel.
         </p>
       </div>
     </div>
