@@ -3,6 +3,8 @@
 data/
 data-dev/
 **/carelink_last.json
+# Parancsok-mentések: benne van az X-Token (API-kulcs)
+*.shortcut
 .env
 
 # Node / Nuxt
