@@ -89,6 +89,18 @@ const actLines = computed(() => {
   return lines
 })
 const pctFmt = (v: number) => `${Math.round(v * 100)}%`
+// A y-tengely a mért értékekhez igazodik (25%-os lépésekben), hogy a 100% fölé vagy 0 alá menő rész
+// (pl. ha a vércukor a hatásidőn túl is esik) ne vágódjon le.
+const actYTicks = computed(() => {
+  const o = act.value?.observed
+  if (!o) return [0, 0.25, 0.5, 0.75, 1]
+  const vals = [...o.p25, ...o.p50, ...o.p75].filter((v: number | null) => v != null) as number[]
+  const lo = Math.min(0, Math.floor(Math.min(...vals) * 4) / 4)
+  const hi = Math.max(1, Math.ceil(Math.max(...vals) * 4) / 4)
+  const ticks: number[] = []
+  for (let v = lo; v <= hi + 1e-9; v += 0.25) ticks.push(Math.round(v * 100) / 100)
+  return ticks
+})
 </script>
 
 <template>
@@ -163,7 +175,7 @@ const pctFmt = (v: number) => `${Math.round(v * 100)}%`
             :x="act.observed.minutes" :lines="actLines"
             :bands="[{ lo: act.observed.p25, hi: act.observed.p75, color: 'color-mix(in srgb, var(--series-glucose) 18%, transparent)' }]"
             :x-ticks="[0, 60, 120, 180, 240, 300, 360]" :x-format="(v: number) => (v ? actionLabel(v) : '0')"
-            :y-ticks="[0, 0.25, 0.5, 0.75, 1]" :y-format="pctFmt" :ref-y="[1]" :height="170"
+            :y-ticks="actYTicks" :y-format="pctFmt" :ref-y="[1]" :height="170"
             :caption="`${act.n} tiszta korrekció: a vércukor esése a teljes esés arányában, a bólustól számítva`"
           >
             <template #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
