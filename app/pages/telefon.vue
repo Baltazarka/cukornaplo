@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Az InPen-automatizálás képernyőképe (public/guide/); amíg nincs meg, a kép helye üresen marad.
-const AUTOMATION_SHOT: string | null = null
+// Az InPen-automatizálás képernyőképe (public/guide/).
+const AUTOMATION_SHOT = '/guide/automatizalas.webp'
 // Telefonos beállító varázsló: kapcsolatteszt, InPen → Egészség, küldés módja, beállítás, próba.
 const { data: s } = await useFetch('/api/settings')
 const token = computed(() => s.value?.token ?? '')
@@ -260,7 +260,7 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
         </ol>
         <p class="muted small">Így minden InPen-használat után magától felmegy az utolsó 3 nap; a már meglévő adatokat a szerver nem duplázza.</p>
         <figure v-if="AUTOMATION_SHOT" class="shot-single">
-          <a :href="AUTOMATION_SHOT" target="_blank" rel="noopener"><img :src="AUTOMATION_SHOT" width="240" height="403" loading="lazy" alt="Automatizálás: InPen megnyitásakor vagy bezárásakor az Inzulin, a Szénhidrát és a Vércukor parancs futtatása"></a>
+          <a :href="AUTOMATION_SHOT" target="_blank" rel="noopener"><img :src="AUTOMATION_SHOT" width="240" height="318" loading="lazy" alt="Automatizálás: InPen megnyitásakor vagy bezárásakor az Inzulin, a Szénhidrát és a Vércukor parancs futtatása"></a>
           <figcaption>Minta: az InPen-automatizálás</figcaption>
         </figure>
       </template>
