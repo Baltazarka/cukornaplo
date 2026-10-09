@@ -40,7 +40,7 @@ const insights = computed(() => {
 <template>
   <section v-if="data" class="card hypo-card">
     <div class="card-head">
-      <h2>Hipók</h2>
+      <h2>Hipók <GuideLink section="hipo" /></h2>
       <span class="muted small">legalább 15 percig {{ fmt(data.low) }} mmol/L alatt · 2. szint: {{ fmt(data.veryLow) }} alatt</span>
     </div>
 

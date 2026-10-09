@@ -413,7 +413,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
       </section>
 
       <section class="card">
-        <h2>Idő a tartományokban</h2>
+        <h2>Idő a tartományokban <GuideLink section="glukoz" /></h2>
         <div v-for="(s, title) in { 'Ez a nap': data.stats.day, 'Utolsó 14 nap': data.stats.range14 }" :key="title" class="tir">
           <div class="tir-title">{{ title }}</div>
           <p v-if="!s.n" class="muted">Nincs glükózadat.</p>

@@ -57,7 +57,7 @@ const RATINGS = [
 <template>
   <section class="card">
     <div class="card-head">
-      <h2>Étkezések napszakonként</h2>
+      <h2>Étkezések napszakonként <GuideLink section="etkezes" /></h2>
       <span class="muted small">a vércukor változása az étkezéstől, a kezdő értékhez képest</span>
     </div>
     <p v-if="!segs.length" class="muted">Ebben az időszakban nincs elemezhető étkezés (beírt CH vagy étkezési bólus, és utána legalább 4 óra szenzoradat).</p>

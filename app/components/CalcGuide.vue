@@ -1,0 +1,312 @@
+<script setup lang="ts">
+// A számítások részletes magyarázata: oldalról beúszó panel. Nem az oldal kezelését írja le,
+// hanem hogy az egyes számok, görbék, becslések és a bóluskalkulátor mit és hogyan számolnak.
+// A leírt küszöbök és képletek a szerver kódjával (server/utils/*, shared/utils/*) egyeznek.
+const open = useGuide()
+const panel = ref<HTMLElement | null>(null)
+const body = ref<HTMLElement | null>(null)
+const closeBtn = ref<HTMLButtonElement | null>(null)
+let returnFocus: HTMLElement | null = null
+
+const SECTIONS = [
+  { id: 'alap', title: 'Alapfogalmak' },
+  { id: 'glukoz', title: 'Glükózmutatók' },
+  { id: 'trend', title: 'Trend és változás' },
+  { id: 'agp', title: 'Glükózprofil (AGP)' },
+  { id: 'inzulin', title: 'Inzulin, TDD, besorolás' },
+  { id: 'hatas', title: 'Inzulinhatás, aktív inzulin' },
+  { id: 'bolus', title: 'Bóluskalkulátor' },
+  { id: 'hipo', title: 'Hipók' },
+  { id: 'etkezes', title: 'Étkezéselemzés' },
+  { id: 'becsles', title: 'Becslés az adataidból' },
+  { id: 'bazis', title: 'Bázisellenőrzés' },
+  { id: 'labor', title: 'Labor HbA1c és GMI' },
+  { id: 'korlatok', title: 'Korlátok' },
+]
+
+function close() {
+  open.value = false
+}
+/** A szakasz helye a görgethető törzsön belül (a fejléc magassága nélkül). */
+function sectionTop(id: string): number | null {
+  const el = body.value?.querySelector<HTMLElement>(`#guide-${id}`)
+  if (!el || !body.value) return null
+  return el.getBoundingClientRect().top - body.value.getBoundingClientRect().top + body.value.scrollTop - 8
+}
+function goto(id: string) {
+  const top = sectionTop(id)
+  if (top != null) body.value!.scrollTop = top
+}
+
+watch(open, async (v) => {
+  if (!import.meta.client) return
+  if (v) {
+    returnFocus = document.activeElement as HTMLElement | null
+    document.documentElement.classList.add('guide-lock')
+    await nextTick()
+    closeBtn.value?.focus()
+    if (body.value) body.value.scrollTop = v !== 'tartalom' ? sectionTop(v) ?? 0 : 0
+  } else {
+    document.documentElement.classList.remove('guide-lock')
+    returnFocus?.focus?.()
+  }
+})
+
+// Esc bezárja; Tab a panelen belül marad.
+function onKey(e: KeyboardEvent) {
+  if (!open.value) return
+  if (e.key === 'Escape') { e.preventDefault(); close(); return }
+  if (e.key !== 'Tab' || !panel.value) return
+  const f = [...panel.value.querySelectorAll<HTMLElement>('button, a[href], [tabindex]:not([tabindex="-1"])')].filter((x) => !x.hasAttribute('disabled'))
+  if (!f.length) return
+  const first = f[0]
+  const last = f[f.length - 1]
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+}
+onMounted(() => document.addEventListener('keydown', onKey))
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKey)
+  document.documentElement.classList.remove('guide-lock')
+})
+</script>
+
+<template>
+  <Teleport to="body">
+    <Transition name="guide">
+      <div v-if="open" class="guide-backdrop" @click.self="close">
+        <aside ref="panel" class="guide-panel" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+          <header class="guide-head">
+            <h2 id="guide-title">Hogyan számol a Cukornapló?</h2>
+            <button ref="closeBtn" type="button" class="ghost sm" aria-label="Bezárás" @click="close">✕</button>
+          </header>
+
+          <div ref="body" class="guide-body" tabindex="-1">
+            <p class="muted small">
+              Minden szám, görbe és becslés leírása: honnan jön, mit számol, milyen küszöbökkel. Minden érték
+              tájékoztató; a terápia módosításáról a diabetológusoddal dönts.
+            </p>
+            <nav class="guide-toc" aria-label="Tartalom">
+              <button v-for="s in SECTIONS" :key="s.id" type="button" class="tag-toggle" @click="goto(s.id)">{{ s.title }}</button>
+            </nav>
+
+            <!-- 1. Alapfogalmak -->
+            <section id="guide-alap">
+              <h3>Alapfogalmak és mértékegységek</h3>
+              <dl class="guide-dl">
+                <div><dt>Glükóz</dt><dd>mmol/L. A CGM (Guardian 4) 5 percenként mér; ami mg/dL-ben érkezik, azt 18,018-cal osztva váltjuk át.</dd></div>
+                <div><dt>Inzulin</dt><dd>egység (E). A gyors hatású (NovoRapid) bólusok az InPenből, a bázis (Toujeo) beírva vagy a beállított bázisadag alapján.</dd></div>
+                <div><dt>Szénhidrát (CH)</dt><dd>gramm (g).</dd></div>
+                <div><dt>CH-arány (ICR)</dt><dd>g/E: hány gramm szénhidrátot fed le 1 egység inzulin. Nagyobb szám = kevesebb inzulin ugyanarra az ételre.</dd></div>
+                <div><dt>Érzékenység (ISF)</dt><dd>mmol/L/E: mennyivel csökkenti a vércukrot 1 egység inzulin a teljes hatásidő alatt.</dd></div>
+                <div><dt>Célérték</dt><dd>mmol/L: erre a szintre számol a korrekció (a Terápia oldalon napszakonként).</dd></div>
+                <div><dt>Céltartomány</dt><dd>alapból 3,9–10,0 mmol/L, a főoldalon állítható. A 3,0 és a 13,9 határ rögzített (nemzetközi konszenzus).</dd></div>
+                <div><dt>Napszakok</dt><dd>a Terápia oldalon megadott kezdő időpontoktól a következő kezdetéig tartanak; az utolsó éjfélen át az elsőig. Minden adag, étkezés és mérés a saját időpontja szerinti napszakhoz tartozik.</dd></div>
+              </dl>
+            </section>
+
+            <!-- 2. Glükózmutatók -->
+            <section id="guide-glukoz">
+              <h3>Glükózmutatók (csempék, riport)</h3>
+              <dl class="guide-dl">
+                <div><dt>Átlag glükóz</dt><dd>az időszak összes CGM-mérésének számtani átlaga.</dd></div>
+                <div><dt>Szórás (SD)</dt><dd>a mérések szórása (mintaszórás, n − 1-gyel osztva).</dd></div>
+                <div><dt>Variációs koefficiens (CV)</dt><dd><code class="guide-f">CV = SD ÷ átlag × 100%</code>. legfeljebb 36% „stabil”, fölötte „ingadozó” (Battelino 2019).</dd></div>
+                <div><dt>TIR / TAR / TBR</dt><dd>
+                  A mérések hány százaléka esett az egyes sávokba (minden mérés egyformán számít):
+                  nagyon alacsony &lt; 3,0 · alacsony 3,0–3,9 · <b>céltartomány 3,9–10,0</b> (a határok benne vannak) ·
+                  magas 10,0–13,9 · nagyon magas &gt; 13,9. A TAR a két magas, a TBR a két alacsony sáv összege.
+                  Nemzetközi cél: TIR &gt; 70%, TBR &lt; 4%, ezen belül 3,0 alatt &lt; 1%, TAR &lt; 25%.
+                </dd></div>
+                <div><dt>Szenzoradat</dt><dd>
+                  <code class="guide-f">lefedettség = mérések száma ÷ (eltelt idő ÷ 5 perc)</code>. A mai napon csak a
+                  mostanáig eltelt idő számít. 70% alatt a mutatók kevésbé megbízhatók.
+                </dd></div>
+                <div><dt>GMI (becsült HbA1c)</dt><dd>
+                  <code class="guide-f">GMI (%) = 3,31 + 0,02392 × átlag (mg/dL)</code>, ahol mg/dL = mmol/L × 18,018
+                  (Bergenstal 2018). mmol/mol-ban: <code class="guide-f">(GMI − 2,15) × 10,929</code>. Legalább 14 nap jó
+                  lefedettségű adatból értelmes.
+                </dd></div>
+              </dl>
+            </section>
+
+            <!-- 3. Trend -->
+            <section id="guide-trend">
+              <h3>Trend (nyilak) és „Változásban”</h3>
+              <p>
+                A változás sebessége egy mérésnél: <code class="guide-f">(mostani − korábbi érték) ÷ eltelt percek</code>, ahol a
+                korábbi érték a 10–20 perccel előbbi mérések közül a 15 perchez legközelebbi. Egyetlen zajos mérés így kevésbé torzít.
+              </p>
+              <table class="table guide-table">
+                <thead><tr><th>Sebesség (mmol/L/perc)</th><th>Jelzés</th><th>Óránként kb.</th></tr></thead>
+                <tbody>
+                  <tr><td>&lt; 0,06</td><td>stabil (vízszintes vonal)</td><td>&lt; 3,6</td></tr>
+                  <tr><td>≥ 0,06</td><td>lassú változás, 1 nyíl</td><td>≥ 3,6</td></tr>
+                  <tr><td>≥ 0,11</td><td>emelkedés / esés, 2 nyíl</td><td>≥ 6,6</td></tr>
+                  <tr><td>≥ 0,17</td><td>gyors változás, 3 nyíl</td><td>≥ 10,2</td></tr>
+                </tbody>
+              </table>
+              <p>
+                <b>Változásban (% az időnek):</b> két egymást követő mérés közti időszakot (legfeljebb 15 perces rés) a második
+                mérés sebessége szerint soroljuk be; az eredmény az idő hány százalékában volt lassú, közepes vagy gyors a változás.
+              </p>
+            </section>
+
+            <!-- 4. AGP -->
+            <section id="guide-agp">
+              <h3>Glükózprofil (AGP, időszakos nézet)</h3>
+              <p>
+                Az időszak minden napja egy közös 24 órás tengelyre kerül. 15 perces sávonként (a simítás miatt a szomszédos
+                ±15 perc méréseivel együtt) kiszámoljuk a mediánt (szaggatott vonal), a 25–75%-os és az 5–95%-os percentilist
+                (lineáris interpolációval). Ahol egy sávban 5-nél kevesebb mérés van, ott nincs érték. Az alatta lévő inzulin-
+                és CH-oszlopok óránkénti napi átlagok.
+              </p>
+            </section>
+
+            <!-- 5. Inzulin -->
+            <section id="guide-inzulin">
+              <h3>Inzulin: besorolás, TDD, kördiagram</h3>
+              <p>Az InPen csak annyit küld, hogy bólus volt; a típust így becsüljük (a naplóban kézzel bármikor felülírható, és a kézi beállítás mindig erősebb):</p>
+              <ol class="guide-ol">
+                <li><b>Bázis</b>, ha a beérkező adag pontosan akkora, mint a főoldalon beállított „Bázisadagom” (±0,05 E), vagy kézzel bázisnak jelölted.</li>
+                <li><b>Étkezési bólus</b>, ha a beadás előtt vagy után 30 percen belül szénhidrát van a naplóban.</li>
+                <li><b>Étkezési bólus CH nélkül</b>, ha nincs szénhidrát, de a vércukor a beadáskor (a 15 perccel előtte – 5 perccel utána mért legközelebbi érték) a napszak célértéke + 2 mmol/L alatt volt: valószínűleg evés volt, csak a CH nem lett beírva.</li>
+                <li>Egyébként <b>korrekció</b> (magas vércukor, vagy nincs mérés).</li>
+              </ol>
+              <dl class="guide-dl">
+                <div><dt>TDD</dt><dd>Total Daily Dose: a napi összes inzulin (étkezési + korrekció + bázis). Időszakos nézetben napi átlag, de csak azokra a napokra osztva, amelyeken volt InPen-adat (a kimaradt napok nem húzzák le).</dd></div>
+                <div><dt>Becsült bázis (*)</dt><dd>ha egy lezárt napon volt InPen-adat, de bázis nem, a beállított bázisadaggal számolunk, csillaggal jelölve. A mai napra nem becsülünk.</dd></div>
+                <div><dt>„Ma eddig”</dt><dd>a mai nap összesítője csak a mostanáig beadott adagokat tartalmazza.</dd></div>
+                <div><dt>Kördiagram</dt><dd>a TDD-n belüli arány: étkezési bólus, korrekció, bázis, százalékban.</dd></div>
+                <div><dt>Kézi bejegyzés</dt><dd>ha az InPen később ugyanazt a mennyiséget ±30 percen belül elküldi, a kézi sor beolvad (az InPen időpontja marad, a kézi típus / jelölés átkerül).</dd></div>
+              </dl>
+            </section>
+
+            <!-- 6. Inzulinhatás -->
+            <section id="guide-hatas">
+              <h3>Inzulinhatás-görbe és aktív inzulin</h3>
+              <p>
+                A gyors hatású inzulin hatását exponenciális modellel írjuk le (ugyanaz, mint az OpenAPS / Loop rendszerekben).
+                Két paramétere van: a <b>csúcsidő</b> (tp: NovoRapid, Humalog, Apidra 75 perc; Fiasp, Lyumjev 55 perc) és a
+                <b>hatásidő</b> (td, DIA: a Terápia oldalon, napszakonként külön is). A csúcs legfeljebb a hatásidő 40%-a lehet;
+                rövid hatásidőnél ezért előrébb kerül.
+              </p>
+              <pre class="guide-pre">τ = tp · (1 − tp/td) ÷ (1 − 2·tp/td)
+a = 2τ ÷ td
+S = 1 ÷ (1 − a + (1 + a) · e^(−td/τ))
+
+hatás(t)  = S ÷ τ² · t · (1 − t/td) · e^(−t/τ)
+aktív(t)  = 1 − S·(1 − a) · ((t² ÷ (τ·td·(1 − a)) − t/τ − 1) · e^(−t/τ) + 1)</pre>
+              <ul class="guide-ul">
+                <li><b>hatás(t)</b>: az adag hányad része hat éppen a t. percben (a görbe alatti terület 1). A Terápia kártyán ez a kitöltött görbe, a csúcshoz igazítva 100%.</li>
+                <li><b>aktív(t)</b>: a beadott adag még hatásban lévő része (1 → 0); a hatásidő végén 0.</li>
+                <li><b>Aktív inzulin most</b> = Σ adag × aktív(eltelt idő), minden gyors hatású adagra, a <i>beadás</i> napszakának hatásidejével. A bázis (Toujeo) nem számít bele: annak nincs kifejezett csúcsa, egyenletesen hat 24 órán túl.</li>
+                <li><b>A napi grafikon bólusgörbéi</b>: minden adagnál az oszlop tetejétől indul, és azt mutatja, hány egység van még belőle hatásban.</li>
+              </ul>
+            </section>
+
+            <!-- 7. Bóluskalkulátor -->
+            <section id="guide-bolus">
+              <h3>Bóluskalkulátor</h3>
+              <pre class="guide-pre">étkezési adag = szénhidrát (g) ÷ CH-arány (g/E)
+korrekció     = (vércukor − célérték) ÷ érzékenység (mmol/L/E)</pre>
+              <ul class="guide-ul">
+                <li><b>Célérték fölött</b>: a még aktív inzulin a korrekcióból vonódik le, legfeljebb nulláig; az étkezési adagból nem (a Medtronic kalkulátorok logikája).</li>
+                <li><b>Célérték alatt</b>: a korrekció negatív, és csökkenti az étkezési adagot; óvatosságból az aktív inzulin is levonódik belőle (ez szigorúbb a Medtronicnál), mert az tovább csökkenti a vércukrot.</li>
+                <li><b>Javasolt adag</b> = max(0, étkezési + korrekció − levont aktív inzulin), <b>0,5 E-re lefelé kerekítve</b>, és legfeljebb a beállított maximális dózis.</li>
+                <li><b>Vércukor</b>: a legutóbbi CGM-érték, ha 15 percnél frissebb; különben be kell írni.</li>
+                <li><b>Átmenet a napszakok között</b> (kikapcsolható): a CH-arány és az érzékenység a napszak kezdetén a beállított érték, és a következő napszak kezdetéig egyenletesen halad annak értékéig. Pl. 06:00-kor 2 g/E, 12:00-kor 4 g/E → 09:00-kor 3 g/E. A célérték mindig a napszaké. Az InPen lépcsősen számol, ezért a napszakok vége felé eltérhet.</li>
+                <li><b>Figyelmeztetések</b>: alacsony vércukor (a céltartomány alja alatt), a maximális dózis elérése, 14 mmol/L fölött ketonvizsgálat, gyors emelkedés / esés (2–3 nyíl) – a trendet a számítás nem veszi figyelembe.</li>
+                <li>A kalkulátor nem rögzít semmit; a beadott adag az InPenből érkezik a naplóba.</li>
+              </ul>
+            </section>
+
+            <!-- 8. Hipók -->
+            <section id="guide-hipo">
+              <h3>Hipóesemények</h3>
+              <p>A nemzetközi CGM-konszenzus (Battelino 2023) szerint:</p>
+              <ul class="guide-ul">
+                <li><b>Esemény</b>: legalább 15 percig (3 egymást követő mérés) a céltartomány alja (3,9) alatt.</li>
+                <li><b>Vége</b>: legalább 15 percig újra fölötte. A közben visszaeső mérések ugyanahhoz az eseményhez tartoznak. 20 percnél hosszabb adatkiesés lezárja az eseményt.</li>
+                <li><b>2. szint</b>: közben legalább 15 percig 3,0 alatt.</li>
+                <li><b>Éjszakai</b>: 0 és 6 óra között kezdődött.</li>
+                <li><b>Előtte</b>: a kezdet előtti 4 órában beadott utolsó gyors hatású adag, a kezdetkor még aktív inzulin, és a 6 órán belüli jegyzetek (pl. sport, alkohol).</li>
+                <li><b>Kezelés</b>: a kezdet előtt 15 perccel és a vége után 15 percen belül beírt szénhidrát (a „gyors” jelölés látszik).</li>
+                <li><b>Utána</b>: a legmagasabb érték a vége utáni 2 órában; kiemelve, ha a céltartomány fölé ment (túlkezelés lehet).</li>
+                <li><b>Megfigyelések</b> (legalább 2 eseménynél): ha a hipók legalább fele bólus utáni 4 órában kezdődött; ha legalább 30%-uk éjszakai vagy túlkezelt; ha bármelyik előtt sport- vagy alkohol-jegyzet volt; és a leggyakoribb kezdési óra, ha abban legalább 2 esemény és az összes 30%-a kezdődött.</li>
+              </ul>
+              <p class="muted small">Éjszakai, hirtelen eső és kezelés nélkül gyorsan visszaugró értékek mögött kompressziós hipó (a szenzoron fekvés) is lehet.</p>
+            </section>
+
+            <!-- 9. Étkezéselemzés -->
+            <section id="guide-etkezes">
+              <h3>Étkezéselemzés (időszakos nézet)</h3>
+              <ul class="guide-ul">
+                <li><b>Étkezés</b>: a 30 percen belül egymást követő CH-bejegyzések együtt; hozzá tartozik a 30 percen belüli étkezési bólus. CH nélküli étkezési bólus külön étkezésnek számít.</li>
+                <li><b>Görbe</b>: 5 percenként, a kezdő vércukorhoz képest, 30 perccel előtte kezdve 4 óráig (zsíros / fehérjedús étkezésnél 6 óráig). Csak akkor számít, ha az ablak legalább 70%-ában van szenzoradat.</li>
+                <li><b>Tiszta étkezés</b>: nincs más bólus a hatásidőn belül előtte és 4 órán belül utána, nincs más CH 2 órával előtte és 4 órán belül, és nem követte korrekció.</li>
+                <li><b>Mutatók</b> (mediánok): emelkedés (csúcs − kezdő érték), a csúcs ideje, eltérés 2 és 4 óra múlva, előbólus (a bólus és az étkezés közti idő; negatív = előre adott). A sáv a 25–75%.</li>
+                <li><b>Értékelés</b>: <i>alacsony</i>, ha a céltartomány alá ment vagy 4 óra múlva több mint 2 mmol/L-rel alacsonyabb; <i>magas</i>, ha korrekció követte vagy 4 óra múlva több mint 2-vel magasabb; <i>kiugrás</i>, ha a csúcs a céltartomány fölé ment; különben <i>rendben</i>.</li>
+                <li><b>Zsíros / fehérjedús</b> jelölés: külön mutatjuk 6 órás görbével, és kimarad a CH-arány becsléséből. <b>Gyors CH</b>: benne marad.</li>
+              </ul>
+            </section>
+
+            <!-- 10. Becslés -->
+            <section id="guide-becsles">
+              <h3>Becslés az adataidból (Terápia oldal)</h3>
+              <p>Napszakonként legalább 3 tiszta esemény kell a becsléshez, 5 a megbízhatóhoz; a végeredmény a medián.</p>
+              <h4>Hatásidő és érzékenység (ISF) – tiszta korrekciókból</h4>
+              <ul class="guide-ul">
+                <li><b>Tiszta korrekció</b>: nincs CH 2 órával előtte és 6 órán belül utána, nincs más bólus a hatásidőn belül előtte és 6 órán belül; az ablak legalább 70%-ában van szenzoradat; legalább 1 mmol/L-t esett.</li>
+                <li>Minden korrekció esését 1 egységre vetítjük (esés ÷ adag), és 5 percenként vesszük a korrekciók mediánját.</li>
+                <li>Erre illesztjük a fenti inzulinmodellt: hatásidő 120–480 perc (15 percenként), csúcs 40–120 perc (5 percenként, legfeljebb a hatásidő 40%-a). Minden párra az esés nagysága zárt alakban adódik: <code class="guide-f">esés(t) ≈ ISF × (1 − aktív(t))</code>, a legkisebb négyzetek módszerével; a legkisebb eltérésű pár nyer. Az amplitúdó az ISF.</li>
+              </ul>
+              <h4>CH-arány – tiszta étkezésekből</h4>
+              <pre class="guide-pre">étkezésre jutó inzulin = beadott bólus + (4 órás érték − kezdő érték) ÷ ISF
+CH-arány = szénhidrát ÷ étkezésre jutó inzulin</pre>
+              <p>
+                Vagyis: ha 4 óra múlva magasabb vagy, több inzulin kellett volna (kisebb g/E), ha alacsonyabb, kevesebb. Az ISF itt a
+                beállított érték, ezért ha az ISF rossz, a CH-arány becslése is torz – előbb az ISF-et érdemes rendbe tenni.
+                Zsíros étkezések nem számítanak; 0,2 E-nél kisebb eredményt kihagyunk.
+              </p>
+            </section>
+
+            <!-- 11. Bázis -->
+            <section id="guide-bazis">
+              <h3>Bázisellenőrzés</h3>
+              <ul class="guide-ul">
+                <li><b>Kizárt időszakok</b>: étkezés után 4 óra (zsírosnál 6, gyors CH-nál 2), minden bólus után a hatásideje, és minden céltartomány alatti mérés után 2 óra.</li>
+                <li>A maradék „böjt” időben 5 percenként vesszük a 15 perccel későbbi értékhez képesti változást, és óránkénti sebességre váltjuk (mmol/L/óra), ha mindkét időpont böjt.</li>
+                <li>Óránként és három napszakra (0–4, 4–8, 8–24 óra) átlagolunk. <b>Stabil</b>: ±0,3 mmol/L/óra (6 óra alatt kb. ±1,7); fölötte emelkedik, alatta csökken. 1 óránál kevesebb adatnál „kevés adat”.</li>
+                <li>Tartós emelkedés vagy esés egy napszakban a bázis vagy a napszak beállításának jele lehet.</li>
+              </ul>
+            </section>
+
+            <!-- 12. Labor -->
+            <section id="guide-labor">
+              <h3>Labor HbA1c és GMI</h3>
+              <p>
+                Minden beírt labor HbA1c mellé a labor előtti 90 nap szenzoradataiból számolt GMI kerül (a HbA1c nagyjából az
+                előző 2–3 hónap átlagát tükrözi), az eltéréssel és a 90 napos lefedettséggel. 20 fölötti beírt értéket mmol/mol-nak
+                veszünk: <code class="guide-f">% = mmol/mol ÷ 10,929 + 2,15</code>. 0,5 százalékpontos eltérés gyakori és egyéni
+                (pl. a vörösvérsejtek élettartama miatt).
+              </p>
+            </section>
+
+            <!-- 13. Korlátok -->
+            <section id="guide-korlatok">
+              <h3>Korlátok</h3>
+              <ul class="guide-ul">
+                <li>A CGM kb. 10%-ot téved, és 5–15 percet késik az ujjbegyes méréshez képest; gyors változásnál többet.</li>
+                <li>Az InPen-adat késve érkezhet (a telefonos küldéstől függ): a nemrég beadott adag addig hiányzik az aktív inzulinból.</li>
+                <li>A modell nem ismeri a sportot, betegséget, stresszt, alkoholt, a beadás helyét és a zsír / fehérje késői hatását.</li>
+                <li>A becslések kevés eseményből szórnak; mindig a darabszámmal együtt értelmezd őket.</li>
+                <li>Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian és az InPen app értékeit használd.</li>
+              </ul>
+            </section>
+          </div>
+        </aside>
+      </div>
+    </Transition>
+  </Teleport>
+</template>

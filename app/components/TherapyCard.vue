@@ -34,7 +34,7 @@ const updated = computed(() =>
 <template>
   <section class="card therapy-card" aria-labelledby="therapy-title">
     <div class="card-head">
-      <h2 id="therapy-title">Terápiás beállítások</h2>
+      <h2 id="therapy-title">Terápiás beállítások <GuideLink section="hatas" /></h2>
       <NuxtLink v-if="t && !readOnly" to="/terapia" class="btn ghost sm">Szerkesztés</NuxtLink>
     </div>
 

@@ -35,7 +35,7 @@ const s = computed(() => props.data.stats)
 
     <section class="card">
       <div class="card-head">
-        <h2>Glükózprofil, {{ data.days }} nap</h2>
+        <h2>Glükózprofil, {{ data.days }} nap <GuideLink section="agp" /></h2>
         <span class="muted small">Minden nap egy közös 24 órás tengelyen: a medián és a mérések szórása napszakonként.</span>
       </div>
       <ClientOnly>
@@ -50,7 +50,7 @@ const s = computed(() => props.data.stats)
 
     <div class="grid2">
       <section class="card">
-        <h2>Idő a tartományokban</h2>
+        <h2>Idő a tartományokban <GuideLink section="glukoz" /></h2>
         <div class="tir">
           <div class="tir-title">{{ data.label }}</div>
           <p v-if="!s.n" class="muted">Nincs glükózadat.</p>

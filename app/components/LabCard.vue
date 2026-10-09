@@ -40,7 +40,7 @@ async function remove(r: any) {
 <template>
   <section class="card lab-card">
     <div class="card-head">
-      <h2>Labor HbA1c</h2>
+      <h2>Labor HbA1c <GuideLink section="labor" /></h2>
       <button v-if="!readOnly && !open" type="button" class="ghost sm" @click="open = true">+ Eredmény</button>
     </div>
 

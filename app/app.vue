@@ -36,6 +36,12 @@ function cycleTheme() {
 const menuOpen = ref(false)
 watch(() => route.path, () => { menuOpen.value = false })
 
+// A számítások magyarázata (oldalról beúszó panel); a mobil menü közben bezárul.
+function showGuide() {
+  menuOpen.value = false
+  openGuide()
+}
+
 const themeIcon =computed(() => (theme.value === 'dark' ? '🌙' : theme.value === 'light' ? '☀️' : '🖥️'))
 const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.value === 'light' ? 'Világos' : 'Rendszer'))
 </script>
@@ -48,6 +54,7 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.va
         <nav v-if="!auth.authed && auth.viewer">
           <NuxtLink to="/" :class="{ active: route.path === '/' }">Napi nézet</NuxtLink>
           <NuxtLink to="/riport" :class="{ active: route.path === '/riport' }">Riport</NuxtLink>
+          <a href="#" @click.prevent="showGuide">Számítások</a>
           <span class="viewer-badge" title="Megosztási linkkel megnyitva, csak olvasható">Megtekintés · {{ viewerUntil }}-ig</span>
           <a href="#" @click.prevent="logout">Kilépés</a>
         </nav>
@@ -56,6 +63,7 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.va
           <NuxtLink to="/terapia" :class="{ active: route.path === '/terapia' }">Terápia</NuxtLink>
           <NuxtLink to="/telefon" :class="{ active: route.path === '/telefon' }">Telefon beállítása</NuxtLink>
           <NuxtLink to="/adatok" :class="{ active: route.path === '/adatok' }">Beállítások</NuxtLink>
+          <a href="#" @click.prevent="showGuide">Számítások</a>
           <a href="#" @click.prevent="logout">Kilépés</a>
         </nav>
         <button class="theme-toggle" :title="'Téma: ' + themeLabel" aria-label="Téma váltása" @click="cycleTheme">
@@ -67,5 +75,6 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.va
       </div>
     </header>
     <NuxtPage />
+    <CalcGuide />
   </div>
 </template>

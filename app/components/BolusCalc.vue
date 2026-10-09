@@ -86,7 +86,7 @@ const trendText = computed(() => {
 <template>
   <section class="card bolus-calc" aria-labelledby="bolus-title">
     <div class="card-head">
-      <h2 id="bolus-title">Bóluskalkulátor</h2>
+      <h2 id="bolus-title">Bóluskalkulátor <GuideLink section="bolus" /></h2>
       <span v-if="seg" class="muted small">{{ seg.start === seg.end ? 'egész nap' : `${seg.start}–${seg.end}` }}</span>
     </div>
 

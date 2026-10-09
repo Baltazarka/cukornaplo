@@ -46,7 +46,7 @@ const pctFmt = (v: number) => `${Math.round(v * 100)}%`
 <template>
   <section v-if="a" class="card analysis-card">
     <div class="card-head">
-      <h2>Becslés az adataidból</h2>
+      <h2>Becslés az adataidból <GuideLink section="becsles" /></h2>
       <span class="muted small">utolsó 30 nap · szenzoradat {{ fmt(a.coverage, 0) }}%</span>
     </div>
     <p class="muted small">

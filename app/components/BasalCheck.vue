@@ -33,7 +33,7 @@ const hover = ref<number | null>(null)
 <template>
   <section v-if="b" class="card basal-check">
     <div class="card-head">
-      <h2>Bázisellenőrzés</h2>
+      <h2>Bázisellenőrzés <GuideLink section="bazis" /></h2>
       <span class="muted small">a vércukor változása étel és bólus nélküli időszakokban</span>
     </div>
 
