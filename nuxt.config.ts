@@ -43,7 +43,8 @@ export default defineNuxtConfig({
       ],
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+        // Új fájlnév: az iOS (és a Cloudflare) sokáig őrzi a régi ikont ugyanazon a címen.
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon-v2.png' },
         { rel: 'manifest', href: '/manifest.webmanifest' },
       ],
       // A mentett témát még a Vue betöltése előtt beállítjuk (nincs villanás).

@@ -1,6 +1,7 @@
 // Minimális service worker: csak a verziózott statikus fájlokat (/_nuxt/, ikonok) gyorsítótárazza.
 // Az /api/ válaszok (egészségügyi adatok) soha nem kerülnek a gyorsítótárba, az oldal mindig a hálózatról jön.
-const CACHE = 'cukornaplo-static-v1'
+// A verzió emelése törli a régi gyorsítótárat (pl. lecserélt ikonok).
+const CACHE = 'cukornaplo-static-v2'
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => {
