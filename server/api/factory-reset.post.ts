@@ -1,4 +1,4 @@
-// Minden elölről: a mért adatok ÉS az összes beállítás (jelszó, kulcs, CareLink) törlése.
+// Minden elölről: a mért adatok ÉS az összes beállítás (jelszó, passkey-k, kulcs, CareLink) törlése.
 import { db } from '../utils/db'
 import { resetSettings } from '../utils/settings'
 import { authSession } from '../utils/auth'
@@ -17,6 +17,7 @@ export default defineEventHandler(async (event) => {
   db().exec('DELETE FROM notes')
   db().exec('DELETE FROM lab_results')
   db().exec('DELETE FROM share_tokens')
+  db().exec('DELETE FROM passkeys')
   db().exec('DELETE FROM login_failures')
   resetSettings()
   try {

@@ -148,7 +148,7 @@ async function resetDb() {
   flash(`Törölve: ${r.deleted} bejegyzés.`)
 }
 async function factoryReset() {
-  if (!confirm('MINDENT töröl: a mért adatokat, a jelszót, az API-kulcsot és a CareLink kapcsolatot is. Utána elölről kell beállítani. Biztos?')) return
+  if (!confirm('MINDENT töröl: a mért adatokat, a jelszót, a passkey-ket, az API-kulcsot és a CareLink kapcsolatot is. Utána elölről kell beállítani. Biztos?')) return
   await $fetch('/api/factory-reset', { method: 'POST', body: { confirm: true } })
   if (auth.value) { auth.value.hasPassword = false; auth.value.authed = false }
   await navigateTo('/setup')
@@ -307,7 +307,7 @@ node scripts/import-health-export.ts C:\útvonal\export.xml 2026-01-01</pre>
       <div class="danger-row">
         <div>
           <b>Minden elölről (gyári visszaállítás)</b>
-          <p class="muted small">A mért adatok, a jelszó, az API-kulcs és a CareLink kapcsolat is törlődik. Utána új jelszót kell beállítani.</p>
+          <p class="muted small">A mért adatok, a jelszó, a passkey-k, az API-kulcs és a CareLink kapcsolat is törlődik. Utána új jelszót kell beállítani.</p>
         </div>
         <button class="ghost danger-btn" @click="factoryReset">Minden törlése</button>
       </div>
