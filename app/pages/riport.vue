@@ -96,7 +96,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
         <button v-for="p in PERIODS" :key="p" type="button" :aria-pressed="days === p" @click="setPeriod(p)">{{ p }} nap</button>
       </div>
       <input type="date" :value="rep?.end" :max="rep?.today" aria-label="Az időszak utolsó napja" @change="setEnd(($event.target as HTMLInputElement).value)">
-      <button type="button" @click="print">Nyomtatás / mentés PDF-be</button>
+      <button type="button" class="ghost" @click="print">Nyomtatás / mentés PDF-be</button>
       <span class="muted small">A nyomtatási ablakban célként válaszd a „Mentés PDF-ként” lehetőséget. iPhone-on: Megosztás → Nyomtatás, ott fent a Megosztás ikon → Mentés a Fájlokba.</span>
     </div>
 
