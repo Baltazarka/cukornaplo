@@ -180,7 +180,8 @@ code { font: 13px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; }
 
 .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .choice {
-  display: flex; flex-direction: column; gap: 6px; padding: 14px; text-align: left;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; padding: 14px; text-align: left;
+  white-space: normal; font-weight: 400; min-width: 0;
   border: 1px solid var(--axis); border-radius: 10px; color: var(--text-secondary);
   background: var(--surface-1); cursor: pointer;
 }
@@ -314,7 +315,8 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 
 .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 
-.table-wrap { overflow-x: auto; }
+/* position: a rejtett (sr-only) feliratok se lógjanak ki a görgethető dobozból. */
+.table-wrap { overflow-x: auto; position: relative; }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th {
   text-align: left; font-weight: 500; color: var(--text-muted); font-size: 12px;
@@ -690,3 +692,25 @@ ul.plain li { justify-content: space-between; }
 .log-add { display: flex; flex-wrap: wrap; gap: 6px; }
 .entry-amount { width: 80px; }
 .manual-chip { margin-right: 6px; font-size: 11px; padding: 0 6px; }
+
+/* ---- Telefon / keskeny kijelző ---- */
+/* A beállító táblázatokban a kulcs–érték chipek ne tolják ki a táblát a kártyából. */
+.form-map { table-layout: fixed; width: 100%; }
+.form-map td { overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  /* Kevesebb oldalsó hely: szélesebb grafikonok és táblázatok. */
+  main { padding: 10px 8px; }
+  .card { padding: 12px 10px; }
+  .chart-box { margin: 0 -4px; width: calc(100% + 8px); }
+  /* A beállító táblázat sorai egymás alá: a címke fölül, az érték alatta teljes szélességben. */
+  .form-map, .form-map tbody, .form-map tr, .form-map td { display: block; width: 100% !important; }
+  .form-map tr { padding: 6px 0; border-bottom: 1px solid var(--grid); }
+  .form-map td { border: 0; padding: 2px 0; }
+  .form-map td:first-child { font-size: 12px; }
+  /* Napló: tömörebb sorok, a jelölőgombok szükség esetén a következő sorba törnek. */
+  .log-table { font-size: 13px; }
+  .log-table th, .log-table td { padding: 6px 4px; }
+  .log-table .tag-toggle { margin: 2px 0 0 4px; padding: 0 6px; }
+  .log-table .sub-select { max-width: 130px; }
+  .log-table .manual-chip { display: block; width: fit-content; margin: 0 0 2px auto; }
+}

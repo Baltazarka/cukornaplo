@@ -10,8 +10,10 @@ let chart: any = null
 let echarts: any = null
 let ro: ResizeObserver | null = null
 
-const GRID_LEFT = 52
+// Keskeny kijelzőn (telefon) kisebb bal margó, hogy a grafikon szélesebb legyen.
+let GRID_LEFT = 52
 const GRID_RIGHT = 16
+const narrowWidth = () => (el.value?.clientWidth ?? 800) < 520
 const BAR_WIDTH = 6
 const KIND = {
   meal: { label: 'Étkezési bólus', color: 'insulin' },
@@ -52,6 +54,7 @@ function doseCurve(model: ReturnType<typeof insulinModel>, dia: number, doseMs: 
 }
 
 function buildOption() {
+  GRID_LEFT = narrowWidth() ? 34 : 52
   const d = props.day
   const r = d.range
   const C = {

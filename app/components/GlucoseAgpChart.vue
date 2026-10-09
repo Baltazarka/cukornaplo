@@ -88,7 +88,8 @@ function buildOption() {
   const axisLabel = { color: C.muted, hideOverlap: true }
   const splitLine = { lineStyle: { color: C.grid } }
   const axisLine = { lineStyle: { color: C.axis } }
-  const GRID_LEFT = 52
+  // Keskeny kijelzőn (telefon) kisebb bal margó, hogy a grafikon szélesebb legyen.
+  const GRID_LEFT = (el.value?.clientWidth ?? 800) < 520 ? 34 : 52
   const xAxisFor = (gridIndex: number) => ({
     type: 'value' as const,
     gridIndex,
@@ -170,7 +171,13 @@ async function render() {
 
 onMounted(async () => {
   await render()
-  ro = new ResizeObserver(() => chart?.resize())
+  // A bal margó a szélességtől függ: a határ átlépésekor újraépítjük.
+  let narrow = (el.value?.clientWidth ?? 800) < 520
+  ro = new ResizeObserver(() => {
+    chart?.resize()
+    const n = (el.value?.clientWidth ?? 800) < 520
+    if (n !== narrow) { narrow = n; render() }
+  })
   ro.observe(el.value!)
 })
 watch(() => props.data, render)
