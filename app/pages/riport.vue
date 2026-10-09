@@ -19,6 +19,19 @@ const [{ data: agp }, { data: an }, { data: rep }, { data: th }, { data: hy }, {
   useFetch<any>('/api/hypo', { query: q }),
   useFetch<any>('/api/lab', { key: 'lab' }),
 ])
+const { data: prof } = await useFetch<any>('/api/profile', { key: 'profile' })
+const p = computed(() => prof.value?.profile ?? null)
+const birthLabel = computed(() => {
+  if (!p.value?.birthDate) return ''
+  const age = ageOf(p.value.birthDate)
+  return `${p.value.birthDate.replaceAll('-', '. ')}.${age != null ? ` (${age} éves)` : ''}`
+})
+const diabetesLabel = computed(() => {
+  if (!p.value) return ''
+  const type = diabetesTypeLabel(p.value.diabetesType)
+  const since = p.value.diagnosisYear ? `${p.value.diagnosisYear} óta` : ''
+  return [type ? `${type} cukorbetegség` : '', since].filter(Boolean).join(', ')
+})
 const lastLab = computed(() => lab.value?.results?.[0] ?? null)
 const hypoDur = (min: number) => (min < 60 ? `${min} p` : `${Math.floor(min / 60)} ó ${min % 60} p`)
 const t = computed(() => th.value?.therapy ?? null)
@@ -109,9 +122,14 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
         <div class="report-meta muted small">
           <div>Készült: {{ generated }}</div>
           <div>Szenzoradat: {{ fmt(agp.coverage, 0) }}%</div>
-          <div>Név: ____________________</div>
         </div>
       </header>
+      <dl class="report-patient">
+        <div><dt>Név</dt><dd>{{ p?.name || '____________________' }}</dd></div>
+        <div><dt>Születési dátum</dt><dd>{{ birthLabel || '______________' }}</dd></div>
+        <div v-if="p?.taj"><dt>TAJ-szám</dt><dd>{{ formatTaj(p.taj) }}</dd></div>
+        <div v-if="diabetesLabel"><dt>Diagnózis</dt><dd>{{ diabetesLabel }}</dd></div>
+      </dl>
 
       <section class="report-section">
         <h2>Összefoglaló</h2>

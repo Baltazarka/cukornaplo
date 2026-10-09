@@ -292,6 +292,7 @@ node scripts/import-health-export.ts C:\útvonal\export.xml 2026-01-01</pre>
       </details>
     </section>
 
+    <ProfileCard />
     <MailSettingsCard />
     <ShareCard />
 

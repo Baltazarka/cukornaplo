@@ -714,3 +714,14 @@ ul.plain li { justify-content: space-between; }
   .log-table .sub-select { max-width: 130px; }
   .log-table .manual-chip { display: block; width: fit-content; margin: 0 0 2px auto; }
 }
+
+/* ---- Személyes adatok ---- */
+.profile-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.profile-form .wide { grid-column: 1 / -1; }
+.profile-form label.check { flex-direction: row; align-items: center; gap: 8px; }
+.profile-form .btn-row { margin-top: 0; }
+@media (max-width: 560px) { .profile-form { grid-template-columns: minmax(0, 1fr); } }
+.report-patient { display: flex; flex-wrap: wrap; gap: 4px 28px; margin: 8px 0 0; font-size: 13px; }
+.report-patient > div { display: flex; gap: 6px; align-items: baseline; }
+.report-patient dt { color: var(--text-muted); }
+.report-patient dd { margin: 0; font-weight: 600; }
