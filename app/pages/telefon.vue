@@ -1,4 +1,6 @@
 <script setup lang="ts">
+// Az InPen-automatizálás képernyőképe (public/guide/); amíg nincs meg, a kép helye üresen marad.
+const AUTOMATION_SHOT: string | null = null
 // Telefonos beállító varázsló: kapcsolatteszt, InPen → Egészség, küldés módja, beállítás, próba.
 const { data: s } = await useFetch('/api/settings')
 const token = computed(() => s.value?.token ?? '')
@@ -194,6 +196,35 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
         <tr><td>1. Mértékegység</td><td><b>NE</b></td><td><b>g</b></td></tr>
         <tr><td>6. <code>type</code> mező</td><td><CopyChip value="insulin" /></td><td><CopyChip value="carbs" /></td></tr>
       </tbody></table>
+
+      <h2>Minta: a kész szénhidrát-parancs</h2>
+      <p class="muted small">
+        Így néz ki egy működő szénhidrát-parancs. A vércukornál a típus <b>Vércukor</b>, a mértékegység <b>mmol/L</b>, a
+        <code>type</code> mező <code>glucose</code>; az inzulinnál <b>Inzulinadagolás</b>, <b>NE</b>, <code>insulin</code>.
+        A rendezés mindegy (a szerver az időpont szerint tárol), és a képen látható régi <code>/api/ingest.php</code> cím is működik.
+        A kulcs helyén a saját kulcsod legyen. Koppints a képre a nagyobb változathoz.
+      </p>
+      <div class="shot-row">
+        <figure>
+          <a href="/guide/parancs-1.webp" target="_blank" rel="noopener"><img src="/guide/parancs-1.webp" width="240" height="403" loading="lazy" alt="Egészségügyi minták keresése: típus Szénhidrát, kezdési dátum az előző 3 napban, mértékegység g, korlát kikapcsolva"></a>
+          <figcaption>1. Egészségügyi minták keresése</figcaption>
+        </figure>
+        <figure>
+          <a href="/guide/parancs-2.webp" target="_blank" rel="noopener"><img src="/guide/parancs-2.webp" width="240" height="403" loading="lazy" alt="Kezdési dátum és Érték lekérése az egészségügyi mintákból, mindkettő egyesítése új sorok elválasztóval"></a>
+          <figcaption>2–5. Dátumok és értékek egyesítése</figcaption>
+        </figure>
+        <figure>
+          <a href="/guide/parancs-3.webp" target="_blank" rel="noopener"><img src="/guide/parancs-3.webp" width="240" height="403" loading="lazy" alt="URL tartalmának lekérése: POST, X-Token fejléc, űrlap type, dates és values mezőkkel"></a>
+          <figcaption>6. URL tartalmának lekérése</figcaption>
+        </figure>
+      </div>
+
+      <h2>D) Biztonsági mentés a parancsokról</h2>
+      <ul class="steps">
+        <li><b>iCloud</b> (a legegyszerűbb): iPhone Beállítások → a neved → iCloud → az alkalmazások listájában a <b>Parancsok</b> legyen bekapcsolva. Így új telefonra is átjönnek, és az iPhone iCloud-mentése is tartalmazza őket.</li>
+        <li><b>Fájlba</b>: a Parancsok appban nyomd hosszan a parancsot → <b>Megosztás</b> → fent a <b>Beállítások</b> → <b>Fájl</b> → Kész → <b>Mentés a Fájlokba</b>. Egy <code>.shortcut</code> fájl lesz belőle, amit később egy koppintással visszaimportálhatsz.</li>
+        <li>A mentett parancsban benne van a kulcsod (X-Token). Ne oszd meg, és ne használj nyilvános iCloud-linket. Ha mégis kikerülne, a Beállítások oldalon generálj új kulcsot, és írd át a parancsokban.</li>
+      </ul>
       <div class="nav-row"><button class="btn ghost" @click="step = 3">← Vissza</button><button class="btn" @click="step = 5">Kész, jöhet a próba →</button></div>
     </section>
 
@@ -219,7 +250,20 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
           <span>Szénhidrát: <b>{{ liveCounts.carbs }}</b></span>
         </div>
       </div>
-      <p class="muted small">Automatikus küldéshez a Health Auto Export a beállított gyakorisággal magától küld; a Parancsoknál az Automatizálás fülön köthető InPen bezárásához.</p>
+      <p v-if="method === 'hae'" class="muted small">Automatikus küldéshez a Health Auto Export a beállított gyakorisággal magától küld.</p>
+      <template v-else>
+        <h2>Automatikus küldés (Parancsok → Automatizálás)</h2>
+        <ol class="steps">
+          <li>Parancsok app → <b>Automatizálás</b> fül → <b>+</b> → <b>App</b>.</li>
+          <li>App: <b>InPen</b>; jelöld be: <b>megnyitáskor</b> és <b>bezáráskor</b>; válaszd az <b>Azonnali futtatás</b>t (különben minden alkalommal rákérdez).</li>
+          <li>Új üres parancs, benne három <b>Parancs futtatása</b> művelet egymás után: <b>Inzulin</b>, <b>Szénhidrát</b>, <b>Vércukor</b> (a saját parancsaid nevei).</li>
+        </ol>
+        <p class="muted small">Így minden InPen-használat után magától felmegy az utolsó 3 nap; a már meglévő adatokat a szerver nem duplázza.</p>
+        <figure v-if="AUTOMATION_SHOT" class="shot-single">
+          <a :href="AUTOMATION_SHOT" target="_blank" rel="noopener"><img :src="AUTOMATION_SHOT" width="240" height="403" loading="lazy" alt="Automatizálás: InPen megnyitásakor vagy bezárásakor az Inzulin, a Szénhidrát és a Vércukor parancs futtatása"></a>
+          <figcaption>Minta: az InPen-automatizálás</figcaption>
+        </figure>
+      </template>
       <div class="nav-row"><button class="btn ghost" @click="step = 4">← Vissza</button><NuxtLink class="btn" to="/">Kész, irány a napló →</NuxtLink></div>
     </section>
   </main>

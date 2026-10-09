@@ -777,3 +777,12 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
   .guide-enter-active, .guide-leave-active, .guide-enter-active .guide-panel, .guide-leave-active .guide-panel { transition: none; }
 }
 @media print { .guide-backdrop, .guide-link { display: none !important; } }
+
+/* ---- Telefon beállítása: képernyőképek a parancsról ---- */
+.shot-row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x mandatory; }
+.shot-row figure { margin: 0; flex: 0 0 auto; width: 200px; scroll-snap-align: start; }
+.shot-row img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--border); }
+.shot-row figcaption { margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
+.shot-single { margin: 8px 0 0; width: 200px; }
+.shot-single img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--border); }
+.shot-single figcaption { margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
