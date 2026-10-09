@@ -21,26 +21,50 @@ async function submit() {
   }
 }
 
-// Belépés Face ID-val / Touch ID-val (passkey).
+// Belépés Face ID-val / Touch ID-val (passkey). Két út:
+//  - automatikus kitöltés: a jelszómezőt megérintve a billentyűzet fölötti sáv felajánlja a mentett
+//    passkey-t (iCloud-kulcskarika, Bitwarden stb.), egy koppintás + Face ID;
+//  - a gomb: azonnal feldobja a passkey-ablakot.
+// Az új kérés a SimpleWebAuthn-ben automatikusan megszakítja a függőben lévőt.
 const passkeyOk = ref(false)
-onMounted(() => {
+onMounted(async () => {
   passkeyOk.value = !!auth.value.hasPasskey && !!window.PublicKeyCredential
+  if (!passkeyOk.value) return
+  // Előbb kerüljön a DOM-ba a jelszómező „webauthn” autocomplete-je, különben az automatikus kitöltés nem indul.
+  await nextTick()
+  startAutofill()
 })
-async function passkeyLogin() {
-  busy.value = true
-  error.value = ''
+async function startAutofill() {
+  const { browserSupportsWebAuthnAutofill } = await import('@simplewebauthn/browser')
+  if (await browserSupportsWebAuthnAutofill()) passkeyLogin(true)
+}
+onBeforeUnmount(async () => {
+  const { WebAuthnAbortService } = await import('@simplewebauthn/browser')
+  WebAuthnAbortService.cancelCeremony()
+})
+async function passkeyLogin(autofill = false) {
+  // Az automatikus kitöltés a háttérben vár: csak akkor jelzünk „foglalt”-at, ha már választottál passkey-t.
+  let mine = !autofill
+  if (mine) {
+    busy.value = true
+    error.value = ''
+  }
   try {
     const { startAuthentication } = await import('@simplewebauthn/browser')
     const optionsJSON = await $fetch<any>('/api/auth/passkey/login-options', { method: 'POST' })
-    const response = await startAuthentication({ optionsJSON })
+    const response = await startAuthentication({ optionsJSON, useBrowserAutofill: autofill })
+    mine = true
+    busy.value = true
     await $fetch('/api/auth/passkey/login-verify', { method: 'POST', body: { response } })
     if (auth.value) auth.value.authed = true
     await navigateTo('/')
   } catch (e: any) {
-    // A felhasználó megszakította (NotAllowedError) → nincs hibaüzenet.
+    // Megszakítás (NotAllowedError / AbortError, pl. a gomb leváltotta az automatikus kitöltést) → nincs hibaüzenet.
     if (e?.name !== 'NotAllowedError' && e?.name !== 'AbortError') error.value = e?.data?.error ?? 'A passkey-s belépés nem sikerült.'
+    // A gombos próbálkozás után az automatikus kitöltés újra induljon.
+    if (!autofill && passkeyOk.value) startAutofill()
   } finally {
-    busy.value = false
+    if (mine) busy.value = false
   }
 }
 </script>
@@ -52,12 +76,12 @@ async function passkeyLogin() {
       <p v-if="expired" class="notice">A megtekintési link lejárt. Ha tovább szeretnéd nézni, kérj új linket attól, aki küldte.</p>
       <p v-if="error" class="alert">{{ error }}</p>
       <div v-if="passkeyOk" class="stack">
-        <button type="button" :disabled="busy" @click="passkeyLogin">🔐 Belépés Face ID-val / Touch ID-val</button>
+        <button type="button" :disabled="busy" @click="passkeyLogin()">🔐 Belépés Face ID-val / Touch ID-val</button>
         <p class="muted small" style="text-align:center;margin:0">vagy jelszóval:</p>
       </div>
       <form class="stack" @submit.prevent="submit">
         <label>Jelszó
-          <input v-model="password" type="password" autocomplete="current-password" required autofocus>
+          <input v-model="password" type="password" :autocomplete="passkeyOk ? 'current-password webauthn' : 'current-password'" required autofocus>
         </label>
         <button type="submit" :disabled="busy">Belépés</button>
       </form>
