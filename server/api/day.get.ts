@@ -11,6 +11,7 @@ import { notesBetween } from '../utils/notes'
 import { assumedBasalDose } from '../utils/basal'
 import { rapidDoses, iobAt, bolusPeak } from '../utils/iob'
 import { detectHypos, hypoCount } from '../utils/hypo'
+import { carbCurve, cobAt, absorbCategory } from '../utils/absorption'
 
 export default defineEventHandler((event) => {
   const q = getQuery(event)
@@ -74,6 +75,13 @@ export default defineEventHandler((event) => {
   // A még aktív gyors hatású inzulin most (csak a mai napon, és ha a terápia be van állítva).
   const iobNow = activeInsulin && day === today ? round2(activeInsulin.at(Math.floor(Date.now() / 1000))) : null
 
+  // Aktív szénhidrát (COB): a tanult felszívódási görbékkel; a nap elejét megelőző 6 óra étkezései is még hathatnak.
+  const cobCarbs = rows
+    .filter((e) => e.type === 'carbs' && Number(e.ts) >= dayStart - 6 * 3600)
+    .map((e) => ({ ts: Number(e.ts), v: Number(e.value), sub: e.subtype ?? null }))
+  const nowTs = Math.floor(Date.now() / 1000)
+  const cobNow = day === today ? Math.round(cobAt(cobCarbs, nowTs) * 10) / 10 : null
+
   return {
     day,
     today,
@@ -102,6 +110,9 @@ export default defineEventHandler((event) => {
       carbs: dayCarbs,
     },
     iobNow,
+    cobNow,
+    // Étkezésenként a felszívódási görbe (15 percenként, 0–480 perc), az aktív CH görbéhez.
+    absorption: { carbs: cobCarbs.map((c) => [c.ts * 1000, c.v, c.sub === 'fatty' || c.sub === 'fast' ? c.sub : null, carbCurve(absorbCategory(c.sub), c.v)]) },
     trend: lastTrend(dayRows.glucose),
     hypos: hypoCount(detectHypos(dayRows.glucose, low, RANGE_VERY_LOW)),
     change: changeTime(dayRows.glucose),

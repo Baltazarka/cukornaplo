@@ -206,6 +206,41 @@ function buildOption() {
     }
   }
 
+  // Aktív szénhidrát: minden étkezés saját görbéje (a tanult felszívódással, zsíros / gyors külön), az oszlop
+  // tetejéről indulva, mutatja, mennyi CH nem szívódott még fel.
+  const ab = d.absorption
+  const carbMax = niceMax(Math.max(10, ...d.carbs.map((p: any[]) => p[1])))
+  const carbDrop = (IOB_LINE / 2) * (carbMax / INS_HEIGHT)
+  const protoFrac = (prof: number[], m: number) => {
+    if (m <= 0) return 0
+    const x = m / 15
+    if (x >= prof.length - 1) return 1
+    const i = Math.floor(x)
+    return prof[i] + (prof[i + 1] - prof[i]) * (x - i)
+  }
+  const cobCurves: [number, number][][] = []
+  if (ab) {
+    const edge = (BAR_WIDTH / 2 - 1) * msPerPx
+    for (const [ts, grams, , prof] of ab.carbs as [number, number, string | null, number[]][]) {
+      const pts: [number, number][] = [[ts + edge, Math.max(0, grams - carbDrop)]]
+      for (let i = 1; i < prof.length; i++) {
+        pts.push([ts + i * 15 * 60000, Math.max(0, grams * (1 - prof[i]) - carbDrop)])
+        if (prof[i] >= 0.995) break
+      }
+      cobCurves.push(pts)
+    }
+  }
+  const cobAtMs = (x: number) => {
+    if (!ab) return 0
+    let sum = 0
+    for (const [ts, grams, , prof] of ab.carbs as [number, number, string | null, number[]][]) {
+      const m = (x - ts) / 60000
+      if (m < 0) continue
+      sum += grams * (1 - protoFrac(prof, m))
+    }
+    return sum
+  }
+
   const fmtTooltip = (params: any) => {
     const x = Array.isArray(params) ? params[0]?.axisValue : params.axisValue
     if (x == null) return ''
@@ -256,6 +291,8 @@ function buildOption() {
     for (const p of ch) {
       html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${C.carbs};margin-right:6px"></span>Szénhidrát <b>${num(p[1], 0)}</b> g${p[2] ? ` <span style="color:${C.muted}">· ${p[2] === 'fatty' ? 'zsíros / fehérjedús' : 'gyors CH'}</span>` : ''}</div>`
     }
+    const cob = cobAtMs(x)
+    if (cob >= 0.5) html += `<div><span style="display:inline-block;width:8px;height:2px;background:${C.carbs};margin:0 6px 3px 0"></span>Aktív CH <b>${num(cob, 0)}</b> g</div>`
     return html
   }
 
@@ -310,7 +347,7 @@ function buildOption() {
     yAxis: [
       { type: 'value', gridIndex: 0, min: 2, max: Math.max(16, Math.ceil(Math.max(gMax, ...forecast.value.map((p) => p[1])) + 1)), interval: 2, axisLabel, splitLine, axisLine: { show: false } },
       { type: 'value', gridIndex: 1, min: 0, max: insMax, interval: insMax / 2, axisLabel, splitLine, axisLine: { show: false } },
-      { type: 'value', gridIndex: 2, min: 0, splitNumber: 2, axisLabel, splitLine, axisLine: { show: false } },
+      { type: 'value', gridIndex: 2, min: 0, max: carbMax, interval: carbMax / 2, axisLabel, splitLine, axisLine: { show: false } },
     ],
     series: [
       ...segmentSeries,
@@ -361,6 +398,10 @@ function buildOption() {
       bar('Bólus', 1, bolus.filter((p: any[]) => p[3] !== 'correction').map((p: any[]) => [p[0], p[1]]), C.insulin),
       bar('Korrekció', 1, bolus.filter((p: any[]) => p[3] === 'correction').map((p: any[]) => [p[0], p[1]]), C.correction),
       bar('Bázis', 1, basal, C.basal),
+      ...cobCurves.map((data) => ({
+        name: 'Aktív CH', type: 'line', xAxisIndex: 2, yAxisIndex: 2, data, symbol: 'none', silent: true, z: 2,
+        lineStyle: { width: IOB_LINE, color: C.carbs }, areaStyle: { color: rgba(C.carbs, 0.12) },
+      })),
       bar('Szénhidrát', 2, carbs, C.carbs),
     ],
   }
@@ -427,6 +468,10 @@ const actionText = computed(() => {
         <span class="lr-label">Aktív inzulin</span>
         <span class="lr-iob-value">{{ f1(day.iobNow) }} <small>E</small></span>
       </span>
+      <span v-if="day.cobNow != null" class="lr-iob" title="A még fel nem szívódott szénhidrát összesen, most (a nálad mért felszívódási görbével)">
+        <span class="lr-label">Aktív CH</span>
+        <span class="lr-iob-value">{{ Math.round(day.cobNow) }} <small>g</small></span>
+      </span>
     </div>
     <div class="chart-legend">
       <span class="k"><span class="sw line" style="background: var(--text-primary)" /> céltartomány / glükóz</span>
@@ -440,6 +485,9 @@ const actionText = computed(() => {
       <span class="k"><span class="sw" style="background: var(--series-correction)" /> korrekció</span>
       <span class="k"><span class="sw" style="background: var(--series-basal)" /> bázis</span>
       <span v-if="forecast.length > 1" class="k"><span class="sw line" style="background: repeating-linear-gradient(90deg, var(--text-primary) 0 5px, transparent 5px 9px)" /> előrejelzés</span>
+      <span v-if="day.absorption" class="k" title="A szénhidrát még fel nem szívódott része: a tiszta étkezéseidből tanult felszívódási görbével (zsíros és gyors CH külön)">
+        <span class="sw iob" style="border-color: var(--series-carbs); background: color-mix(in srgb, var(--series-carbs) 16%, transparent)" /> aktív CH
+      </span>
       <span v-if="day.activeInsulin" class="k" :title="`${day.activeInsulin.insulin ?? 'Bólusinzulin'}, hatásidő ${actionLabel(day.activeInsulin.durationMinutes)}`">
         <span class="sw iob" /> bólus hatása ({{ actionText }})
       </span>

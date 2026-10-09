@@ -26,6 +26,12 @@ const CLEAN_PRE_MIN = 60 // tiszta étkezés: az étkezés / saját bólus előt
 const STEEP_RATE = 0.11 // mmol/L/perc (2 nyíl): ilyen gyorsan változó kezdő vércukornál nem tiszta az étkezés
 /** Ezek a jegyzetek erősen befolyásolják az érzékenységet: az ablakban nem tiszta az esemény. */
 const DISTURBING_TAGS = ['sport', 'betegseg', 'alkohol']
+/** A felszívódási görbe rácsa: percenként 15-ös lépés 0-tól 360-ig. */
+export const ABSORB_STEP = 15
+export const ABSORB_POINTS = 360 / ABSORB_STEP + 1
+export type AbsorbCategory = 'normal' | 'fatty' | 'fast'
+/** Ennyi mmol/L teljes szénhidráthatás kell, hogy az étkezés felszívódási görbéje számítható legyen. */
+const MIN_CARB_EFFECT = 1.0
 
 interface G { ts: number; v: number }
 interface Carb extends G { fatty: boolean; fast: boolean }
@@ -196,6 +202,7 @@ export function analyze(from: number, to: number) {
   }
 
   const meals: MealEvent[] = []
+  const absorbSamples: { cat: AbsorbCategory; frac: (number | null)[]; grams: number }[] = []
   for (const g of groups) {
     if (g.ts < from || g.ts >= to) continue
     const startBG = sample(g.ts)
@@ -244,6 +251,31 @@ export function analyze(from: number, to: number) {
       : correctionAfter || (d4h != null && d4h > 2) ? 'high'
       : peak > high ? 'spike'
       : 'ok'
+    const isClean = !otherBolus && !otherCarbs && !correctionAfter && !steep && !disturbed(g.ts - 2 * 3600, tEnd)
+    // Felszívódási görbe a tiszta étkezésből: a vércukor-változásból levonva az inzulin hatását marad a
+    // szénhidrát hatása; ennek a végponti értékhez viszonyított hányada a felszívódott CH aránya.
+    // (a gyors CH-t gyakran inzulin nélkül, hipó kezelésére viszik be, ezért ott nem kell saját bólus)
+    if (t && isClean && g.carbs && (g.boluses.length || (g.fast && !g.fatty))) {
+      const isf = segmentAt(t, g.ts).isf
+      const effectAt = (m: number): number | null => {
+        const v = values[(MEAL_PRE_MIN + m) / STEP]
+        if (v == null) return null
+        let acted = 0
+        for (const b of boluses) if (b.ts > g.ts - diaAt(b.ts) * 60 && b.ts < g.ts + m * 60) acted += actedIn(b, g.ts, g.ts + m * 60)
+        return v - startBG + isf * acted
+      }
+      const tail = [endMin - 10, endMin - 5, endMin].map(effectAt).filter((x): x is number => x != null)
+      const cEnd = tail.length >= 2 ? tail.reduce((a, b) => a + b, 0) / tail.length : null
+      if (cEnd != null && cEnd >= MIN_CARB_EFFECT) {
+        const frac: (number | null)[] = []
+        for (let i = 0; i < ABSORB_POINTS; i++) {
+          const m = i * ABSORB_STEP
+          const e = m <= endMin ? effectAt(m) : null
+          frac.push(e == null ? null : Math.min(1.5, Math.max(-0.3, e / cEnd)))
+        }
+        absorbSamples.push({ cat: g.fatty ? 'fatty' : g.fast ? 'fast' : 'normal', frac, grams: g.carbs })
+      }
+    }
     meals.push({
       ts: g.ts,
       seg: segIndexAt(t, g.ts),
@@ -259,7 +291,7 @@ export function analyze(from: number, to: number) {
       min: r1(min),
       rating,
       correctionAfter,
-      clean: !otherBolus && !otherCarbs && !correctionAfter && !steep && !disturbed(g.ts - 2 * 3600, tEnd),
+      clean: isClean,
       fatty: g.fatty,
       endMin,
       dEnd: vEnd != null ? r2(vEnd - startBG) : null,
@@ -371,9 +403,61 @@ export function analyze(from: number, to: number) {
     counts: { meals: meals.length, corrections: correctionCount, cleanCorrections: corrections.length },
     segments,
     action: actionSummary(corrections, t, maxDia),
+    absorption: {
+      normal: absorptionProfile(absorbSamples.filter((x) => x.cat === 'normal')),
+      fatty: absorptionProfile(absorbSamples.filter((x) => x.cat === 'fatty')),
+      fast: absorptionProfile(absorbSamples.filter((x) => x.cat === 'fast')),
+    },
     maxDia,
     basal: basalCheck(glucose, carbs, boluses, diaAt, low, from, Math.min(to, Math.floor(Date.now() / 1000))),
   }
+}
+
+export interface AbsorptionProfile {
+  /** Hány tiszta étkezésből készült. */
+  n: number
+  /** Legalább MIN_EVENTS étkezés: a becslés használható az előrejelzéshez. */
+  usable: boolean
+  /** A felszívódott CH aránya (0 … 1) 15 percenként, 0-tól 360 percig. */
+  profile: number[] | null
+  /** A tanulásban részt vevő étkezések mediánja, g: a görbe erre az étkezésméretre érvényes. */
+  refGrams: number | null
+  /** Ennyi perc után szívódik fel a CH 10 / 50 / 90%-a. */
+  t10: number | null
+  t50: number | null
+  t90: number | null
+}
+
+/** Az étkezésenkénti arányok pontonkénti mediánja, monoton növekvővé téve (a zaj miatt). */
+function absorptionProfile(items: { frac: (number | null)[]; grams: number }[]): AbsorptionProfile {
+  const samples = items.map((x) => x.frac)
+  const n = samples.length
+  const empty: AbsorptionProfile = { n, usable: false, profile: null, refGrams: null, t10: null, t50: null, t90: null }
+  if (n < MIN_EVENTS) return empty
+  const med: (number | null)[] = []
+  for (let i = 0; i < ABSORB_POINTS; i++) {
+    const vals = samples.map((x) => x[i]).filter((v): v is number => v != null)
+    med.push(vals.length >= 2 ? median(vals) : null)
+  }
+  const lastIdx = med.findLastIndex((v) => v != null)
+  if (lastIdx < 4) return empty
+  const prof: number[] = []
+  let run = 0
+  for (let i = 0; i < ABSORB_POINTS; i++) {
+    run = Math.max(run, i === 0 ? 0 : i > lastIdx ? 1 : (med[i] ?? run))
+    prof.push(Math.min(1, Math.max(0, run)))
+  }
+  const peak = Math.max(...prof)
+  if (peak <= 0) return empty
+  const norm = prof.map((v) => v / peak)
+  const when = (q: number) => {
+    const i = norm.findIndex((v) => v >= q)
+    if (i <= 0) return i === 0 ? 0 : null
+    const a = norm[i - 1]
+    const b = norm[i]
+    return Math.round((i - 1 + (b > a ? (q - a) / (b - a) : 1)) * ABSORB_STEP)
+  }
+  return { n, usable: true, profile: norm.map(r2), refGrams: Math.round(median(items.map((x) => x.grams))!), t10: when(0.1), t50: when(0.5), t90: when(0.9) }
 }
 
 function glucoseCoverage(g: G[], from: number, to: number): number {
