@@ -117,13 +117,29 @@ function buildOption() {
     carbs: cssToken('--series-carbs'),
     low: cssToken('--status-critical'),
     tooltipBg: cssToken('--tooltip-bg'),
+    surface: cssToken('--surface-1'),
     border: cssToken('--border'),
   }
 
   // Glükóz: 15 percnél hosszabb szünetnél megszakad a görbe és a kitöltés is.
+  // A kiválasztott nap mellett a meghosszabbított (előző / következő napi) szakaszok vércukra is látszik.
+  const gRaw: [number, number][] = [
+    ...((d.glucoseExt ?? []) as [number, number][]).filter((p) => p[0] >= axisMin && p[0] <= axisMax),
+    ...d.glucose,
+  ].sort((a, b) => a[0] - b[0])
+  // Az átlógó szakaszokon a vércukorgörbe enyhén simított (1-2-1 súlyozású átlag), hogy ne legyen szúrós; a kiválasztott nap
+  // görbéje és a buborék értékei nyers adatok.
+  const inDay = (ms: number) => ms >= d.dayStartMs && ms < d.dayEndMs
+  const gSrc: [number, number][] = gRaw.map((p, i) => {
+    if (inDay(p[0])) return p
+    const a = gRaw[i - 1]
+    const b = gRaw[i + 1]
+    if (!a || !b || p[0] - a[0] > 15 * 60000 || b[0] - p[0] > 15 * 60000) return p
+    return [p[0], (a[1] + 2 * p[1] + b[1]) / 4]
+  })
   const g: [number, number | null][] = []
-  d.glucose.forEach((p: [number, number], i: number) => {
-    if (i > 0 && p[0] - d.glucose[i - 1][0] > 15 * 60000) g.push([p[0] - 1, null])
+  gSrc.forEach((p, i) => {
+    if (i > 0 && p[0] - gSrc[i - 1][0] > 15 * 60000) g.push([p[0] - 1, null])
     g.push([p[0], p[1]])
   })
   const gMax = d.glucose.reduce((m: number, p: [number, number]) => Math.max(m, p[1]), 0)
@@ -273,7 +289,7 @@ function buildOption() {
     if (x == null) return ''
     let gNear: number | null = null
     let gDiff = Infinity
-    for (const p of d.glucose) {
+    for (const p of gRaw) {
       const diff = Math.abs(p[0] - x)
       if (diff < gDiff) { gDiff = diff; gNear = p[1] }
     }
@@ -380,13 +396,15 @@ function buildOption() {
       ...segmentSeries,
       ...(tailMs || headMs
         ? [0, 1, 2].map((gi) => ({
-            type: 'line', xAxisIndex: gi, yAxisIndex: gi, data: [], silent: true, z: 0, tooltip: { show: false },
+            // Az átlógó (előző / következő napi) szakasz fölé áttetsző réteg kerül: minden adata halványabb.
+            type: 'line', xAxisIndex: gi, yAxisIndex: gi, data: [], silent: true, z: 10, tooltip: { show: false },
             markArea: {
               silent: true,
+              z: 10,
               label: { position: 'insideTop', distance: 4, color: C.muted, fontSize: 10 },
               data: [
-                ...(headMs ? [[{ xAxis: axisMin, itemStyle: { color: rgba(C.primary, 0.07) }, label: gi === 0 ? { show: true, formatter: 'előző nap' } : { show: false } }, { xAxis: d.dayStartMs }]] : []),
-                ...(tailMs ? [[{ xAxis: d.dayEndMs, itemStyle: { color: rgba(C.primary, 0.07) }, label: gi === 0 ? { show: true, formatter: 'következő nap' } : { show: false } }, { xAxis: axisMax }]] : []),
+                ...(headMs ? [[{ xAxis: axisMin, itemStyle: { color: rgba(C.surface, 0.68) }, label: gi === 0 ? { show: true, formatter: 'előző nap' } : { show: false } }, { xAxis: d.dayStartMs }]] : []),
+                ...(tailMs ? [[{ xAxis: d.dayEndMs, itemStyle: { color: rgba(C.surface, 0.68) }, label: gi === 0 ? { show: true, formatter: 'következő nap' } : { show: false } }, { xAxis: axisMax }]] : []),
               ],
             },
             markLine: {

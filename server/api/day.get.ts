@@ -83,6 +83,10 @@ export default defineEventHandler((event) => {
   const cobCarbs = rows
     .filter((e) => e.type === 'carbs' && Number(e.ts) >= dayStart - 6 * 3600)
     .map((e) => ({ ts: Number(e.ts), v: Number(e.value), sub: e.subtype ?? null }))
+  // A nap előtti és utáni 8 óra vércukra: a grafikon meghosszabbított (átlógó) szakaszaihoz.
+  const glucoseExt = (db()
+    .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND ((ts >= ? AND ts < ?) OR (ts >= ? AND ts < ?)) ORDER BY ts")
+    .all(dayStart - 8 * 3600, dayStart, dayEnd, dayEnd + 8 * 3600) as { ts: number; value: number }[]).map((r) => [Number(r.ts) * 1000, Number(r.value)])
   const nowTs = Math.floor(Date.now() / 1000)
   const cobNow = day === today ? Math.round(cobAt(cobCarbs, nowTs) * 10) / 10 : null
 
@@ -97,6 +101,7 @@ export default defineEventHandler((event) => {
     dayEndMs: dayEnd * 1000,
     range: { veryLow: RANGE_VERY_LOW, low, high, veryHigh: RANGE_VERY_HIGH },
     glucose: dayRows.glucose.map((g) => [g.ts * 1000, g.v]),
+    glucoseExt,
     insulin: dayRows.insulin.map((e) => [e.ts * 1000, e.v, e.kind]),
     carbs: dayRows.carbs.map((e) => [e.ts * 1000, e.v, e.sub === 'fatty' || e.sub === 'fast' ? e.sub : null]),
     events: events.map((e) => ({
