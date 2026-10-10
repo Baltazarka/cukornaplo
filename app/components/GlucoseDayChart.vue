@@ -535,7 +535,7 @@ const actionText = computed(() => {
         <span class="lr-label">Aktív inzulin</span>
         <span class="lr-iob-value">{{ f1(day.iobNow) }} <small>E</small></span>
       </span>
-      <span v-if="day.cobNow != null" class="lr-iob" title="A még fel nem szívódott szénhidrát összesen, most (a nálad mért felszívódási görbével)">
+      <span v-if="day.cobNow != null" class="lr-iob lr-cob" title="A még fel nem szívódott szénhidrát összesen, most (a nálad mért felszívódási görbével)">
         <span class="lr-label">Aktív CH</span>
         <span class="lr-iob-value">{{ Math.round(day.cobNow) }} <small>g</small></span>
       </span>

@@ -833,3 +833,18 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
 }
 
 .remember { flex-direction: row; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 14px; }
+
+/* Az utolsó érték kártya: ne lógjon ki keskeny kijelzőn, hanem törjön több sorba. */
+.last-reading { max-width: 100%; box-sizing: border-box; flex-wrap: wrap; row-gap: 6px; }
+.last-reading .lr-cob .lr-iob-value { color: var(--series-carbs); }
+@media (max-width: 560px) {
+  .last-reading { display: flex; width: 100%; padding: 8px 12px; gap: 6px 12px; }
+  /* Az inzulin és a CH új sorban, egymás mellett, a kártya teljes szélességén. */
+  .last-reading .lr-iob { margin-left: 0; padding-left: 0; border-left: 0; flex: 1 1 40%; }
+  .last-reading .lr-iob:first-of-type { margin-left: 0; }
+}
+@media (max-width: 560px) {
+  /* A céltartomány-szerkesztő sora ne lógjon ki, hanem törjön. */
+  .range-edit { display: flex; flex-wrap: wrap; width: 100%; max-width: 100%; }
+  .card-head { flex-wrap: wrap; }
+}
