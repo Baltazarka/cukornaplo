@@ -803,3 +803,31 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
 .bc-log-check { display: inline-flex; align-items: center; gap: 6px; }
 .bc-log-row .bc-input input { width: 64px; }
 .bc-log p { margin: 0; }
+
+/* ---- Főoldal telefonon: a bóluskalkulátor előre, utána a napi görbe; a riport gomb a napok sorában ---- */
+@media (max-width: 700px) {
+  .home-main, .home-side { display: contents; }
+  .home-main > *, .home-side > * { order: 4; }
+  .home-main > .cl-alert { order: 0; }
+  .home-main > .filters { order: 1; }
+  .home-side > .bolus-calc { order: 2; }
+  .home-main > .day-chart-card { order: 3; }
+  .home-side > .therapy-card { order: 9; }
+
+  /* A napválasztó sorban: dátum, időszak, riport gomb; a nap címe alatta, teljes szélességben. */
+  .filters > .segmented { order: 1; }
+  .filters > .report-link { order: 2; margin-left: auto; padding-left: 10px; padding-right: 10px; white-space: nowrap; }
+  .filters > h1 { order: 3; }
+}
+@media (max-width: 700px) {
+  main.home > .disclaimer { order: 10; }
+}
+
+.rl-short { display: none; }
+@media (max-width: 700px) {
+  /* Az időszakválasztó és a riport gomb egy sorban maradjon (keskeny kijelzőn is). */
+  .filters > .segmented button { padding: 6px 9px; font-size: 14px; }
+  .rl-long { display: none; }
+  .rl-short { display: inline; }
+  .filters > .report-link { padding: 6px 10px; }
+}

@@ -80,6 +80,8 @@ function doseCurve(model: ReturnType<typeof insulinModel>, dia: number, doseMs: 
 
 function buildOption() {
   GRID_LEFT = narrowWidth() ? 34 : 52
+  // Telefonon kisebb, tömörebb buborék (a teljes szélességet nem foglalja el).
+  const narrow = narrowWidth()
   const d = props.day
   const r = d.range
   // Kifutás a következő napra: ha az inzulin vagy a szénhidrát hatása éjfél után is tart, a tengely meghosszabbodik
@@ -298,7 +300,7 @@ function buildOption() {
     const ch = d.carbs.filter((p: any[]) => Math.abs(p[0] - x) <= win)
     let html = `<div style="font-weight:600;margin-bottom:4px">${hm(x)}</div>`
     const sg = segmentAt(x)
-    if (sg) {
+    if (sg && !narrow) {
       html += `<div style="color:${C.muted};font-size:12px;margin-bottom:4px">${d.segments.byTimeOfDay ? `Napszak ${sg.start}–${sg.end}` : 'Egész nap'}: cél ${num(sg.target, 1)} · ISF ${num(sg.isf, 1)} · CH ${num(sg.icr, 1)} g/E</div>`
     }
     if (gNear !== null && gDiff <= 10 * 60000) {
@@ -316,7 +318,7 @@ function buildOption() {
       // A bólus hatásideje (a beadás napszakáé) és a napszak kezdete.
       const dose = (ai?.doses as any[] | undefined)?.find((x) => x[0] === p[0])
       const sg = segmentAt(p[0])
-      const extra = dose ? ` <span style="color:${C.muted}">· hatás ${actionLabel(dose[2])}${sg && d.segments?.byTimeOfDay ? `, ${sg.start} napszak` : ''}</span>` : ''
+      const extra = dose && !narrow ? ` <span style="color:${C.muted}">· hatás ${actionLabel(dose[2])}${sg && d.segments?.byTimeOfDay ? `, ${sg.start} napszak` : ''}</span>` : ''
       html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${C[k.color]};margin-right:6px"></span>${k.label} <b>${num(p[1], 2)}</b> E${extra}</div>`
     }
     if (iobTotal.length) {
@@ -384,7 +386,9 @@ function buildOption() {
     axisPointer: { link: [{ xAxisIndex: 'all' }], lineStyle: { color: C.axis } },
     tooltip: {
       trigger: 'axis', backgroundColor: C.tooltipBg, borderColor: C.border, borderWidth: 1,
-      textStyle: { color: C.text }, padding: 10, formatter: fmtTooltip, axisPointer: { type: 'line' },
+      textStyle: { color: C.text, fontSize: narrow ? 11 : 13 }, padding: narrow ? [4, 7] : 10, formatter: fmtTooltip, axisPointer: { type: 'line' },
+      confine: true,
+      extraCssText: narrow ? 'max-width:58vw;white-space:normal;line-height:1.3;' : '',
     },
     xAxis: [xAxisFor(0), xAxisFor(1), xAxisFor(2)],
     yAxis: [

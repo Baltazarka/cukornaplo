@@ -262,7 +262,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
       <NuxtLink
         class="btn ghost report-link" :to="{ path: '/riport', query: { days: period > 1 ? period : 14, end: (period > 1 ? agp?.end : data.day) || undefined } }"
         title="Részletes, nyomtatható riport (PDF-be menthető)"
-      >Riport / PDF</NuxtLink>
+      ><span class="rl-long">Riport / PDF</span><span class="rl-short" aria-hidden="true">PDF</span></NuxtLink>
     </div>
 
     <PeriodView v-if="period > 1 && agp" :data="agp" @day="openDay" />
@@ -278,7 +278,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
       :insulin="{ total: data.totals.insulin, meal: data.totals.meal, correction: data.totals.correction, basal: data.totals.basal, basalAssumedDays: data.totals.basalAssumedDays }" :carbs="data.totals.carbs" :partial="data.day === data.today"
     />
 
-    <section class="card">
+    <section class="card day-chart-card">
       <div class="card-head">
         <h2>Napi görbe</h2>
         <form v-if="!readOnly" class="range-edit" @submit.prevent="saveRange">

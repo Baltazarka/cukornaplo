@@ -19,6 +19,8 @@ function hm(min: number): string {
 }
 
 function buildOption() {
+  // Telefonon kisebb, tömörebb buborék.
+  const tipNarrow = (el.value?.clientWidth ?? 800) < 520
   const d = props.data
   const a = d.agp
   const r = d.range
@@ -130,7 +132,9 @@ function buildOption() {
     axisPointer: { link: [{ xAxisIndex: 'all' }], lineStyle: { color: C.axis } },
     tooltip: {
       trigger: 'axis', backgroundColor: C.tooltipBg, borderColor: C.border, borderWidth: 1,
-      textStyle: { color: C.text }, padding: 10, formatter: fmtTooltip, axisPointer: { type: 'line' },
+      textStyle: { color: C.text, fontSize: tipNarrow ? 11 : 13 }, padding: tipNarrow ? [4, 7] : 10, formatter: fmtTooltip, axisPointer: { type: 'line' },
+      confine: true,
+      extraCssText: tipNarrow ? 'max-width:58vw;white-space:normal;line-height:1.3;' : '',
     },
     xAxis: [xAxisFor(0), xAxisFor(1), xAxisFor(2)],
     yAxis: [
