@@ -5,7 +5,7 @@
 // felveszi). Ha az InPen / Health később ugyanezt az adagot küldi, a kézi sor beolvad (db.ts storeRows).
 import { db, MANUAL_SOURCE, MANUAL_MATCH_SEC } from '../utils/db'
 import { zonedToTs } from '../utils/normalize'
-import { hmInTz } from '../utils/time'
+import { hmInTz, ymdInTz } from '../utils/time'
 
 const LIMITS = { insulin: { min: 0.1, max: 100, unit: 'E' }, carbs: { min: 1, max: 500, unit: 'g' } } as const
 const SUBS = { insulin: ['meal', 'correction', 'basal'], carbs: ['fatty', 'fast'] } as const
@@ -13,8 +13,10 @@ const SUBS = { insulin: ['meal', 'correction', 'basal'], carbs: ['fatty', 'fast'
 export default defineEventHandler(async (event) => {
   const body = (await readBody(event)) ?? {}
   const type = body.type === 'insulin' || body.type === 'carbs' ? (body.type as 'insulin' | 'carbs') : null
-  const date = String(body.date ?? '')
-  const time = String(body.time ?? '')
+  // Dátum és időpont nélkül (pl. a bóluskalkulátorból) a mostani időpont számít, az app időzónájában.
+  const nowSec = Math.floor(Date.now() / 1000)
+  const date = String(body.date || ymdInTz(nowSec))
+  const time = String(body.time || hmInTz(nowSec))
   if (!type) {
     setResponseStatus(event, 400)
     return { ok: false, error: 'Ismeretlen bejegyzéstípus.' }

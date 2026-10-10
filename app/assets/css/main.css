@@ -796,3 +796,10 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
 .forecast-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 8px; }
 .forecast-pick label { display: inline-flex; align-items: center; gap: 6px; }
 .forecast-pick select { padding: 4px 8px; }
+
+/* Bóluskalkulátor: beírás a naplóba */
+.bc-log { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.bc-log-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; flex-direction: row; font-size: 14px; }
+.bc-log-check { display: inline-flex; align-items: center; gap: 6px; }
+.bc-log-row .bc-input input { width: 64px; }
+.bc-log p { margin: 0; }

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // Bóluskalkulátor: a beírt szénhidrátból, a vércukorból (alapból a friss CGM-érték), a most érvényes
 // napszak CH-arányából, érzékenységéből és célértékéből, valamint a még aktív inzulinból javasol adagot.
-// Tájékoztató: nem rögzít semmit, a beadott adag az InPenből érkezik a naplóba.
+// Tájékoztató. A számolt szénhidrátot és adagot kérésre be lehet írni a naplóba is (az InPenből később
+// érkező ugyanilyen adag a kézi bejegyzéssel összeolvad).
+const emit = defineEmits<{ (e: 'logged'): void }>()
 const { data, refresh } = await useFetch<any>('/api/bolus-context', { key: 'bolus-context' })
 
 /** A CGM-érték ennyi percig számít frissnek, utána kézzel kell beírni. */
@@ -74,6 +76,57 @@ const result = computed(() => {
     iob: iob.value, maxBolus: data.value.maxBolus,
   })
 })
+// --- Beírás a naplóba (CH és/vagy bólus), a mostani időponttal ---
+const logCarbs = ref(true)
+const logInsulin = ref(true)
+const logCarbSub = ref('')
+const logDose = ref('')
+const doseTouched = ref(false)
+watch(() => result.value?.dose, (d) => {
+  if (!doseTouched.value && d != null) logDose.value = String(d).replace('.', ',')
+}, { immediate: true })
+const doseV = computed(() => num(logDose.value))
+const doseInvalid = computed(() => logInsulin.value && (doseV.value == null || doseV.value < 0.1 || doseV.value > 100))
+const canLog = computed(() => (logCarbs.value && !!carbsV.value) || (logInsulin.value && !doseInvalid.value && (doseV.value ?? 0) > 0))
+const logBusy = ref(false)
+const logMsg = ref('')
+const logErr = ref('')
+async function addEntry(body: Record<string, any>, force = false): Promise<void> {
+  try {
+    await $fetch('/api/entry-add', { method: 'POST', body: { ...body, force } })
+  } catch (e: any) {
+    // Hasonló bejegyzés a közelben (pl. az InPen már elküldte): rákérdezünk.
+    if (e?.data?.duplicate && !force && confirm(`${e.data.error}
+
+Mégis felveszed?`)) return addEntry(body, true)
+    if (e?.data?.duplicate) return
+    throw e
+  }
+}
+async function logToDiary() {
+  logBusy.value = true
+  logMsg.value = ''
+  logErr.value = ''
+  const done: string[] = []
+  try {
+    if (logCarbs.value && carbsV.value) {
+      await addEntry({ type: 'carbs', value: carbsV.value, sub: logCarbSub.value })
+      done.push(`${fmt(carbsV.value, 0)} g CH`)
+    }
+    if (logInsulin.value && doseV.value && !doseInvalid.value) {
+      await addEntry({ type: 'insulin', value: doseV.value })
+      done.push(`${fmt(doseV.value)} E bólus`)
+    }
+    logMsg.value = done.length ? `Beírva a naplóba: ${done.join(', ')}.` : 'Nem történt beírás.'
+    await refresh()
+    emit('logged')
+  } catch (e: any) {
+    logErr.value = e?.data?.error ?? 'A beírás nem sikerült.'
+  } finally {
+    logBusy.value = false
+  }
+}
+
 const low = computed(() => bgV.value != null && bgV.value < (data.value?.range.low ?? 3.9))
 const ago = (min: number) => (min < 1 ? 'most' : min < 60 ? `${min} perce` : `${Math.floor(min / 60)} ó ${min % 60} p-e`)
 const trendText = computed(() => {
@@ -149,6 +202,28 @@ const trendText = computed(() => {
           <span class="bc-dose-v">{{ fmt(result.dose) }} <small>E</small></span>
           <span class="muted small">0,5 E-re lefelé kerekítve</span>
         </div>
+      </div>
+
+      <div v-if="result && (carbsV || result.dose > 0)" class="bc-log small">
+        <b>Beírás a naplóba</b>
+        <label v-if="carbsV" class="bc-log-row">
+          <span class="bc-log-check"><input v-model="logCarbs" type="checkbox"> CH <b>{{ fmt(carbsV, 0) }} g</b></span>
+          <select v-model="logCarbSub" class="sub-select" aria-label="Étkezés típusa">
+            <option value="">normál</option>
+            <option value="fatty">zsíros / fehérjedús</option>
+            <option value="fast">gyors CH</option>
+          </select>
+        </label>
+        <label class="bc-log-row">
+          <span class="bc-log-check"><input v-model="logInsulin" type="checkbox"> Bólus</span>
+          <span class="bc-input"><input v-model="logDose" type="text" inputmode="decimal" aria-label="A beadott adag" @input="doseTouched = true"><small>E</small></span>
+          <span class="muted">a javasolt: {{ fmt(result.dose) }} E</span>
+        </label>
+        <p v-if="doseInvalid" class="alert">Az adag 0,1–100 E között lehet.</p>
+        <p v-if="logMsg" class="notice">{{ logMsg }}</p>
+        <p v-if="logErr" class="alert">{{ logErr }}</p>
+        <button type="button" :disabled="logBusy || !canLog" @click="logToDiary">Beírás a naplóba (most)</button>
+        <p class="muted">Az adag a mostani időponttal kerül be. Írd át a tényleg beadott mennyiségre, ha eltér a javasolttól. Ha az InPen később ugyanezt az adagot küldi, a két bejegyzés összeolvad.</p>
       </div>
 
       <div v-if="result" class="bc-warn small">

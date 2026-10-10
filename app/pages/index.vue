@@ -470,7 +470,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
 
     <!-- Asztali nézetben bal oldali sáv, keskeny kijelzőn a tartalom alatt. -->
     <aside class="home-side">
-      <BolusCalc v-if="!readOnly" />
+      <BolusCalc v-if="!readOnly" @logged="refresh" />
       <TherapyCard />
     </aside>
 
