@@ -1,5 +1,13 @@
 <script setup lang="ts">
 const password = ref('')
+// „Maradjak bejelentkezve”: 24 órán át, a böngésző bezárása után is (a választás megmarad ebben a böngészőben).
+const remember = ref(true)
+onMounted(() => {
+  try { remember.value = localStorage.getItem('cukornaplo.remember') !== '0' } catch { /* nincs tároló */ }
+})
+watch(remember, (v) => {
+  try { localStorage.setItem('cukornaplo.remember', v ? '1' : '0') } catch { /* nincs tároló */ }
+})
 const error = ref('')
 const busy = ref(false)
 const auth = useAuthState()
@@ -11,7 +19,7 @@ async function submit() {
   busy.value = true
   error.value = ''
   try {
-    await $fetch('/api/auth/login', { method: 'POST', body: { password: password.value } })
+    await $fetch('/api/auth/login', { method: 'POST', body: { password: password.value, remember: remember.value } })
     if (auth.value) auth.value.authed = true
     await navigateTo('/')
   } catch (e: any) {
@@ -55,7 +63,7 @@ async function passkeyLogin(autofill = false) {
     const response = await startAuthentication({ optionsJSON, useBrowserAutofill: autofill })
     mine = true
     busy.value = true
-    await $fetch('/api/auth/passkey/login-verify', { method: 'POST', body: { response } })
+    await $fetch('/api/auth/passkey/login-verify', { method: 'POST', body: { response, remember: remember.value } })
     if (auth.value) auth.value.authed = true
     await navigateTo('/')
   } catch (e: any) {
@@ -75,6 +83,9 @@ async function passkeyLogin(autofill = false) {
       <h1>Belépés</h1>
       <p v-if="expired" class="notice">A megtekintési link lejárt. Ha tovább szeretnéd nézni, kérj új linket attól, aki küldte.</p>
       <p v-if="error" class="alert">{{ error }}</p>
+      <label class="remember">
+        <input v-model="remember" type="checkbox"> Maradjak bejelentkezve 24 órán át
+      </label>
       <div v-if="passkeyOk" class="stack">
         <button type="button" :disabled="busy" @click="passkeyLogin()">🔐 Belépés Face ID-val / Touch ID-val</button>
         <p class="muted small" style="text-align:center;margin:0">vagy jelszóval:</p>

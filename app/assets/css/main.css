@@ -831,3 +831,5 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
   .rl-short { display: inline; }
   .filters > .report-link { padding: 6px 10px; }
 }
+
+.remember { flex-direction: row; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 14px; }

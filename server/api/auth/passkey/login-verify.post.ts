@@ -1,5 +1,5 @@
 import { verifyAuthenticationResponse } from '@simplewebauthn/server'
-import { authSession, loginLockedFor, loginFailed, loginSucceeded } from '../../../utils/auth'
+import { authSession, loginSession, loginLockedFor, loginFailed, loginSucceeded } from '../../../utils/auth'
 import { rpOf, passkeyById, transportsOf } from '../../../utils/passkey'
 import { db } from '../../../utils/db'
 
@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
     db().prepare('UPDATE passkeys SET counter = ?, last_used = ? WHERE id = ?')
       .run(v.authenticationInfo.newCounter, Math.floor(Date.now() / 1000), row.id)
     loginSucceeded(event)
-    await session.update({ auth: true })
+    await loginSession(event, body.remember === true)
     return { ok: true }
   } catch {
     loginFailed(event)
