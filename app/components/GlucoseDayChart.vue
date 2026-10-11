@@ -144,7 +144,9 @@ function buildOption() {
     if (i > 0 && p[0] - gSrc[i - 1][0] > 15 * 60000) g.push([p[0] - 1, null])
     g.push([p[0], p[1]])
   })
-  const gMax = d.glucose.reduce((m: number, p: [number, number]) => Math.max(m, p[1]), 0)
+  // Kézzel felvitt vércukor (kézi mérés): rombusz jelölő, a görbétől külön.
+  const manualG = ((d.manualGlucose ?? []) as [number, number][]).filter((p) => p[0] >= axisMin && p[0] <= axisMax)
+  const gMax = [...d.glucose, ...manualG].reduce((m: number, p: [number, number]) => Math.max(m, p[1]), 0)
 
   // Kitöltés tartományonként, halmozott területként (alap + magasság):
   // a céltartomány fölött/benne a határtól a görbéig, alatta a görbétől az alsó határig.
@@ -307,6 +309,10 @@ function buildOption() {
       const col = gNear < r.low ? C.low : C.primary
       html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:6px"></span>Glükóz <b>${num(gNear, 1)}</b> mmol/L</div>`
     }
+    const mNear = manualG.find((p) => Math.abs(p[0] - x) <= 6 * 60000)
+    if (mNear) {
+      html += `<div><span style="display:inline-block;width:7px;height:7px;background:${C.primary};transform:rotate(45deg);margin-right:7px"></span>Kézi mérés <b>${num(mNear[1], 1)}</b> mmol/L</div>`
+    }
     if (forecast.value.length > 1 && x > forecast.value[0][0] + 60000) {
       const f = forecast.value.reduce((b, p) => (Math.abs(p[0] - x) < Math.abs(b[0] - x) ? p : b))
       if (Math.abs(f[0] - x) <= 6 * 60000) {
@@ -455,6 +461,12 @@ function buildOption() {
             lineStyle: { width: 2, type: [5, 4], color: C.primary, opacity: 0.7 }, tooltip: { show: false },
           }]
         : []),
+      ...(manualG.length
+        ? [{
+            name: 'Kézi mérés', type: 'scatter', xAxisIndex: 0, yAxisIndex: 0, data: manualG, symbol: 'diamond', symbolSize: 12, z: 6, silent: true,
+            itemStyle: { color: C.primary, borderColor: C.surface, borderWidth: 2 }, tooltip: { show: false },
+          }]
+        : []),
       ...curves.map(({ kind, data }) => {
         const color = kind === 'correction' ? C.correction : C.insulin
         return {
@@ -551,6 +563,7 @@ const actionText = computed(() => {
       <span class="k"><span class="sw" style="background: var(--series-insulin)" /> étkezési bólus</span>
       <span class="k"><span class="sw" style="background: var(--series-correction)" /> korrekció</span>
       <span class="k"><span class="sw" style="background: var(--series-basal)" /> bázis</span>
+      <span v-if="day.manualGlucose?.length" class="k" title="Kézzel felvitt vércukor (nem szenzoradat)"><span class="sw diamond" /> kézi mérés</span>
       <span v-if="forecast.length > 1" class="k"><span class="sw line" style="background: repeating-linear-gradient(90deg, var(--text-primary) 0 5px, transparent 5px 9px)" /> előrejelzés</span>
       <span v-if="day.absorption" class="k" title="A szénhidrát még fel nem szívódott része: a tiszta étkezéseidből tanult felszívódási görbével (zsíros és gyors CH külön)">
         <span class="sw iob" style="border-color: var(--series-carbs); background: color-mix(in srgb, var(--series-carbs) 16%, transparent)" /> aktív CH

@@ -39,8 +39,8 @@ export default defineEventHandler((event) => {
   const endTs = startOfDayTs(addDaysYmd(end, 1))
 
   const rows = db()
-    .prepare('SELECT type, ts, value, subtype FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
-    .all(startTs, endTs) as { type: string; ts: number; value: number; subtype: string | null }[]
+    .prepare('SELECT type, ts, value, subtype, source FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
+    .all(startTs, endTs) as { type: string; ts: number; value: number; subtype: string | null; source: string | null }[]
 
   const bins: number[][] = Array.from({ length: BINS }, () => [])
   const meal = new Array(24).fill(0)
@@ -52,6 +52,7 @@ export default defineEventHandler((event) => {
   const carbTs = rows.filter((r) => r.type === 'carbs').map((r) => Number(r.ts))
   const basalDays = new Set<string>()
   for (const r of rows) {
+    if (r.type === 'glucose' && r.source === 'manual') continue // kézi mérés: nem szenzoradat
     const m = minuteOfDayInTz(Number(r.ts))
     const v = Number(r.value)
     if (r.type === 'glucose') {

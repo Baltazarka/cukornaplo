@@ -105,14 +105,18 @@ export function db(): DatabaseSync {
 /** Egy inzulin- vagy CH-bejegyzés törlése; megjegyzi, hogy a telefon ne töltse vissza. */
 export function deleteEntry(id: number): boolean {
   const d = db()
-  const row = d.prepare("SELECT type, ts, value FROM entries WHERE id = ? AND type IN ('insulin', 'carbs')").get(id) as
+  // Inzulin- és CH-sor, vagy a kézzel felvitt vércukor törölhető (a szenzor mérései nem).
+  const row = d.prepare("SELECT type, ts, value FROM entries WHERE id = ? AND (type IN ('insulin', 'carbs') OR (type = 'glucose' AND source = 'manual'))").get(id) as
     | { type: string; ts: number; value: number }
     | undefined
   if (!row) return false
   d.exec('BEGIN')
   try {
-    d.prepare('INSERT OR REPLACE INTO deleted_entries (type, ts, value, deleted_at) VALUES (?, ?, ?, ?)')
-      .run(row.type, row.ts, row.value, Math.floor(Date.now() / 1000))
+    // A telefon később nem töltheti vissza az inzulin- és CH-sort; a kézi vércukornak nincs külső forrása.
+    if (row.type !== 'glucose') {
+      d.prepare('INSERT OR REPLACE INTO deleted_entries (type, ts, value, deleted_at) VALUES (?, ?, ?, ?)')
+        .run(row.type, row.ts, row.value, Math.floor(Date.now() / 1000))
+    }
     d.prepare('DELETE FROM entries WHERE id = ?').run(id)
     d.exec('COMMIT')
   } catch (e) {

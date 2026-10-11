@@ -360,7 +360,7 @@ export function clAlert(now = Math.floor(Date.now() / 1000)): ClAlert | null {
       detail: `Hiba: ${s.last_error}`,
     }
   }
-  const row = db().prepare("SELECT MAX(ts) mx FROM entries WHERE type = 'glucose'").get() as { mx: number | null }
+  const row = db().prepare("SELECT MAX(ts) mx FROM entries WHERE type = 'glucose' AND (source IS NULL OR source != 'manual')").get() as { mx: number | null }
   const lastSg = Number(row?.mx ?? 0)
   if (lastSg && now - lastSg > ALERT_STALE_AFTER) {
     return {

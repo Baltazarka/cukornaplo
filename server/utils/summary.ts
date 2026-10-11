@@ -10,10 +10,12 @@ export interface DailyBucket {
 }
 
 /** Bejegyzések napokra bontva (kulcs: 'YYYY-MM-DD' az app időzónájában). */
-export function groupByDay(rows: { type: string; ts: number; value: number }[]): Record<string, DailyBucket> {
+export function groupByDay(rows: { type: string; ts: number; value: number; source?: string | null }[]): Record<string, DailyBucket> {
   const daily: Record<string, DailyBucket> = {}
   for (const r of rows) {
     const key = ymdInTz(Number(r.ts))
+    // A kézzel felvitt vércukor nem szenzoradat: a CGM-statisztikákból kimarad.
+    if (r.type === 'glucose' && r.source === 'manual') continue
     const d = (daily[key] ??= { glucose: [], insulin: 0, carbs: 0, doses: 0 })
     const v = Number(r.value)
     if (r.type === 'glucose') d.glucose.push(v)

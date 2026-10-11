@@ -8,7 +8,7 @@ const WINDOW_DAYS = 90
 
 export default defineEventHandler(() => {
   const rows = db().prepare('SELECT id, date, hba1c FROM lab_results ORDER BY date DESC, id DESC').all() as any[]
-  const avgStmt = db().prepare("SELECT AVG(value) avg, COUNT(*) n FROM entries WHERE type = 'glucose' AND ts >= ? AND ts < ?")
+  const avgStmt = db().prepare("SELECT AVG(value) avg, COUNT(*) n FROM entries WHERE type = 'glucose' AND (source IS NULL OR source != 'manual') AND ts >= ? AND ts < ?")
   return {
     windowDays: WINDOW_DAYS,
     results: rows.map((r) => {

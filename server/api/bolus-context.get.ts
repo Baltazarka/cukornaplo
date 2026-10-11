@@ -12,12 +12,17 @@ export default defineEventHandler(() => {
   const t = therapy()
   const { low, high } = targetRange()
 
-  const recent = (db()
-    .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND ts >= ? ORDER BY ts")
-    .all(now - 3600) as any[]).map((r) => ({ ts: Number(r.ts), v: Number(r.value) }))
-  const last = recent.at(-1)
+  // A legutóbbi érték: szenzor vagy kézi mérés (amelyik újabb). A trend csak a szenzoradatból számolódik.
+  const all = (db()
+    .prepare("SELECT ts, value, source FROM entries WHERE type = 'glucose' AND ts >= ? ORDER BY ts")
+    .all(now - 3600) as any[]).map((r) => ({ ts: Number(r.ts), v: Number(r.value), manual: r.source === 'manual' }))
+  const recent = all.filter((p) => !p.manual)
+  const last = all.at(-1)
   const glucose = last
-    ? { v: last.v, ts: last.ts, ageMin: Math.max(0, Math.round((now - last.ts) / 60)), trend: lastTrend(recent) }
+    ? {
+        v: last.v, ts: last.ts, ageMin: Math.max(0, Math.round((now - last.ts) / 60)), manual: last.manual,
+        trend: last.manual ? null : lastTrend(recent),
+      }
     : null
 
   if (!t) return { therapySet: false, now, glucose, range: { low, high } }

@@ -141,8 +141,8 @@ export function analyze(from: number, to: number) {
   const loadFrom = from - 8 * 3600
   const loadTo = to + 7 * 3600
   const rows = db()
-    .prepare('SELECT type, ts, value, subtype FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
-    .all(loadFrom, loadTo) as { type: string; ts: number; value: number; subtype: string | null }[]
+    .prepare('SELECT type, ts, value, subtype, source FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
+    .all(loadFrom, loadTo) as { type: string; ts: number; value: number; subtype: string | null; source: string | null }[]
 
   const glucose: G[] = []
   const carbs: Carb[] = []
@@ -150,7 +150,7 @@ export function analyze(from: number, to: number) {
   for (const r of rows) {
     const ts = Number(r.ts)
     const v = Number(r.value)
-    if (r.type === 'glucose') glucose.push({ ts, v })
+    if (r.type === 'glucose') { if (r.source !== 'manual') glucose.push({ ts, v }) } // a kézi mérés nem szenzoradat
     else if (r.type === 'carbs') carbs.push({ ts, v, fatty: r.subtype === 'fatty', fast: r.subtype === 'fast' })
     else insulinRows.push({ ts, v, subtype: r.subtype })
   }

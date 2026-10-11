@@ -1,5 +1,6 @@
-// Kézi bejegyzés a naplóba: inzulin (E) vagy szénhidrát (g), időponttal (az app időzónájában).
-// { date: 'YYYY-MM-DD', time: 'HH:MM', type: 'insulin' | 'carbs', value, sub?: meal | correction | basal
+// Kézi bejegyzés a naplóba: inzulin (E), szénhidrát (g) vagy vércukor (mmol/L, kézi mérés, nem szenzoradat),
+// időponttal (az app időzónájában).
+// { date: 'YYYY-MM-DD', time: 'HH:MM', type: 'insulin' | 'carbs' | 'glucose', value, sub?: meal | correction | basal
 //   (inzulin) vagy fatty | fast (CH), force?: true }
 // Ha 30 percen belül már van ugyanilyen típusú bejegyzés, 409-cel visszaszól (force: true-val mégis
 // felveszi). Ha az InPen / Health később ugyanezt az adagot küldi, a kézi sor beolvad (db.ts storeRows).
@@ -7,12 +8,16 @@ import { db, MANUAL_SOURCE, MANUAL_MATCH_SEC } from '../utils/db'
 import { zonedToTs } from '../utils/normalize'
 import { hmInTz, ymdInTz } from '../utils/time'
 
-const LIMITS = { insulin: { min: 0.1, max: 100, unit: 'E' }, carbs: { min: 1, max: 500, unit: 'g' } } as const
-const SUBS = { insulin: ['meal', 'correction', 'basal'], carbs: ['fatty', 'fast'] } as const
+const LIMITS = {
+  insulin: { min: 0.1, max: 100, unit: 'E' },
+  carbs: { min: 1, max: 500, unit: 'g' },
+  glucose: { min: 1.5, max: 35, unit: 'mmol/L' },
+} as const
+const SUBS = { insulin: ['meal', 'correction', 'basal'], carbs: ['fatty', 'fast'], glucose: [] } as const
 
 export default defineEventHandler(async (event) => {
   const body = (await readBody(event)) ?? {}
-  const type = body.type === 'insulin' || body.type === 'carbs' ? (body.type as 'insulin' | 'carbs') : null
+  const type = body.type === 'insulin' || body.type === 'carbs' || body.type === 'glucose' ? (body.type as 'insulin' | 'carbs' | 'glucose') : null
   // Dátum és időpont nélkül (pl. a bóluskalkulátorból) a mostani időpont számít, az app időzónájában.
   const nowSec = Math.floor(Date.now() / 1000)
   const date = String(body.date || ymdInTz(nowSec))
@@ -27,8 +32,8 @@ export default defineEventHandler(async (event) => {
   }
   const lim = LIMITS[type]
   const raw = Number(String(body.value ?? '').replace(',', '.'))
-  // Inzulin 0,1 E-re, CH egész grammra kerekítve.
-  const value = type === 'insulin' ? Math.round(raw * 10) / 10 : Math.round(raw)
+  // Inzulin és vércukor 0,1-re, CH egész grammra kerekítve.
+  const value = type === 'carbs' ? Math.round(raw) : Math.round(raw * 10) / 10
   if (!Number.isFinite(raw) || value < lim.min || value > lim.max) {
     setResponseStatus(event, 400)
     return { ok: false, error: `A mennyiség ${lim.min}–${lim.max} ${lim.unit} lehet.` }
@@ -43,8 +48,9 @@ export default defineEventHandler(async (event) => {
     return { ok: false, error: 'Az időpont nem lehet a jövőben.' }
   }
 
-  // Hasonló bejegyzés a közelben (pl. az InPen már elküldte): csak rákérdezünk.
-  if (body.force !== true) {
+  // Hasonló bejegyzés a közelben (pl. az InPen már elküldte): csak rákérdezünk. (Vércukornál nincs ilyen: a szenzor
+  // ötpercenként mér, a kézi mérés külön pont.)
+  if (body.force !== true && type !== 'glucose') {
     const near = db()
       .prepare('SELECT ts, value FROM entries WHERE type = ? AND ts BETWEEN ? AND ? ORDER BY ABS(ts - ?) LIMIT 1')
       .get(type, ts - MANUAL_MATCH_SEC, ts + MANUAL_MATCH_SEC, ts) as { ts: number; value: number } | undefined

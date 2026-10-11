@@ -1,4 +1,4 @@
-// Egy inzulin- vagy szénhidrát-bejegyzés törlése a naplóból (glükózt nem lehet így törölni).
+// Egy inzulin-, szénhidrát- vagy kézi vércukor-bejegyzés törlése a naplóból (a szenzor mérései nem törölhetők).
 import { deleteEntry } from '../utils/db'
 
 export default defineEventHandler(async (event) => {
@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   }
   if (!deleteEntry(id)) {
     setResponseStatus(event, 404)
-    return { ok: false, error: 'Nincs ilyen inzulin- vagy CH-bejegyzés.' }
+    return { ok: false, error: 'Nincs ilyen törölhető bejegyzés.' }
   }
   return { ok: true }
 })

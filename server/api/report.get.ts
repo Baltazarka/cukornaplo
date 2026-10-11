@@ -24,8 +24,8 @@ export default defineEventHandler((event) => {
   const to = startOfDayTs(addDaysYmd(end, 1))
 
   const rows = db()
-    .prepare('SELECT type, ts, value, subtype FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
-    .all(from - MEAL_WINDOW_SEC, to + PREBOLUS_SEC) as { type: string; ts: number; value: number; subtype: string | null }[]
+    .prepare('SELECT type, ts, value, subtype, source FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
+    .all(from - MEAL_WINDOW_SEC, to + PREBOLUS_SEC) as { type: string; ts: number; value: number; subtype: string | null; source: string | null }[]
   const carbTs = rows.filter((r) => r.type === 'carbs').map((r) => Number(r.ts))
 
   type Day = {
@@ -41,6 +41,7 @@ export default defineEventHandler((event) => {
   for (const r of rows) {
     const ts = Number(r.ts)
     if (ts < from || ts >= to) continue
+    if (r.type === 'glucose' && r.source === 'manual') continue // kézi mérés: nem szenzoradat
     const day = byDay.get(ymdInTz(ts))
     if (!day) continue
     const v = Number(r.value)

@@ -24,7 +24,7 @@ export function trendArrow(t: { dir: -1 | 0 | 1; level: 0 | 1 | 2 | 3 } | null):
 
 export function glucosePoints(from: number, to: number): GPoint[] {
   const rows = db()
-    .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND ts >= ? AND ts < ? ORDER BY ts")
+    .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND (source IS NULL OR source != 'manual') AND ts >= ? AND ts < ? ORDER BY ts")
     .all(from, to) as { ts: number; value: number }[]
   return rows.map((r) => ({ ts: Number(r.ts), v: Number(r.value) }))
 }
@@ -61,9 +61,9 @@ export function periodDigest(end: string, days: number): Digest {
   const to = startOfDayTs(addDaysYmd(end, 1))
   const { low, high } = targetRange()
   const entries = db()
-    .prepare('SELECT type, ts, value FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
-    .all(from, to) as { type: string; ts: number; value: number }[]
-  const glucose = entries.filter((e) => e.type === 'glucose').map((e) => ({ ts: Number(e.ts), v: Number(e.value) }))
+    .prepare('SELECT type, ts, value, source FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
+    .all(from, to) as { type: string; ts: number; value: number; source: string | null }[]
+  const glucose = entries.filter((e) => e.type === 'glucose' && e.source !== 'manual').map((e) => ({ ts: Number(e.ts), v: Number(e.value) }))
   const stats = glucoseStats(glucose.map((p) => p.v), low, high)
   const daily = groupByDay(entries)
   const rows = summaryRows(daily, end, days, low, high).reverse()

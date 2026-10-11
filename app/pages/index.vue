@@ -130,7 +130,7 @@ async function setSub(e: any, v: string) {
 // Egy inzulin- vagy CH-sor törlése (megerősítéssel). A telefon később sem tölti vissza.
 const deletingId = ref<string | null>(null)
 async function deleteEvent(e: any) {
-  const amount = e.type === 'carbs' ? `${fmt(e.v, 0)} g` : `${fmt(e.v)} E`
+  const amount = e.type === 'carbs' ? `${fmt(e.v, 0)} g` : e.type === 'glucose' ? `${fmt(e.v)} mmol/L` : `${fmt(e.v)} E`
   if (!confirm(`Biztos törlöd ezt a bejegyzést?\n\n${e.time}  ${eventLabel(e)}  ${amount}`)) return
   deletingId.value = e.type + e.id
   try {
@@ -179,10 +179,10 @@ async function saveNote() {
   }
 }
 // Kézi inzulin / CH: időpont (mai napon most, különben 12:00), mennyiség, típus vagy jelölés.
-const entryForm = ref<{ type: 'insulin' | 'carbs'; date: string; time: string; value: string; sub: string } | null>(null)
+const entryForm = ref<{ type: 'insulin' | 'carbs' | 'glucose'; date: string; time: string; value: string; sub: string } | null>(null)
 const entryError = ref('')
 const entrySaving = ref(false)
-function openEntryForm(type: 'insulin' | 'carbs') {
+function openEntryForm(type: 'insulin' | 'carbs' | 'glucose') {
   noteForm.value = null
   // Alapból a megnézett nap, de átírható (pl. tegnapi adag utólagos felvétele).
   const date = data.value?.day ?? ''
@@ -224,7 +224,7 @@ async function deleteNote(n: any) {
 
 const KIND_LABEL: Record<string, string> = { meal: 'Étkezési bólus', correction: 'Korrekció', basal: 'Bázis' }
 const kindLabel = (e: any) => (e.kind === 'meal' && e.noCarbs ? 'Étkezési bólus, CH nélkül' : KIND_LABEL[e.kind] ?? 'Inzulin')
-const eventLabel = (e: any) => (e.type === 'carbs' ? 'Szénhidrát' : kindLabel(e))
+const eventLabel = (e: any) => (e.type === 'carbs' ? 'Szénhidrát' : e.type === 'glucose' ? 'Vércukor (kézi mérés)' : kindLabel(e))
 const eventDot = (e: any) =>
   e.type !== 'insulin' ? e.type : e.kind === 'basal' ? 'basal' : e.kind === 'correction' ? 'correction' : 'insulin'
 // A legördülő értéke: a kézi típus, vagy üres = automatikus (becsült) besorolás.
@@ -303,20 +303,21 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
           <div v-if="!readOnly && !noteForm && !entryForm" class="log-add">
             <button type="button" class="ghost sm" @click="openEntryForm('insulin')">+ Inzulin</button>
             <button type="button" class="ghost sm" @click="openEntryForm('carbs')">+ CH</button>
+            <button type="button" class="ghost sm" title="Kézzel mért vércukor (ujjbegy, külön mérő); a szenzoradattól megkülönböztetve jelenik meg" @click="openEntryForm('glucose')">+ Vércukor</button>
             <button type="button" class="ghost sm" @click="openNoteForm">+ Jegyzet</button>
           </div>
         </div>
         <form v-if="entryForm" class="note-form" @submit.prevent="saveEntry()">
-          <b class="small">{{ entryForm.type === 'insulin' ? 'Inzulin felvétele' : 'Szénhidrát felvétele' }}</b>
+          <b class="small">{{ entryForm.type === 'insulin' ? 'Inzulin felvétele' : entryForm.type === 'carbs' ? 'Szénhidrát felvétele' : 'Vércukor felvétele (kézi mérés)' }}</b>
           <div class="note-form-row">
             <label class="note-time">Dátum <input v-model="entryForm.date" type="date" :max="data.today" required></label>
             <label class="note-time">Időpont <input v-model="entryForm.time" type="time" required></label>
             <label class="note-time">Mennyiség
               <input
                 v-model="entryForm.value" type="text" required class="entry-amount"
-                :inputmode="entryForm.type === 'insulin' ? 'decimal' : 'numeric'" :placeholder="entryForm.type === 'insulin' ? 'pl. 4,5' : 'pl. 45'"
+                :inputmode="entryForm.type === 'carbs' ? 'numeric' : 'decimal'" :placeholder="entryForm.type === 'insulin' ? 'pl. 4,5' : entryForm.type === 'glucose' ? 'pl. 6,8' : 'pl. 45'"
               >
-              <span class="muted">{{ entryForm.type === 'insulin' ? 'E' : 'g' }}</span>
+              <span class="muted">{{ entryForm.type === 'insulin' ? 'E' : entryForm.type === 'glucose' ? 'mmol/L' : 'g' }}</span>
             </label>
             <select v-if="entryForm.type === 'insulin'" v-model="entryForm.sub" class="sub-select" aria-label="Típus">
               <option value="">Automatikus</option>
@@ -324,12 +325,13 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
               <option value="correction">Korrekció</option>
               <option value="basal">Bázis</option>
             </select>
-            <div v-else class="note-tags" role="group" aria-label="Jelölés">
+            <div v-else-if="entryForm.type === 'carbs'" class="note-tags" role="group" aria-label="Jelölés">
               <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fatty'" @click="entryForm.sub = entryForm.sub === 'fatty' ? '' : 'fatty'">zsíros</button>
               <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fast'" @click="entryForm.sub = entryForm.sub === 'fast' ? '' : 'fast'">gyors</button>
             </div>
           </div>
-          <p class="muted small">Ha az InPen később ugyanezt elküldi (azonos mennyiség, 30 percen belül), a kézi sor beolvad, nem lesz dupla.</p>
+          <p v-if="entryForm.type !== 'glucose'" class="muted small">Ha az InPen később ugyanezt elküldi (azonos mennyiség, 30 percen belül), a kézi sor beolvad, nem lesz dupla.</p>
+          <p v-else class="muted small">A kézi mérés „kézi” jelöléssel kerül a naplóba és a grafikonra, de nem számít a szenzoradatok statisztikáiba (átlag, célban töltött idő). A bóluskalkulátor használhatja, ha újabb a szenzor értékénél.</p>
           <p v-if="entryError" class="err-text small">{{ entryError }}</p>
           <div class="btn-row">
             <button type="submit" class="sm" :disabled="entrySaving">Mentés</button>
@@ -385,7 +387,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                     </template>
                     <template v-else>
                       {{ eventLabel(e) }}
-                      <template v-if="!readOnly">
+                      <template v-if="!readOnly && e.type === 'carbs'">
                         <button
                           type="button" class="tag-toggle" :aria-pressed="e.sub === 'fatty'"
                           title="Zsíros / fehérjedús étkezés: később emeli a vércukrot, ezért a CH-arány becslése kihagyja"
@@ -397,11 +399,11 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                           @click="toggleCarbTag(e, 'fast')"
                         >gyors</button>
                       </template>
-                      <span v-else-if="e.sub === 'fatty'" class="note-chip">zsíros</span>
-                      <span v-else-if="e.sub === 'fast'" class="note-chip">gyors</span>
+                      <span v-else-if="e.type === 'carbs' && e.sub === 'fatty'" class="note-chip">zsíros</span>
+                      <span v-else-if="e.type === 'carbs' && e.sub === 'fast'" class="note-chip">gyors</span>
                     </template>
                   </td>
-                  <td class="num"><span v-if="e.manual" class="note-chip manual-chip" title="Kézzel felvett bejegyzés">kézi</span>{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : fmt(e.v) + ' E' }}</td>
+                  <td class="num"><span v-if="e.manual" class="note-chip manual-chip" title="Kézzel felvett bejegyzés">kézi</span>{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : e.type === 'glucose' ? fmt(e.v) + ' mmol/L' : fmt(e.v) + ' E' }}</td>
                   <td class="num">{{ e.glucose != null ? fmt(e.glucose) : '–' }}</td>
                 </template>
                 <td v-if="!readOnly" class="act">
