@@ -336,10 +336,9 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .tir { margin-bottom: 16px; }
 .tir-title { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
 .tir-row { display: flex; gap: 16px; align-items: stretch; }
-.tir-bar { width: 28px; min-height: 150px; display: flex; flex-direction: column; gap: 2px; flex: none; }
+/* A lekerekítés a tartón van (nem a szegmenseken): egyetlen szegmensnél is mindkét vége kerek marad. */
+.tir-bar { width: 28px; min-height: 150px; display: flex; flex-direction: column; gap: 2px; flex: none; border-radius: 4px; overflow: hidden; }
 .tir-bar .seg { display: block; min-height: 3px; }
-.tir-bar .seg:first-child { border-radius: 4px 4px 0 0; }
-.tir-bar .seg:last-child { border-radius: 0 0 4px 4px; }
 .tir-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; justify-content: space-between; flex: 1; font-size: 13px; }
 .tir-legend li { display: flex; align-items: center; gap: 8px; }
 .tir-legend li .key { width: 10px; height: 10px; border-radius: 3px; flex: none; }

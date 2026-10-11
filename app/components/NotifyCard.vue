@@ -4,7 +4,7 @@
 const { data, refresh } = await useFetch<any>('/api/notify/settings', { key: 'notify-settings' })
 const { data: push, refresh: pushRefresh } = await useFetch<any>('/api/push/key', { key: 'push-key' })
 
-const form = reactive({ hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1 })
+const form = reactive({ hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, repeatMin: 15 })
 watchEffect(() => {
   if (data.value?.settings) Object.assign(form, data.value.settings)
 })
@@ -152,9 +152,16 @@ const noDevice = computed(() => !push.value?.devices?.length)
 
     <h3 class="notify-sub">2. Mikor szóljon?</h3>
     <form class="stack" @submit.prevent="save">
+      <label>Ismétlés, amíg a helyzet fennáll
+        <select v-model.number="form.repeatMin">
+          <option :value="15">15 percenként</option>
+          <option :value="30">30 percenként</option>
+          <option :value="60">óránként</option>
+        </select>
+      </label>
       <fieldset class="notify-block">
         <label class="check"><input v-model="form.hypoPush" type="checkbox"> Hipó-veszély</label>
-        <p class="muted small">Szól, ha a becsült vércukor a céltartomány alá esne, vagy már alatta van. Óránként legfeljebb egyszer.</p>
+        <p class="muted small">Szól, ha a becsült vércukor a céltartomány alá esne, vagy már alatta van. A fenti időközönként ismétlődik, amíg a helyzet fennáll.</p>
         <label>Előrejelzés távolsága
           <select v-model.number="form.hypoHorizon">
             <option :value="15">15 perc</option>
@@ -173,7 +180,7 @@ const noDevice = computed(() => !push.value?.devices?.length)
 
       <fieldset class="notify-block">
         <label class="check"><input v-model="form.insulinPush" type="checkbox"> Inzulinjavaslat (pl. „kb. 3 E inzulin javasolt”)</label>
-        <p class="muted small">Magas vércukornál, ha az aktív inzulin levonása után is a céltartomány fölött maradna. A javaslat a napszak ISF-jéből és célértékéből számolódik, a maximális bólusig. Legfeljebb 2 óránként.</p>
+        <p class="muted small">Magas vércukornál, ha az aktív inzulin levonása után is a céltartomány fölött maradna. A javaslat a napszak ISF-jéből és célértékéből számolódik, a maximális bólusig. Az aktív inzulin levonása miatt a beadás után magától elhallgat.</p>
         <label>Legalább ennyi E-nél szóljon
           <input v-model.number="form.insulinMin" type="number" step="0.5" min="0.5" max="10">
         </label>

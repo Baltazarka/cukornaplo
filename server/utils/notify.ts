@@ -16,6 +16,8 @@ export interface NotifySettings {
   hypoHorizon: number
   /** Ennél kisebb inzulinjavaslatról nem szól, E. */
   insulinMin: number
+  /** Ennyi percenként ismétli az értesítést, amíg a helyzet fennáll (15 / 30 / 60). */
+  repeatMin: number
 }
 
 interface NotifyState {
@@ -25,9 +27,7 @@ interface NotifyState {
   lastError?: string
 }
 
-const DEFAULTS: NotifySettings = { hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1 }
-const HYPO_COOLDOWN_SEC = 60 * 60
-const INSULIN_COOLDOWN_SEC = 2 * 60 * 60
+const DEFAULTS: NotifySettings = { hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, repeatMin: 15 }
 
 export function notifySettings(): NotifySettings {
   return { ...DEFAULTS, ...(setting<Partial<NotifySettings>>('notify', null) ?? {}) }
@@ -50,6 +50,7 @@ export function validateNotify(b: any): NotifySettings {
     insulinPush: b?.insulinPush === true,
     hypoHorizon: Number.isInteger(horizon) && horizon >= 15 && horizon <= 60 ? horizon : DEFAULTS.hypoHorizon,
     insulinMin: Number.isFinite(min) && min >= 0.5 && min <= 10 ? Math.round(min * 2) / 2 : DEFAULTS.insulinMin,
+    repeatMin: [15, 30, 60].includes(Number(b?.repeatMin)) ? Number(b.repeatMin) : DEFAULTS.repeatMin,
   }
 }
 
@@ -112,9 +113,11 @@ export async function checkAlerts(nowTs = Math.floor(Date.now() / 1000)): Promis
   const s = notifySettings()
   if (!(s.hypoPush || s.carbsPush || s.insulinPush) || !listSubscriptions().length) return
   const st = notifyState()
-  const wantHypo = s.hypoPush && nowTs - (st.lastHypo ?? 0) >= HYPO_COOLDOWN_SEC
-  const wantCarbs = s.carbsPush && nowTs - (st.lastCarbs ?? 0) >= HYPO_COOLDOWN_SEC
-  const wantInsulin = s.insulinPush && nowTs - (st.lastInsulin ?? 0) >= INSULIN_COOLDOWN_SEC
+  // Amíg a helyzet fennáll, az értesítés a beállított időközönként (alapból negyedóránként) ismétlődik.
+  const gap = s.repeatMin * 60 - 30 // a percenkénti ellenőrzés időzítési ingadozására
+  const wantHypo = s.hypoPush && nowTs - (st.lastHypo ?? 0) >= gap
+  const wantCarbs = s.carbsPush && nowTs - (st.lastCarbs ?? 0) >= gap
+  const wantInsulin = s.insulinPush && nowTs - (st.lastInsulin ?? 0) >= gap
   if (!wantHypo && !wantCarbs && !wantInsulin) return
 
   const p = predictGlucose(s.hypoHorizon, nowTs)
