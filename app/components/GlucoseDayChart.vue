@@ -479,8 +479,8 @@ function buildOption() {
       bar('Korrekció', 1, bolus.filter((p: any[]) => p[3] === 'correction').map((p: any[]) => [p[0], p[1]]), C.correction),
       // A bázisnak nincs hatásgörbéje: csak egy pont az alapvonalon (a nagy adag nem húzza el a tengelyt).
       {
-        name: 'Bázis', type: 'scatter', xAxisIndex: 1, yAxisIndex: 1, data: basal.map((p: number[]) => [p[0], 0]), symbol: 'circle', symbolSize: 9, z: 6, silent: true,
-        itemStyle: { color: C.basal, borderColor: C.surface, borderWidth: 1.5 }, tooltip: { show: false }, clip: false,
+        name: 'Bázis', type: 'scatter', xAxisIndex: 1, yAxisIndex: 1, data: basal.map((p: number[]) => [p[0], 0]), symbol: 'diamond', symbolSize: 12, z: 6, silent: true,
+        itemStyle: { color: C.basal, borderColor: C.surface, borderWidth: 2 }, tooltip: { show: false }, clip: false,
       },
       ...cobCurves.map((data) => ({
         name: 'Aktív CH', type: 'line', xAxisIndex: 2, yAxisIndex: 2, data, symbol: 'none', silent: true, z: 2,
