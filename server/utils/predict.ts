@@ -90,7 +90,7 @@ function build(nowTs: number): Model | null {
   }
 
   // Lendület: ami a modellből nem magyarázható, az még pár percig folytatódik.
-  const pts = glucosePoints(nowTs - 40 * 60, nowTs + 60)
+  const pts = glucosePoints(nowTs - 40 * 60, nowTs + 60).filter((p) => !p.manual)
   const obsRate = pts.length ? rateAt(pts, pts.length - 1) : null
   const residual = obsRate == null ? 0 : Math.max(-0.15, Math.min(0.15, obsRate - (carbRate - insulinRate)))
 

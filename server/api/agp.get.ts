@@ -48,17 +48,22 @@ export default defineEventHandler((event) => {
   const basal = new Array(24).fill(0)
   const carbs = new Array(24).fill(0)
   const glucose: number[] = []
-  const gPoints: GPoint[] = []
+  const gPoints: GPoint[] = [] // csak szenzoradat (a változás sebességéhez)
+  const hypoPoints: GPoint[] = [] // szenzor + kézi mérés (a hipóesemények észleléséhez)
+  let sensorN = 0
   const carbTs = rows.filter((r) => r.type === 'carbs').map((r) => Number(r.ts))
   const basalDays = new Set<string>()
   for (const r of rows) {
-    if (r.type === 'glucose' && r.source === 'manual') continue // kézi mérés: nem szenzoradat
     const m = minuteOfDayInTz(Number(r.ts))
     const v = Number(r.value)
     if (r.type === 'glucose') {
       bins[Math.floor(m / BIN_MIN)].push(v)
       glucose.push(v)
-      gPoints.push({ ts: Number(r.ts), v })
+      hypoPoints.push({ ts: Number(r.ts), v })
+      if (r.source !== 'manual') {
+        gPoints.push({ ts: Number(r.ts), v })
+        sensorN++
+      }
     } else if (r.type === 'insulin') {
       const kind = insulinKind(Number(r.ts), r.subtype, carbTs).kind
       ;(kind === 'basal' ? basal : kind === 'meal' ? meal : correction)[Math.floor(m / 60)] += v
@@ -88,7 +93,7 @@ export default defineEventHandler((event) => {
 
   // Lefedettség: a mérések száma az időszak eltelt részéhez képest (ma csak a mostanáig eltelt idő számít).
   const elapsedSec = Math.min(endTs, Math.floor(Date.now() / 1000)) - startTs
-  const coverage = elapsedSec > 0 ? Math.min(100, (100 * glucose.length) / (elapsedSec / 300)) : 0
+  const coverage = elapsedSec > 0 ? Math.min(100, (100 * sensorN) / (elapsedSec / 300)) : 0
 
   const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0)
   // Lezárt napok InPen-adattal, de bázis nélkül: a beállított bázisadaggal számolunk (becsült).
@@ -122,7 +127,7 @@ export default defineEventHandler((event) => {
       penDays,
     },
     change: changeTime(gPoints),
-    hypos: hypoCount(detectHypos(gPoints, low, RANGE_VERY_LOW)),
+    hypos: hypoCount(detectHypos(hypoPoints, low, RANGE_VERY_LOW)),
     coverage,
     summary: withAllocatedInsulin(summaryRows(daily, end, days, low, high), bolusByDay(start, end)),
   }

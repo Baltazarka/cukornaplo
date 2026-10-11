@@ -331,7 +331,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
             </div>
           </div>
           <p v-if="entryForm.type !== 'glucose'" class="muted small">Ha az InPen később ugyanezt elküldi (azonos mennyiség, 30 percen belül), a kézi sor beolvad, nem lesz dupla.</p>
-          <p v-else class="muted small">A kézi mérés „kézi” jelöléssel kerül a naplóba és a grafikonra, de nem számít a szenzoradatok statisztikáiba (átlag, célban töltött idő). A bóluskalkulátor használhatja, ha újabb a szenzor értékénél.</p>
+          <p v-else class="muted small">A kézi mérés „kézi” jelöléssel kerül a naplóba és a grafikonra. Pontos mérésként beleszámít az értékekbe (átlag, célban töltött idő, hipóesemények), de a szenzorlefedettségbe és a trendnyílba nem. A bóluskalkulátor használhatja, ha újabb a szenzor értékénél.</p>
           <p v-if="entryError" class="err-text small">{{ entryError }}</p>
           <div class="btn-row">
             <button type="submit" class="sm" :disabled="entrySaving">Mentés</button>

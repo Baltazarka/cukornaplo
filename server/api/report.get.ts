@@ -31,24 +31,27 @@ export default defineEventHandler((event) => {
   type Day = {
     date: string; label: string; weekday: string
     glucose: [number, number][]
+    sensorN: number
     events: { time: string; minute: number; type: 'insulin' | 'carbs'; kind: string | null; v: number; fatty: boolean; fast: boolean; glucose: number | null }[]
   }
   const byDay = new Map<string, Day>()
   for (let d = start; d <= end; d = addDaysYmd(d, 1)) {
-    byDay.set(d, { date: d, label: d.replaceAll('-', '. ') + '.', weekday: huWeekday(d), glucose: [], events: [] })
+    byDay.set(d, { date: d, label: d.replaceAll('-', '. ') + '.', weekday: huWeekday(d), glucose: [], sensorN: 0, events: [] })
   }
   const allGlucose: { ts: number; v: number }[] = []
   for (const r of rows) {
     const ts = Number(r.ts)
     if (ts < from || ts >= to) continue
-    if (r.type === 'glucose' && r.source === 'manual') continue // kézi mérés: nem szenzoradat
     const day = byDay.get(ymdInTz(ts))
     if (!day) continue
     const v = Number(r.value)
     const minute = minuteOfDayInTz(ts)
     if (r.type === 'glucose') {
       day.glucose.push([minute, v])
-      allGlucose.push({ ts, v })
+      if (r.source !== 'manual') {
+        day.sensorN++
+        allGlucose.push({ ts, v }) // a változás sebességéhez csak szenzoradat
+      }
     } else {
       const kind = r.type === 'insulin' ? insulinKind(ts, r.subtype, carbTs) : null
       day.events.push({
@@ -81,7 +84,7 @@ export default defineEventHandler((event) => {
       ...d,
       notes: notes.filter((n) => n.day === d.date).map((n) => ({ time: n.time, minute: n.minute, tags: n.tags, text: n.text })),
       stats,
-      coverage: coverageOf(d.date, d.glucose.length),
+      coverage: coverageOf(d.date, d.sensorN),
       totals: {
         meal: alloc ? alloc[d.date].meal : sum((e) => e.kind === 'meal' || e.kind === 'meal-nocarb'),
         correction: alloc ? alloc[d.date].correction : sum((e) => e.kind === 'correction'),

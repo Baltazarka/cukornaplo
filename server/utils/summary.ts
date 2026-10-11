@@ -14,8 +14,6 @@ export function groupByDay(rows: { type: string; ts: number; value: number; sour
   const daily: Record<string, DailyBucket> = {}
   for (const r of rows) {
     const key = ymdInTz(Number(r.ts))
-    // A kézzel felvitt vércukor nem szenzoradat: a CGM-statisztikákból kimarad.
-    if (r.type === 'glucose' && r.source === 'manual') continue
     const d = (daily[key] ??= { glucose: [], insulin: 0, carbs: 0, doses: 0 })
     const v = Number(r.value)
     if (r.type === 'glucose') d.glucose.push(v)

@@ -91,7 +91,7 @@ export function hypoAnalysis(from: number, to: number) {
   const { low, high } = targetRange()
   const t = therapy()
   const glucose = (db()
-    .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND (source IS NULL OR source != 'manual') AND ts >= ? AND ts < ? ORDER BY ts")
+    .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND ts >= ? AND ts < ? ORDER BY ts")
     .all(from - 2 * 3600, to + REBOUND_SEC) as any[]).map((r) => ({ ts: Number(r.ts), v: Number(r.value) }))
   const other = db()
     .prepare("SELECT type, ts, value, subtype FROM entries WHERE type IN ('insulin', 'carbs') AND ts >= ? AND ts < ? ORDER BY ts")

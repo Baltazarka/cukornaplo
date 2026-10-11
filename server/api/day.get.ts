@@ -30,7 +30,8 @@ export default defineEventHandler((event) => {
     .all(rangeStart, dayEnd) as any[]
 
   const dayRows = { glucose: [] as any[], insulin: [] as any[], carbs: [] as any[] }
-  // Kézzel felvitt vércukor: külön listában (a naplóban és a grafikonon jelölve), a szenzorstatisztikákból kimarad.
+  // Kézzel felvitt vércukor: pontos mérés, a statisztikákba beleszámít, de külön listában (a naplóban és a grafikonon
+  // jelölve); a görbét, a trendet és a szenzorlefedettséget csak a szenzoradat adja.
   const manualGlucose: { id: number; ts: number; v: number }[] = []
   const daily = groupByDay(rows)
   const allGlucose: number[] = []
@@ -39,6 +40,7 @@ export default defineEventHandler((event) => {
     const ts = Number(r.ts)
     const v = Number(r.value)
     if (r.type === 'glucose' && r.source === MANUAL_SOURCE) {
+      allGlucose.push(v)
       if (ts >= dayStart) manualGlucose.push({ id: Number(r.id), ts, v })
       continue
     }
@@ -50,7 +52,7 @@ export default defineEventHandler((event) => {
   const carbTs = carbTimes(dayStart - 8 * 3600 - MEAL_WINDOW_SEC, dayEnd + PREBOLUS_SEC)
   for (const e of dayRows.insulin) Object.assign(e, insulinKind(e.ts, e.sub, carbTs))
 
-  const dayStats = glucoseStats(dayRows.glucose.map((g) => g.v), low, high)
+  const dayStats = glucoseStats([...dayRows.glucose.map((g) => g.v), ...manualGlucose.map((g) => g.v)], low, high)
   const rangeStats = glucoseStats(allGlucose, low, high)
   const dayInsulin = dayRows.insulin.reduce((a, e) => a + e.v, 0)
   const sumKind = (k: string) => dayRows.insulin.filter((e) => e.kind === k).reduce((a, e) => a + e.v, 0)
@@ -60,7 +62,7 @@ export default defineEventHandler((event) => {
   const basalAssumed = day < today && basalDose != null && sumKind('basal') === 0 && dayRows.insulin.length > 0
   // Lefedettség: a mérések száma az eltelt időhöz képest (ma csak a mostanáig eltelt rész számít).
   const elapsedSec = Math.min(dayEnd, Math.floor(Date.now() / 1000)) - dayStart
-  const coverage = dayStats.n && elapsedSec > 0 ? Math.min(100, (100 * dayStats.n) / (elapsedSec / 300)) : 0
+  const coverage = dayRows.glucose.length && elapsedSec > 0 ? Math.min(100, (100 * dayRows.glucose.length) / (elapsedSec / 300)) : 0
 
   // Napló: inzulin + CH időrendben, mellé a legközelebbi (±10 perc) glükózérték.
   const events = [
@@ -131,7 +133,7 @@ export default defineEventHandler((event) => {
     // Étkezésenként a felszívódási görbe (15 percenként, 0–480 perc), az aktív CH görbéhez.
     absorption: { carbs: cobCarbs.map((c) => [c.ts * 1000, c.v, c.sub === 'fatty' || c.sub === 'fast' ? c.sub : null, carbCurve(absorbCategory(c.sub), c.v)]) },
     trend: lastTrend(dayRows.glucose),
-    hypos: hypoCount(detectHypos(dayRows.glucose, low, RANGE_VERY_LOW)),
+    hypos: hypoCount(detectHypos([...dayRows.glucose, ...manualGlucose].sort((a, b) => a.ts - b.ts), low, RANGE_VERY_LOW)),
     change: changeTime(dayRows.glucose),
     coverage,
     summary,

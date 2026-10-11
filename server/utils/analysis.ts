@@ -145,12 +145,16 @@ export function analyze(from: number, to: number) {
     .all(loadFrom, loadTo) as { type: string; ts: number; value: number; subtype: string | null; source: string | null }[]
 
   const glucose: G[] = []
+  const sensorGlucose: G[] = [] // a lefedettséghez csak a szenzor mérései
   const carbs: Carb[] = []
   const insulinRows: { ts: number; v: number; subtype: string | null }[] = []
   for (const r of rows) {
     const ts = Number(r.ts)
     const v = Number(r.value)
-    if (r.type === 'glucose') { if (r.source !== 'manual') glucose.push({ ts, v }) } // a kézi mérés nem szenzoradat
+    if (r.type === 'glucose') {
+      glucose.push({ ts, v })
+      if (r.source !== 'manual') sensorGlucose.push({ ts, v })
+    }
     else if (r.type === 'carbs') carbs.push({ ts, v, fatty: r.subtype === 'fatty', fast: r.subtype === 'fast' })
     else insulinRows.push({ ts, v, subtype: r.subtype })
   }
@@ -399,7 +403,7 @@ export function analyze(from: number, to: number) {
 
   return {
     therapySet: !!t,
-    coverage: glucoseCoverage(glucose, from, Math.min(to, Math.floor(Date.now() / 1000))),
+    coverage: glucoseCoverage(sensorGlucose, from, Math.min(to, Math.floor(Date.now() / 1000))),
     counts: { meals: meals.length, corrections: correctionCount, cleanCorrections: corrections.length },
     segments,
     action: actionSummary(corrections, t, maxDia),
