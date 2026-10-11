@@ -238,7 +238,8 @@ function buildOption() {
   // (Az összesített aktív inzulint a buborék írja ki.)
   const ai = d.activeInsulin
   const iobTotal: [number, number | null][] = ai?.points ?? []
-  const insMax = niceMax(Math.max(1, ...d.insulin.map((p: any[]) => p[1]), ...iobTotal.map((p) => p[1] ?? 0)))
+  // A tengely a legnagyobb adagnál csak 5 E-vel magasabb (a „szép” kerekítés a nagy bazálisnál túl magas lenne).
+  const insMax = Math.ceil(Math.max(1, ...d.insulin.map((p: any[]) => p[1]), ...iobTotal.map((p) => p[1] ?? 0)) + 5)
   const drop = (IOB_LINE / 2) * (insMax / INS_HEIGHT)
   const curves: { kind: string; data: [number, number][] }[] = []
   if (ai) {
