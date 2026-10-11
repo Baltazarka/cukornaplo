@@ -131,7 +131,7 @@ async function setSub(e: any, v: string) {
 const deletingId = ref<string | null>(null)
 async function deleteEvent(e: any) {
   const amount = e.type === 'carbs' ? `${fmt(e.v, 0)} g` : e.type === 'glucose' ? `${fmt(e.v)} mmol/L` : `${fmt(e.v)} E`
-  if (!confirm(`Biztos törlöd ezt a bejegyzést?\n\n${e.time}  ${eventLabel(e)}  ${amount}`)) return
+  if (!(await askConfirm(`Biztos törlöd ezt a bejegyzést?\n\n${e.time}  ${eventLabel(e)}  ${amount}`, { confirmLabel: 'Törlés', danger: true }))) return
   deletingId.value = e.type + e.id
   try {
     await $fetch('/api/entry-delete', { method: 'POST', body: { id: e.id } })
@@ -203,9 +203,9 @@ async function saveEntry(force = false) {
     else await refresh()
   } catch (e: any) {
     // Hasonló bejegyzés a közelben (pl. az InPen már elküldte): rákérdezünk.
-    if (e?.data?.duplicate && !force && confirm(`${e.data.error}
+    if (e?.data?.duplicate && !force && (await askConfirm(`${e.data.error}
 
-Mégis felveszed?`)) return saveEntry(true)
+Mégis felveszed?`, { confirmLabel: 'Felveszem' }))) return saveEntry(true)
     entryError.value = e?.data?.duplicate ? '' : e?.data?.error ?? 'A mentés nem sikerült.'
   } finally {
     entrySaving.value = false
@@ -214,7 +214,7 @@ Mégis felveszed?`)) return saveEntry(true)
 
 async function deleteNote(n: any) {
   const what = [...n.tags.map(noteTagLabel), n.text].filter(Boolean).join(', ')
-  if (!confirm(`Biztos törlöd ezt a jegyzetet?\n\n${n.time}  ${what}`)) return
+  if (!(await askConfirm(`Biztos törlöd ezt a jegyzetet?\n\n${n.time}  ${what}`, { confirmLabel: 'Törlés', danger: true }))) return
   deletingId.value = 'note' + n.id
   try {
     await $fetch('/api/note-delete', { method: 'POST', body: { id: n.id } })

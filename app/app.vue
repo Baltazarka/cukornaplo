@@ -77,5 +77,6 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.va
     <NuxtPage />
     <CalcGuide />
     <ToastHost />
+    <ConfirmHost />
   </div>
 </template>

@@ -32,7 +32,7 @@ async function add() {
   }
 }
 async function remove(r: any) {
-  if (!confirm(`Törlöd a ${dateLabel(r.date)} HbA1c-eredményt (${fmt(r.hba1c)}%)?`)) return
+  if (!(await askConfirm(`Törlöd a ${dateLabel(r.date)} HbA1c-eredményt (${fmt(r.hba1c)}%)?`, { confirmLabel: 'Törlés', danger: true }))) return
   await $fetch('/api/lab-delete', { method: 'POST', body: { id: r.id } })
   await refresh()
 }

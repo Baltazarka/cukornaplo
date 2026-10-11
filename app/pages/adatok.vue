@@ -63,7 +63,7 @@ async function pkAdd() {
   }
 }
 async function pkDelete(id: string) {
-  if (!confirm('Biztosan törlöd ezt a passkey-t?')) return
+  if (!(await askConfirm('Biztosan törlöd ezt a passkey-t?', { confirmLabel: 'Törlés', danger: true }))) return
   busy.value = 'pk'
   try {
     await $fetch('/api/auth/passkey/delete', { method: 'POST', body: { id } })
@@ -74,7 +74,7 @@ async function pkDelete(id: string) {
   }
 }
 async function regenToken() {
-  if (!confirm('Biztos? A régi kulccsal ezután nem lehet adatot küldeni.')) return
+  if (!(await askConfirm('Új kulcsot generálsz? A régi kulccsal ezután nem lehet adatot küldeni.', { confirmLabel: 'Új kulcs', danger: true }))) return
   busy.value = 'token'
   await $fetch('/api/token/regen', { method: 'POST' })
   await refresh()
@@ -137,7 +137,7 @@ async function clPatient(e: Event) {
   flash('Páciens beállítva.')
 }
 async function clDisconnect() {
-  if (!confirm('Biztos törlöd a CareLink kapcsolatot? A letöltött adatok megmaradnak.')) return
+  if (!(await askConfirm('Biztos törlöd a CareLink kapcsolatot? A letöltött adatok megmaradnak.', { confirmLabel: 'Kapcsolat törlése', danger: true }))) return
   await $fetch('/api/carelink/disconnect', { method: 'POST' })
   clAuthUrl.value = ''
   await refresh()
@@ -146,13 +146,13 @@ async function clDisconnect() {
 }
 
 async function resetDb() {
-  if (!confirm('Biztos törlöd az ÖSSZES mért adatot? Ez nem vonható vissza. A jelszó és a CareLink kapcsolat megmarad.')) return
+  if (!(await askConfirm('Biztos törlöd az ÖSSZES mért adatot? Ez nem vonható vissza. A jelszó és a CareLink kapcsolat megmarad.', { title: 'Összes adat törlése', confirmLabel: 'Adatok törlése', danger: true }))) return
   const r: any = await $fetch('/api/reset', { method: 'POST', body: { confirm: true } })
   await refresh()
   flash(`Törölve: ${r.deleted} bejegyzés.`)
 }
 async function factoryReset() {
-  if (!confirm('MINDENT töröl: a mért adatokat, a jelszót, a passkey-ket, az API-kulcsot és a CareLink kapcsolatot is. Utána elölről kell beállítani. Biztos?')) return
+  if (!(await askConfirm('MINDENT töröl: a mért adatokat, a jelszót, a passkey-ket, az API-kulcsot és a CareLink kapcsolatot is. Utána elölről kell beállítani. Biztos?', { title: 'Gyári visszaállítás', confirmLabel: 'Mindent törlök', danger: true }))) return
   await $fetch('/api/factory-reset', { method: 'POST', body: { confirm: true } })
   if (auth.value) { auth.value.hasPassword = false; auth.value.authed = false }
   await navigateTo('/setup')

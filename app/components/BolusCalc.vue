@@ -98,9 +98,9 @@ async function addEntry(body: Record<string, any>, force = false): Promise<void>
     await $fetch('/api/entry-add', { method: 'POST', body: { ...body, force } })
   } catch (e: any) {
     // Hasonló bejegyzés a közelben (pl. az InPen már elküldte): rákérdezünk.
-    if (e?.data?.duplicate && !force && confirm(`${e.data.error}
+    if (e?.data?.duplicate && !force && (await askConfirm(`${e.data.error}
 
-Mégis felveszed?`)) return addEntry(body, true)
+Mégis felveszed?`, { confirmLabel: 'Felveszem' }))) return addEntry(body, true)
     if (e?.data?.duplicate) return
     throw e
   }

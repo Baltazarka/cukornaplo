@@ -32,7 +32,7 @@ async function send() {
   }
 }
 async function revoke(s: any) {
-  if (!confirm(`Visszavonod a ${s.email} címre küldött linket? Aki most nézi, azonnal kiesik.`)) return
+  if (!(await askConfirm(`Visszavonod a ${s.email} címre küldött linket? Aki most nézi, azonnal kiesik.`, { confirmLabel: 'Visszavonás', danger: true }))) return
   await $fetch('/api/share/revoke', { method: 'POST', body: { id: s.id } })
   await refresh()
 }
