@@ -187,5 +187,6 @@ async function save() {
     </form>
     <AnalysisCard @apply="applyEstimates" />
     <AbsorptionCard />
+    <PredictAccuracyCard />
   </main>
 </template>

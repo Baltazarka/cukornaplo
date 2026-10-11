@@ -1,8 +1,10 @@
-// Vércukor-előrejelzés a következő 15–60 percre (hipó-előjelzéshez). Loop-szerű összetevők:
+// Vércukor-előrejelzés (hipó-előjelzéshez, grafikonhoz). Loop-szerű modell + xDrip+-szerű trendkeverés:
 //  - aktív inzulin hatása (a bólusonkénti hatásmodellből, a beadás napszakának hatásidejével és
 //    a pillanatnyi ISF-fel),
 //  - fel nem szívódott szénhidrát hatása (felszívódási görbe, ISF ÷ CH-arány mmol/L / g),
-//  - lendület: a mért és a modell szerinti változás különbsége még rövid ideig (legfeljebb 15 perc) folytatódik.
+//  - lendület (trend): a legutóbbi mérések meredeksége; rövid távon a trend, hosszabb távon a modell dönt
+//    (súlyozott átlag, a trend súlya lépésenként gyorsan csökken, mint az xDrip+-ban).
+//  A mode: 'blend' (alap) vagy 'residual' (a korábbi: a modellből nem magyarázható eltérés 15 percig folytatódik).
 // Tájékoztató becslés, nem helyettesíti a CGM riasztásait.
 import { db } from './db'
 import { therapy, segmentAt } from './therapy'
@@ -14,6 +16,12 @@ import { absorbedFraction, absorbSpanMin, absorbCategory } from './absorption'
 
 const MAX_AGE_SEC = 15 * 60 // ennél régebbi utolsó méréssel nem jósolunk
 const MOMENTUM_MIN = 15
+const TREND_WINDOW_SEC = 20 * 60 // a meredekséghez az utolsó 20 perc szenzormérései
+const SLOPE_MAX = 0.2 // mmol/L/perc: ennél meredekebb trendet nem extrapolálunk
+const BLEND_W0 = 0.1 // a modell súlya az első lépésnél (5 perc), lépésenként 2,5-szeresére nő
+const BLEND_GROWTH = 2.5
+const MAX_GLUCOSE = 30
+export type PredictMode = 'blend' | 'residual'
 const RECENT_TREAT_SEC = 20 * 60 // ennyivel előbb bevitt ≥ 10 g CH kezelésnek számít
 
 export interface Prediction {
@@ -59,7 +67,7 @@ interface Model {
 }
 
 /** A becslés összetevői (adagok, szénhidrát, lendület) egyszer kiszámítva; `at(h)` bármely távolságra ad értéket. */
-function build(nowTs: number): Model | null {
+function build(nowTs: number, mode: PredictMode = 'blend'): Model | null {
   const t = therapy()
   if (!t) return null
   const latest = latestGlucose(nowTs)
@@ -93,6 +101,15 @@ function build(nowTs: number): Model | null {
   const pts = glucosePoints(nowTs - 40 * 60, nowTs + 60).filter((p) => !p.manual)
   const obsRate = pts.length ? rateAt(pts, pts.length - 1) : null
   const residual = obsRate == null ? 0 : Math.max(-0.15, Math.min(0.15, obsRate - (carbRate - insulinRate)))
+  // Trend: legkisebb négyzetek szerinti meredekség az utolsó 20 percre (legalább 3 szenzormérés).
+  const recent = pts.filter((p) => p.ts >= latest.ts - TREND_WINDOW_SEC && p.ts <= latest.ts)
+  let slope: number | null = null
+  if (recent.length >= 3) {
+    const mx = recent.reduce((a, p) => a + p.ts, 0) / recent.length
+    const my = recent.reduce((a, p) => a + p.v, 0) / recent.length
+    const sxx = recent.reduce((a, p) => a + (p.ts - mx) ** 2, 0)
+    if (sxx > 0) slope = Math.max(-SLOPE_MAX, Math.min(SLOPE_MAX, (recent.reduce((a, p) => a + (p.ts - mx) * (p.v - my), 0) / sxx) * 60))
+  }
 
   const at = (h: number) => {
     let insulinEffect = 0
@@ -102,7 +119,16 @@ function build(nowTs: number): Model | null {
     }
     let carbEffect = 0
     for (const c of meals) carbEffect += c.grams * (absorbed(c, h) - absorbed(c, 0)) * perG
-    return Math.max(1.5, latest.v - insulinEffect + carbEffect + residual * Math.min(h, MOMENTUM_MIN))
+    const model = latest.v - insulinEffect + carbEffect
+    let v: number
+    if (mode === 'residual' || slope == null) {
+      v = model + (mode === 'residual' ? residual * Math.min(h, MOMENTUM_MIN) : 0)
+    } else {
+      // Rövid távon a trend, hosszabb távon a modell: a modell súlya lépésenként (5 perc) 2,5-szeresére nő.
+      const w = BLEND_W0 * BLEND_GROWTH ** (h / 5)
+      v = (model * w + (latest.v + slope * h)) / (w + 1)
+    }
+    return Math.min(MAX_GLUCOSE, Math.max(1.5, v))
   }
   // Hosszú távú érték: a teljes még aktív inzulin és a még fel nem szívódó CH hatásával.
   let eventual = latest.v
@@ -115,6 +141,12 @@ function build(nowTs: number): Model | null {
 const round = (x: number, k: number) => Math.round(x * k) / k
 
 const roundTo = (x: number, step: number) => Math.round(x / step) * step
+
+/** A becsült vércukor `h` perccel `nowTs` után, az adott módszerrel (a pontosság visszatesztjéhez); a kiindulási érték is jár. */
+export function predictValue(h: number, nowTs: number, mode: PredictMode): { latest: Latest; v: number } | null {
+  const m = build(nowTs, mode)
+  return m ? { latest: m.latest, v: m.at(h) } : null
+}
 
 export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 1000)): Prediction | null {
   const m = build(nowTs)

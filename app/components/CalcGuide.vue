@@ -15,12 +15,15 @@ const SECTIONS = [
   { id: 'agp', title: 'Glükózprofil (AGP)' },
   { id: 'inzulin', title: 'Inzulin, TDD, besorolás' },
   { id: 'hatas', title: 'Inzulinhatás, aktív inzulin' },
+  { id: 'felszivodas', title: 'CH-felszívódás, aktív CH' },
   { id: 'bolus', title: 'Bóluskalkulátor' },
   { id: 'hipo', title: 'Hipók' },
+  { id: 'elorejelzes', title: 'Előrejelzés és értesítések' },
   { id: 'etkezes', title: 'Étkezéselemzés' },
   { id: 'becsles', title: 'Becslés az adataidból' },
   { id: 'bazis', title: 'Bázisellenőrzés' },
   { id: 'labor', title: 'Labor HbA1c és GMI' },
+  { id: 'grafikon', title: 'Napi grafikon részletei' },
   { id: 'korlatok', title: 'Korlátok' },
 ]
 
@@ -97,6 +100,7 @@ onBeforeUnmount(() => {
                 <div><dt>Glükóz</dt><dd>mmol/L. A CGM (Guardian 4) 5 percenként mér; ami mg/dL-ben érkezik, azt 18,018-cal osztva váltjuk át.</dd></div>
                 <div><dt>Inzulin</dt><dd>egység (E). A gyors hatású (NovoRapid) bólusok az InPenből, a bázis (Toujeo) beírva vagy a beállított bázisadag alapján.</dd></div>
                 <div><dt>Szénhidrát (CH)</dt><dd>gramm (g).</dd></div>
+                <div><dt>Kézi vércukor</dt><dd>kézzel mért érték (mmol/L), a naplóban „+ Vércukor”. Jelölve marad, hogy nem szenzoradat.</dd></div>
                 <div><dt>CH-arány (ICR)</dt><dd>g/E: hány gramm szénhidrátot fed le 1 egység inzulin. Nagyobb szám = kevesebb inzulin ugyanarra az ételre.</dd></div>
                 <div><dt>Érzékenység (ISF)</dt><dd>mmol/L/E: mennyivel csökkenti a vércukrot 1 egység inzulin a teljes hatásidő alatt.</dd></div>
                 <div><dt>Célérték</dt><dd>mmol/L: erre a szintre számol a korrekció (a Terápia oldalon napszakonként).</dd></div>
@@ -178,7 +182,8 @@ onBeforeUnmount(() => {
                 <div><dt>Becsült bázis (*)</dt><dd>ha egy lezárt napon volt InPen-adat, de bázis nem, a beállított bázisadaggal számolunk, csillaggal jelölve. A mai napra nem becsülünk.</dd></div>
                 <div><dt>„Ma eddig”</dt><dd>a mai nap összesítője csak a mostanáig beadott adagokat tartalmazza.</dd></div>
                 <div><dt>Kördiagram</dt><dd>a TDD-n belüli arány: étkezési bólus, korrekció, bázis, százalékban.</dd></div>
-                <div><dt>Kézi bejegyzés</dt><dd>ha az InPen később ugyanazt a mennyiséget ±30 percen belül elküldi, a kézi sor beolvad (az InPen időpontja marad, a kézi típus / jelölés átkerül).</dd></div>
+                <div><dt>Kézi bejegyzés</dt><dd>ha az InPen később ugyanazt a mennyiséget ±30 percen belül elküldi, a kézi sor beolvad (az InPen időpontja marad, a kézi típus / jelölés átkerül). Dátum és időpont megadható.</dd></div>
+                <div><dt>Napi összeg hatás szerint</dt><dd>a bólus (étkezési, korrekció) a hatásgörbéje szerint oszlik meg a napok között: az éjfél előtt késő este beadott adagnak csak az éjfélig ható része számít az adott napba, a fennmaradó a következőbe. Beállított terápia nélkül a naplózott időpont számít.</dd></div>
               </dl>
             </section>
 
@@ -205,6 +210,27 @@ aktív(t)  = 1 − S·(1 − a) · ((t² ÷ (τ·td·(1 − a)) − t/τ − 1) 
               </ul>
             </section>
 
+            <!-- 6b. Szénhidrát-felszívódás -->
+            <section id="guide-felszivodas">
+              <h3>Szénhidrát-felszívódás, aktív CH</h3>
+              <p>
+                Az <b>aktív CH (COB)</b> az a szénhidrát, ami még nem szívódott fel. A felszívódás üteme étkezésenként más, ezért két forrás van:
+              </p>
+              <ul class="guide-ul">
+                <li><b>Tanult görbe</b> (a Terápia oldalon): a tiszta étkezéseidből számolja ki, milyen ütemben szívódik fel nálad a szénhidrát. Az inzulin hatását levonja a vércukor-változásból (bólusonként a saját hatásgörbéjével és az ISF-fel), ami marad, az a szénhidrát hatása. Ennek a végponti értékhez mért hányada a felszívódott arány, a medián a tiszta étkezésekből. Külön tanul <b>normál</b>, <b>zsíros / fehérjedús</b> és <b>gyors CH</b> kategóriára (a gyors CH-hoz nem kell saját bólus). Kategóriánként legalább 3 tiszta étkezés kell, 5 a megbízhatóhoz.</li>
+                <li><b>Alapértelmezett</b>, amíg nincs elég tiszta étkezés: óránként felszívódó gramm (alapból normál 20, zsíros 12, gyors 30 g/óra, a Terápia oldalon állítható), ívelt alakkal.</li>
+              </ul>
+              <pre class="guide-pre">alapértelmezett teljes idő = szénhidrát ÷ g/óra   (45 perc – 8 óra)
+x = eltelt idő ÷ teljes idő
+felszívódott(x) = 2x²              ha x &lt; 0,5
+                = 1 − 2(1 − x)²    ha x ≥ 0,5</pre>
+              <ul class="guide-ul">
+                <li><b>Mennyiség</b>: a nagyobb étkezés tovább tart. A tanult görbe a tanuló étkezések átlagos méretére érvényes; más méretnél az időt arányosan nyújtjuk vagy összehúzzuk, legfeljebb a felére vagy a duplájára.</li>
+                <li><b>Tiszta étkezés</b>: volt szénhidrát és inzulin, utána a felszívódás végéig nincs korrekció, ráétkezés vagy más bólus, nincs sport-, betegség- vagy alkohol-jegyzet, és a vércukor nem változott gyorsan az étkezés előtt.</li>
+                <li><b>Aktív CH most</b> = Σ szénhidrát × (1 − felszívódott(eltelt idő)). A napi grafikonon ez az étkezés oszlopától induló ív.</li>
+              </ul>
+            </section>
+
             <!-- 7. Bóluskalkulátor -->
             <section id="guide-bolus">
               <h3>Bóluskalkulátor</h3>
@@ -217,7 +243,8 @@ korrekció     = (vércukor − célérték) ÷ érzékenység (mmol/L/E)</pre>
                 <li><b>Vércukor</b>: a legutóbbi CGM-érték, ha 15 percnél frissebb; különben be kell írni.</li>
                 <li><b>Átmenet a napszakok között</b> (kikapcsolható): a CH-arány és az érzékenység a napszak kezdetén a beállított érték, és a következő napszak kezdetéig egyenletesen halad annak értékéig. Pl. 06:00-kor 2 g/E, 12:00-kor 4 g/E → 09:00-kor 3 g/E. A célérték mindig a napszaké. Az InPen lépcsősen számol, ezért a napszakok vége felé eltérhet.</li>
                 <li><b>Figyelmeztetések</b>: alacsony vércukor (a céltartomány alja alatt), a maximális dózis elérése, 14 mmol/L fölött ketonvizsgálat, gyors emelkedés / esés (2–3 nyíl) – a trendet a számítás nem veszi figyelembe.</li>
-                <li>A kalkulátor nem rögzít semmit; a beadott adag az InPenből érkezik a naplóba.</li>
+                <li>A számolt szénhidrát és adag kérésre <b>beírható a naplóba</b> (a mostani időponttal; az adag átírható a ténylegesen beadottra). Ha az InPen később ugyanazt az adagot küldi, a kézi sor beolvad.</li>
+                <li>Ha újabb a kézzel felvitt vércukor a szenzor értékénél, azt használja („kézi” jelzéssel).</li>
               </ul>
             </section>
 
@@ -239,6 +266,26 @@ korrekció     = (vércukor − célérték) ÷ érzékenység (mmol/L/E)</pre>
             </section>
 
             <!-- 9. Étkezéselemzés -->
+            <!-- 8b. Előrejelzés és értesítések -->
+            <section id="guide-elorejelzes">
+              <h3>Előrejelzés és értesítések</h3>
+              <p>A főoldali sáv, a grafikon szaggatott vonala és a telefonos értesítések ugyanazt a becslést használják.</p>
+              <pre class="guide-pre">modell(t) = utolsó érték − Σ adag × (aktív(most) − aktív(most + t)) × ISF
+            + Σ szénhidrát × (felszívódott(most + t) − felszívódott(most)) × (ISF ÷ CH-arány)
+
+trend(t)  = utolsó érték + meredekség × t        (az utolsó 20 perc legkisebb négyzetes egyenese)
+becslés(t) = (modell(t) · w + trend(t)) ÷ (w + 1),   w = 0,1 · 2,5^(t / 5 perc)</pre>
+              <ul class="guide-ul">
+                <li><b>Rövid távon a trend, hosszabb távon a modell dönt</b>: a modell súlya 5 percenként 2,5-szeresére nő (az xDrip+ megoldásához hasonlóan), így kb. fél óra alatt teljesen a modellre vált. A becslés legalább 1,5, legfeljebb 30 mmol/L.</li>
+                <li><b>Hosszú távú érték</b> = utolsó érték − az összes aktív inzulin hatása + az összes még fel nem szívódott CH hatása.</li>
+                <li><b>Hipó-veszély</b>: a becsült mélypont az előrejelzési távolságon belül a céltartomány alja alá esik (vagy már alatta vagy), és nincs friss kezelés (az utolsó 20 percben legalább 10 g CH).</li>
+                <li><b>CH-javaslat</b> = (célérték − becsült mélypont) ÷ (ISF ÷ CH-arány), 5 g-ra kerekítve, 10–30 g között.</li>
+                <li><b>Inzulinjavaslat</b>: ha a vércukor és a hosszú távú érték is a céltartomány fölött van, nincs hipó-veszély, és nem esik gyorsan. Mennyisége (hosszú távú érték − célérték) ÷ ISF, 0,5 E-re kerekítve, legfeljebb a maximális bólus. Beadás után az aktív inzulin levonása miatt magától megszűnik.</li>
+                <li><b>Értesítések</b> (push): a háttér percenként ellenőriz; amíg a helyzet fennáll, a beállított időközönként (alapból 15 percenként) ismétel. A Beállítások oldalon tesztgombokkal próbálható ki.</li>
+                <li>A Terápia oldalon az <b>előrejelzés pontossága</b> kártya a saját adataidon összeveti a módszereket a ténylegesen mért értékkel.</li>
+              </ul>
+            </section>
+
             <section id="guide-etkezes">
               <h3>Étkezéselemzés (időszakos nézet)</h3>
               <ul class="guide-ul">
@@ -306,13 +353,25 @@ CH-arány = szénhidrát ÷ étkezésre jutó inzulin</pre>
               </p>
             </section>
 
+            <!-- 12b. Napi grafikon -->
+            <section id="guide-grafikon">
+              <h3>Napi grafikon részletei</h3>
+              <ul class="guide-ul">
+                <li><b>Átlógás az előző / következő napra</b>: ha az inzulin vagy a szénhidrát hatása éjfél után is tart, vagy az előző napról még hat, a tengely meghosszabbodik (legfeljebb 8 óra). Az átlógó szakasz halványabb, az éjfelet szaggatott vonal jelzi; látszik az adag oszlopa, a hatásgörbe, és a szomszéd nap vércukra is.</li>
+                <li><b>Napi összinzulin hatás szerint</b>: egy bólus a hatásgörbéje szerint oszlik meg a napok között. Az este 23-kor beadott korrekciónak csak az éjfélig ható része számít az adott napba, a fennmaradó a következő napéba. A bázis a naplózott időpont szerint számít.</li>
+                <li><b>Előrejelzés</b>: a mai napon a görbe végén szaggatott vonal (2, 3 vagy 4 óra, állítható). A felvett adagokból és CH-ból számol; új étkezést vagy adagot nem ismer.</li>
+                <li><b>Kézi vércukor</b>: rombusz jelöli. Pontos mérésként beleszámít az átlagba, a célban töltött időbe és a hipóesemények felismerésébe, de a szenzorlefedettségbe, a trendnyílba és a görbe vonalába nem.</li>
+              </ul>
+            </section>
+
             <!-- 13. Korlátok -->
             <section id="guide-korlatok">
               <h3>Korlátok</h3>
               <ul class="guide-ul">
                 <li>A CGM kb. 10%-ot téved, és 5–15 percet késik az ujjbegyes méréshez képest; gyors változásnál többet.</li>
                 <li>Az InPen-adat késve érkezhet (a telefonos küldéstől függ): a nemrég beadott adag addig hiányzik az aktív inzulinból.</li>
-                <li>A modell nem ismeri a sportot, betegséget, stresszt, alkoholt, a beadás helyét és a zsír / fehérje késői hatását.</li>
+                <li>A modell nem ismeri a sportot, betegséget, stresszt, alkoholt és a beadás helyét; a zsír / fehérje késői hatását csak a „zsíros” jelölt étkezésekre tanulja meg.</li>
+                <li>Az előrejelzés és a javaslatok becslések: új étkezést, adagot nem ismernek, a CareLink-adat késhet, és nem helyettesítik a szenzor és a pumpa riasztásait. Az inzulinjavaslat beadás előtt ellenőrzendő.</li>
                 <li>A becslések kevés eseményből szórnak; mindig a darabszámmal együtt értelmezd őket.</li>
                 <li>Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian és az InPen app értékeit használd.</li>
               </ul>
