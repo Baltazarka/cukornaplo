@@ -238,8 +238,8 @@ function buildOption() {
   // (Az összesített aktív inzulint a buborék írja ki.)
   const ai = d.activeInsulin
   const iobTotal: [number, number | null][] = ai?.points ?? []
-  // A tengely a legnagyobb adagnál csak 5 E-vel magasabb (a „szép” kerekítés a nagy bazálisnál túl magas lenne).
-  const insMax = Math.ceil(Math.max(1, ...d.insulin.map((p: any[]) => p[1]), ...iobTotal.map((p) => p[1] ?? 0)) + 5)
+  // A tengely a legnagyobb adagnál csak 5 E-vel magasabb (a bázis nem számít bele: az csak egy pont).
+  const insMax = Math.ceil(Math.max(1, ...d.insulin.filter((p: any[]) => p[2] !== 'basal').map((p: any[]) => p[1]), ...iobTotal.map((p) => p[1] ?? 0)) + 5)
   const drop = (IOB_LINE / 2) * (insMax / INS_HEIGHT)
   const curves: { kind: string; data: [number, number][] }[] = []
   if (ai) {
@@ -477,7 +477,11 @@ function buildOption() {
       }),
       bar('Bólus', 1, bolus.filter((p: any[]) => p[3] !== 'correction').map((p: any[]) => [p[0], p[1]]), C.insulin),
       bar('Korrekció', 1, bolus.filter((p: any[]) => p[3] === 'correction').map((p: any[]) => [p[0], p[1]]), C.correction),
-      bar('Bázis', 1, basal, C.basal),
+      // A bázisnak nincs hatásgörbéje: csak egy pont az alapvonalon (a nagy adag nem húzza el a tengelyt).
+      {
+        name: 'Bázis', type: 'scatter', xAxisIndex: 1, yAxisIndex: 1, data: basal.map((p: number[]) => [p[0], 0]), symbol: 'circle', symbolSize: 9, z: 6, silent: true,
+        itemStyle: { color: C.basal, borderColor: C.surface, borderWidth: 1.5 }, tooltip: { show: false }, clip: false,
+      },
       ...cobCurves.map((data) => ({
         name: 'Aktív CH', type: 'line', xAxisIndex: 2, yAxisIndex: 2, data, symbol: 'none', silent: true, z: 2,
         lineStyle: { width: IOB_LINE, color: C.carbs }, areaStyle: { color: rgba(C.carbs, 0.12) },
