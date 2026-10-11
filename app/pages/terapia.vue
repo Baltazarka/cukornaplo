@@ -59,6 +59,8 @@ function applyEstimates(values: { start: string; isf?: number; icr?: number; act
 }
 
 const errors = ref<string[]>([])
+useToastFrom(applied, 'info')
+useToastFrom(errors, 'error')
 const saving = ref(false)
 async function save() {
   saving.value = true
@@ -91,11 +93,6 @@ async function save() {
       <h1>Terápiás beállítások</h1>
       <p class="muted small">Az InPen app <b>Beállítások → Inzulinbeállítások</b> képernyőjének értékei. Egyelőre kézzel adod meg, és csak tájékoztató jellegűek: az adagot továbbra is az InPen app számolja.</p>
 
-      <div v-if="applied" class="notice" role="status">{{ applied }}</div>
-      <div v-if="errors.length" class="alert" role="alert">
-        <b>Nem sikerült menteni:</b>
-        <ul class="errors"><li v-for="e in errors" :key="e">{{ e }}</li></ul>
-      </div>
 
       <div class="therapy-fields">
         <div class="tf-row">

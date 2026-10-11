@@ -15,6 +15,7 @@ const dateLabel = (ymd: string) => ymd.replaceAll('-', '. ') + '.'
 const open = ref(false)
 const form = reactive({ date: new Date().toLocaleDateString('sv-SE'), hba1c: '' })
 const err = ref('')
+useToastFrom(err, 'error')
 const busy = ref(false)
 async function add() {
   busy.value = true
@@ -52,7 +53,6 @@ async function remove(r: any) {
         <button type="button" class="ghost" @click="open = false">Mégse</button>
       </div>
       <p class="muted small">%-ban vagy mmol/mol-ban (20 fölötti értéket mmol/mol-nak veszünk és átváltjuk).</p>
-      <p v-if="err" class="alert">{{ err }}</p>
     </form>
 
     <p v-if="!data?.results.length" class="muted">

@@ -9,6 +9,7 @@ watch(remember, (v) => {
   try { localStorage.setItem('cukornaplo.remember', v ? '1' : '0') } catch { /* nincs tároló */ }
 })
 const error = ref('')
+useToastFrom(error, 'error')
 const busy = ref(false)
 const auth = useAuthState()
 const route = useRoute()
@@ -82,7 +83,6 @@ async function passkeyLogin(autofill = false) {
     <section class="card narrow">
       <h1>Belépés</h1>
       <p v-if="expired" class="notice">A megtekintési link lejárt. Ha tovább szeretnéd nézni, kérj új linket attól, aki küldte.</p>
-      <p v-if="error" class="alert">{{ error }}</p>
       <label class="remember">
         <input v-model="remember" type="checkbox"> Maradjak bejelentkezve 24 órán át
       </label>

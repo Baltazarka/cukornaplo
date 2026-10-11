@@ -91,6 +91,8 @@ const canLog = computed(() => (logCarbs.value && !!carbsV.value) || (logInsulin.
 const logBusy = ref(false)
 const logMsg = ref('')
 const logErr = ref('')
+useToastFrom(logMsg, 'success')
+useToastFrom(logErr, 'error')
 async function addEntry(body: Record<string, any>, force = false): Promise<void> {
   try {
     await $fetch('/api/entry-add', { method: 'POST', body: { ...body, force } })
@@ -221,8 +223,6 @@ const trendText = computed(() => {
           <span class="muted">a javasolt: {{ fmt(result.dose) }} E</span>
         </label>
         <p v-if="doseInvalid" class="alert">Az adag 0,1–100 E között lehet.</p>
-        <p v-if="logMsg" class="notice">{{ logMsg }}</p>
-        <p v-if="logErr" class="alert">{{ logErr }}</p>
         <button type="button" :disabled="logBusy || !canLog" @click="logToDiary">Beírás a naplóba (most)</button>
         <p class="muted">Az adag a mostani időponttal kerül be. Írd át a tényleg beadott mennyiségre, ha eltér a javasolttól. Ha az InPen később ugyanezt az adagot küldi, a két bejegyzés összeolvad.</p>
       </div>

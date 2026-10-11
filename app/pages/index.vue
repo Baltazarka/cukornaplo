@@ -137,7 +137,7 @@ async function deleteEvent(e: any) {
     await $fetch('/api/entry-delete', { method: 'POST', body: { id: e.id } })
     await refresh()
   } catch (err: any) {
-    alert(err?.data?.error ?? 'A törlés nem sikerült.')
+    useToast().error(err?.data?.error ?? 'A törlés nem sikerült.')
   } finally {
     deletingId.value = null
   }
@@ -150,6 +150,7 @@ const logRows = computed<any[]>(() =>
 // Új jegyzet: időpont (mai napon most, különben 12:00), címkék, szöveg.
 const noteForm = ref<{ time: string; tags: string[]; text: string } | null>(null)
 const noteError = ref('')
+useToastFrom(noteError, 'error')
 const noteSaving = ref(false)
 function defaultTime() {
   const now = new Date()
@@ -181,6 +182,7 @@ async function saveNote() {
 // Kézi inzulin / CH: időpont (mai napon most, különben 12:00), mennyiség, típus vagy jelölés.
 const entryForm = ref<{ type: 'insulin' | 'carbs' | 'glucose'; date: string; time: string; value: string; sub: string } | null>(null)
 const entryError = ref('')
+useToastFrom(entryError, 'error')
 const entrySaving = ref(false)
 function openEntryForm(type: 'insulin' | 'carbs' | 'glucose') {
   noteForm.value = null
@@ -332,7 +334,6 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
           </div>
           <p v-if="entryForm.type !== 'glucose'" class="muted small">Ha az InPen később ugyanezt elküldi (azonos mennyiség, 30 percen belül), a kézi sor beolvad, nem lesz dupla.</p>
           <p v-else class="muted small">A kézi mérés „kézi” jelöléssel kerül a naplóba és a grafikonra. Pontos mérésként beleszámít az értékekbe (átlag, célban töltött idő, hipóesemények), de a szenzorlefedettségbe és a trendnyílba nem. A bóluskalkulátor használhatja, ha újabb a szenzor értékénél.</p>
-          <p v-if="entryError" class="err-text small">{{ entryError }}</p>
           <div class="btn-row">
             <button type="submit" class="sm" :disabled="entrySaving">Mentés</button>
             <button type="button" class="ghost sm" @click="entryForm = null">Mégse</button>
@@ -349,7 +350,6 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
             </div>
           </div>
           <input v-model="noteForm.text" type="text" maxlength="500" placeholder="Megjegyzés (pl. 40 perc futás, láz, 2 pohár bor)" aria-label="Megjegyzés">
-          <p v-if="noteError" class="err-text small">{{ noteError }}</p>
           <div class="btn-row">
             <button type="submit" class="sm" :disabled="noteSaving">Mentés</button>
             <button type="button" class="ghost sm" @click="noteForm = null">Mégse</button>

@@ -10,6 +10,8 @@ watchEffect(() => {
 
 const msg = ref('')
 const err = ref<string[]>([])
+useToastFrom(msg, 'success')
+useToastFrom(err, 'error')
 const busy = ref('')
 async function save() {
   busy.value = 'save'
@@ -47,8 +49,6 @@ async function test() {
       A megosztási linkek ezen keresztül mennek ki. Gmailhez <b>alkalmazásjelszó</b> kell (nem a rendes jelszavad):
       Google-fiók → Biztonság → Kétlépcsős azonosítás bekapcsolva → Alkalmazásjelszavak → új jelszó (16 karakter).
     </p>
-    <p v-if="msg" class="notice">{{ msg }}</p>
-    <div v-if="err.length" class="alert"><div v-for="e in err" :key="e">{{ e }}</div></div>
     <form class="mail-form" @submit.prevent="save">
       <label>Gmail-cím (feladó)
         <input v-model="form.user" type="text" inputmode="email" autocomplete="username" placeholder="valaki@gmail.com">

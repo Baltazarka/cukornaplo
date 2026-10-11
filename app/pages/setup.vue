@@ -3,6 +3,7 @@ const password = ref('')
 const password2 = ref('')
 const setupCode = ref('')
 const error = ref('')
+useToastFrom(error, 'error')
 const busy = ref(false)
 const auth = useState<{ hasPassword: boolean; authed: boolean; needsSetupCode?: boolean }>('auth')
 const needsCode = computed(() => !!auth.value?.needsSetupCode)
@@ -30,7 +31,6 @@ async function submit() {
     <section class="card narrow">
       <h1>Jelszó beállítása</h1>
       <p class="muted">Ezzel a jelszóval tudod majd megnyitni a naplódat. Az adatok csak ezen a szerveren tárolódnak.</p>
-      <p v-if="error" class="alert">{{ error }}</p>
       <form class="stack" @submit.prevent="submit">
         <template v-if="needsCode">
           <label>Beállító kód

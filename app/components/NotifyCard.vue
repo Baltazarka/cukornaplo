@@ -11,6 +11,8 @@ watchEffect(() => {
 
 const msg = ref('')
 const err = ref<string[]>([])
+useToastFrom(msg, 'success')
+useToastFrom(err, 'error')
 const busy = ref('')
 
 async function save() {
@@ -127,8 +129,6 @@ const noDevice = computed(() => !push.value?.devices?.length)
       A rendszer a felvett inzulinból, szénhidrátból és a trendből megbecsüli a vércukrodat, és értesítést küld.
       Ez <b>nem helyettesíti a szenzor és a pumpa riasztásait</b>: a CareLink adata késhet, az iPhone pedig a némítást és a „Ne zavarjanak” módot nem töri át.
     </p>
-    <p v-if="msg" class="notice">{{ msg }}</p>
-    <p v-for="e in err" :key="e" class="alert">{{ e }}</p>
     <p v-if="data?.lastError" class="alert">Utolsó hiba: {{ data.lastError }}</p>
 
     <h3 class="notify-sub">1. Eszköz engedélyezése</h3>

@@ -17,6 +17,8 @@ const tajWarn = computed(() => form.taj.trim() !== '' && !validTaj(form.taj))
 const thisYear = new Date().getFullYear()
 const msg = ref('')
 const err = ref<string[]>([])
+useToastFrom(msg, 'success')
+useToastFrom(err, 'error')
 const busy = ref(false)
 async function save() {
   busy.value = true
@@ -38,8 +40,6 @@ async function save() {
   <section class="card" id="szemelyes">
     <h2>Személyes adatok</h2>
     <p class="muted small">A nyomtatható riport fejlécében jelennek meg. Mind kitöltése nem kötelező; csak ezen a szerveren tárolódnak.</p>
-    <p v-if="msg" class="notice">{{ msg }}</p>
-    <div v-if="err.length" class="alert"><div v-for="e in err" :key="e">{{ e }}</div></div>
     <form class="profile-form" @submit.prevent="save">
       <label class="wide">Név
         <input v-model="form.name" type="text" maxlength="80" autocomplete="name" placeholder="pl. Minta Péter">

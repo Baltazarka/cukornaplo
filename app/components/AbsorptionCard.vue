@@ -21,6 +21,8 @@ watchEffect(() => { if (defs.value?.values) Object.assign(form, defs.value.value
 const saving = ref(false)
 const msg = ref('')
 const errs = ref<string[]>([])
+useToastFrom(msg, 'success')
+useToastFrom(errs, 'error')
 async function saveDefs(reset = false) {
   saving.value = true
   msg.value = ''
@@ -127,8 +129,6 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
       (pl. 20 g/óránál 40 g 2 óra, 60 g 3 óra alatt szívódik fel). Az alak ívelt: lassan indul, középen a leggyorsabb, majd lecseng.
       Amíg egy kategóriához nincs legalább {{ MIN }} tiszta étkezés, az előrejelzés és az aktív CH ezt használja; ha van tanult görbe, az az érvényes.
     </p>
-    <p v-if="msg" class="notice">{{ msg }}</p>
-    <p v-for="e in errs" :key="e" class="alert">{{ e }}</p>
     <form class="absorb-defaults" @submit.prevent="saveDefs()">
       <label v-for="c in CATS" :key="c.key">{{ c.label }}
         <span class="absorb-input"><input v-model.number="form[c.key]" type="number" :min="defs?.limits?.min ?? 5" :max="defs?.limits?.max ?? 120" step="1" required> g/óra</span>

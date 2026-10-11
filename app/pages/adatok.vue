@@ -4,6 +4,8 @@ const auth = useState<{ hasPassword: boolean; authed: boolean }>('auth')
 
 const message = ref('')
 const alert = ref('')
+useToastFrom(message, 'success')
+useToastFrom(alert, 'error')
 const importErrors = ref<string[]>([])
 
 function flash(ok: string, bad = '') { message.value = ok; alert.value = bad }
@@ -39,6 +41,8 @@ const { data: passkeys, refresh: pkRefresh } = await useFetch<{ id: string; name
 const pkName = ref('')
 const pkMsg = ref('')
 const pkErr = ref('')
+useToastFrom(pkMsg, 'success')
+useToastFrom(pkErr, 'error')
 const pkSupported = ref(false)
 onMounted(() => { pkSupported.value = !!window.PublicKeyCredential })
 async function pkAdd() {
@@ -157,8 +161,6 @@ async function factoryReset() {
 
 <template>
   <main v-if="data">
-    <p v-if="alert" class="alert">{{ alert }}</p>
-    <p v-if="message" class="notice">{{ message }}</p>
 
     <section class="card">
       <h2>Tárolt adatok</h2>
@@ -239,8 +241,6 @@ async function factoryReset() {
     <section class="card">
       <h2>Belépés Face ID-val / Touch ID-val (passkey)</h2>
       <p class="muted">Az eszközöd biometrikus azonosításával jelszó nélkül léphetsz be. A jelszó tartaléknak megmarad. Minden eszközön (telefon, laptop) külön kell hozzáadni.</p>
-      <p v-if="pkMsg" class="notice">{{ pkMsg }}</p>
-      <p v-if="pkErr" class="alert">{{ pkErr }}</p>
       <ul v-if="passkeys?.length" class="plain">
         <li v-for="p in passkeys" :key="p.id" class="copyrow">
           <span>{{ p.name }} <span class="muted small">· hozzáadva {{ new Date(p.createdAt * 1000).toLocaleDateString('hu-HU') }}<template v-if="p.lastUsed">, utoljára {{ new Date(p.lastUsed * 1000).toLocaleDateString('hu-HU') }}</template></span></span>

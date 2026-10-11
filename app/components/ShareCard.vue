@@ -9,6 +9,8 @@ const message = ref('')
 const busy = ref(false)
 const msg = ref('')
 const err = ref('')
+useToastFrom(msg, 'success')
+useToastFrom(err, 'error')
 const ready = computed(() => !!(mail.value?.user && mail.value?.hasPass))
 
 const hm = (ts: number) => new Date(ts * 1000).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' })
@@ -44,8 +46,6 @@ async function revoke(s: any) {
       semmit nem módosíthat, a beállításokat nem látja. A linket bármikor visszavonhatod.
     </p>
     <p v-if="!ready" class="notice small">Előbb állítsd be fent az e-mail-küldést (Gmail-cím és alkalmazásjelszó).</p>
-    <p v-if="msg" class="notice">{{ msg }}</p>
-    <p v-if="err" class="alert">{{ err }}</p>
     <form class="share-form" @submit.prevent="send">
       <label>Címzett e-mail-címe
         <input v-model="email" type="email" required placeholder="orvos@example.com" :disabled="!ready">
