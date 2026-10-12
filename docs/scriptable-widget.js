@@ -49,7 +49,8 @@ function vonal(d, w, h, szinez) {
   const vals = pts.map((p) => p[1])
   const lo = Math.min(d.range.low - 0.5, ...vals)
   const hi = Math.max(d.range.high + 0.5, ...vals)
-  const kt = 5 // kis tartalék a jobb szélen, hogy az utolsó pont ne csússzon ki
+  const lw = Math.round(w / 45) // vonalvastagság a rajzfelülethez arányosan
+  const kt = lw // kis tartalék a jobb szélen, hogy az utolsó pont ne csússzon ki
   const x = (m) => w - kt - (m / perc) * (w - kt)
   const y = (v) => h - ((v - lo) / (hi - lo)) * h
   const sz = szinez ? szin(d) : Color.white()
@@ -64,11 +65,11 @@ function vonal(d, w, h, szinez) {
   pts.forEach(([m, v], i) => (i === 0 ? p.move(new Point(x(m), y(v))) : p.addLine(new Point(x(m), y(v)))))
   ctx.addPath(p)
   ctx.setStrokeColor(sz)
-  ctx.setLineWidth(3)
+  ctx.setLineWidth(lw)
   ctx.strokePath()
   const [m0, v0] = pts[pts.length - 1]
   const dot = new Path()
-  dot.addEllipse(new Rect(x(m0) - 4, y(v0) - 4, 8, 8))
+  dot.addEllipse(new Rect(x(m0) - lw, y(v0) - lw, lw * 2, lw * 2))
   ctx.addPath(dot)
   ctx.setFillColor(sz)
   ctx.fillPath()
@@ -111,8 +112,8 @@ function kicsi(d) {
   }
   w.addSpacer(2)
   if (c.showLine) {
-    const kep = w.addImage(vonal(d, 270, 80, true))
-    kep.imageSize = new Size(128, 44)
+    // a kép a widget teljes tartalmi szélességét kitölti (a szövegekkel azonos jobb szélig)
+    w.addImage(vonal(d, 268, 88, true))
   }
   const lab = szoveg(w, 'mmol/L' + (c.showAge ? ' · ' + d.glucose.ageMin + ' perce' : ''), 10, c.showAge && d.glucose.ageMin > 15 ? new Color(c.colors.high) : HALK, false)
   return w
@@ -162,8 +163,7 @@ function zar(d, tipus) {
     }
   }
   if (c.showLine) {
-    const kep = w.addImage(vonal(d, 280, 50, false))
-    kep.imageSize = new Size(140, 22)
+    w.addImage(vonal(d, 300, 52, false))
   }
   return w
 }

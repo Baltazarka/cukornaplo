@@ -37,7 +37,8 @@ function line(w: number, h: number, color: string) {
   const vals = pts.map((p) => p[1])
   const lo = Math.min(d.value.range.low - 0.5, ...vals)
   const hi = Math.max(d.value.range.high + 0.5, ...vals)
-  const kt = 5 // kis tartalék a jobb szélen, hogy az utolsó pont ne csússzon ki
+  const lw = Math.round(w / 45) // vonalvastagság a rajzfelülethez arányosan
+  const kt = lw // kis tartalék a jobb szélen, hogy az utolsó pont ne csússzon ki
   const x = (m: number) => w - kt - (m / perc) * (w - kt)
   const y = (v: number) => h - ((v - lo) / (hi - lo)) * h
   const last = pts[pts.length - 1]
@@ -45,11 +46,12 @@ function line(w: number, h: number, color: string) {
     path: pts.map(([m, v], i) => `${i ? 'L' : 'M'}${x(m).toFixed(1)} ${y(v).toFixed(1)}`).join(' '),
     band: { y: y(d.value.range.high), h: Math.max(y(d.value.range.low) - y(d.value.range.high), 0) },
     dot: { x: x(last[0]), y: y(last[1]) },
+    lw,
     color,
   }
 }
-const smallLine = computed(() => line(128, 44, glucoseColor.value))
-const lockLine = computed(() => line(140, 22, '#ffffff'))
+const smallLine = computed(() => line(268, 88, glucoseColor.value))
+const lockLine = computed(() => line(300, 52, '#ffffff'))
 
 const msg = ref('')
 const err = ref<string[]>([])
@@ -107,10 +109,10 @@ async function reset() {
                 <span v-if="form.showIob" :style="{ color: form.colors.iob }">B {{ widgetIob(d.iob) }} E</span>
               </div>
             </div>
-            <svg v-if="form.showLine && smallLine" class="wg-line" width="128" height="44" viewBox="0 0 128 44" aria-hidden="true">
-              <rect v-if="form.showRange" x="0" :y="smallLine.band.y" width="128" :height="smallLine.band.h" fill="#ffffff" fill-opacity="0.1" />
-              <path :d="smallLine.path" fill="none" :stroke="smallLine.color" stroke-width="2" stroke-linejoin="round" />
-              <circle :cx="smallLine.dot.x" :cy="smallLine.dot.y" r="3" :fill="smallLine.color" />
+            <svg v-if="form.showLine && smallLine" class="wg-line" viewBox="0 0 268 88" aria-hidden="true">
+              <rect v-if="form.showRange" x="0" :y="smallLine.band.y" width="268" :height="smallLine.band.h" fill="#ffffff" fill-opacity="0.1" />
+              <path :d="smallLine.path" fill="none" :stroke="smallLine.color" :stroke-width="smallLine.lw" stroke-linejoin="round" />
+              <circle :cx="smallLine.dot.x" :cy="smallLine.dot.y" :r="smallLine.lw * 1.3" :fill="smallLine.color" />
             </svg>
             <div class="wg-age" :style="{ color: form.showAge && d.glucose.ageMin > 15 ? form.colors.high : '#8a93a3' }">mmol/L<template v-if="form.showAge"> · {{ d.glucose.ageMin }} perce</template></div>
           </div>
@@ -123,10 +125,10 @@ async function reset() {
                 <b v-if="form.showIob">B {{ widgetIob(d.iob) }} E</b>
               </span>
             </div>
-            <svg v-if="form.showLine && lockLine" width="140" height="22" viewBox="0 0 140 22" aria-hidden="true">
-              <rect v-if="form.showRange" x="0" :y="lockLine.band.y" width="140" :height="lockLine.band.h" fill="#ffffff" fill-opacity="0.18" />
-              <path :d="lockLine.path" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" />
-              <circle :cx="lockLine.dot.x" :cy="lockLine.dot.y" r="2.5" fill="#ffffff" />
+            <svg v-if="form.showLine && lockLine" class="wg-line" viewBox="0 0 300 52" aria-hidden="true">
+              <rect v-if="form.showRange" x="0" :y="lockLine.band.y" width="300" :height="lockLine.band.h" fill="#ffffff" fill-opacity="0.18" />
+              <path :d="lockLine.path" fill="none" stroke="#ffffff" :stroke-width="lockLine.lw" stroke-linejoin="round" />
+              <circle :cx="lockLine.dot.x" :cy="lockLine.dot.y" :r="lockLine.lw * 1.3" fill="#ffffff" />
             </svg>
           </div>
         </template>
@@ -191,7 +193,7 @@ async function reset() {
 .wg-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; }
 .wg-glu { font-weight: 700; line-height: 1; white-space: nowrap; }
 .wg-side { display: flex; flex-direction: column; gap: 2px; font-weight: 700; font-size: 15px; text-align: right; white-space: nowrap; }
-.wg-line { display: block; }
+.wg-line { display: block; width: 100%; height: auto; }
 .wg-age { font-size: 10px; }
 .wg-lock {
   width: 170px; padding: 8px 10px; border-radius: 14px; background: #2a2d34; color: #fff; box-sizing: border-box;
