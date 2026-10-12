@@ -300,6 +300,7 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
         <li>Widget kitétele: asztal hosszan nyomva → <b>+</b> → <b>Scriptable</b> (kicsi, zárképernyőn téglalap vagy kör) → koppints rá → <b>Script</b>: a mentett szkript.</li>
       </ol>
       <div class="btn-row"><button type="button" :disabled="!token" @click="copyWidget">{{ widgetCopied ? 'Másolva ✓' : 'Kitöltött szkript másolása' }}</button></div>
+      <WidgetEditor />
     </section>
   </main>
 </template>
