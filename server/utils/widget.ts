@@ -32,7 +32,7 @@ export function widgetData(hours: number) {
 
   return {
     now,
-    glucose: last ? { v: last.v, ageMin: Math.max(0, Math.round((now - last.ts) / 60)) } : null,
+    glucose: last ? { v: last.v, ts: last.ts, ageMin: Math.max(0, Math.round((now - last.ts) / 60)) } : null,
     trend: tr ? { dir: tr.dir, level: tr.level } : null,
     iob,
     cob,

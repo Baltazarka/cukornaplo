@@ -123,7 +123,16 @@ function kicsi(d) {
   if (c.showLine) {
     vonalKep(w, d, 268, 88, 44, true)
   }
-  const lab = szoveg(w, 'mmol/L' + (c.showAge ? ' · ' + d.glucose.ageMin + ' perce' : ''), 10, c.showAge && d.glucose.ageMin > 15 ? new Color(c.colors.high) : HALK, false)
+  // A mérés életkorát az iOS maga számolja élőben (relatív dátum), így nem „ragad” a rajzoláskor kiszámolt szám.
+  const alj = w.addStack()
+  szoveg(alj, 'mmol/L · ', 10, HALK, false)
+  if (d.glucose.ts) {
+    const ido = alj.addDate(new Date(d.glucose.ts * 1000))
+    ido.applyRelativeStyle()
+    ido.font = Font.systemFont(10)
+    ido.textColor = HALK
+    ido.lineLimit = 1
+  }
   return w
 }
 
