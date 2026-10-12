@@ -3,7 +3,7 @@
 // A KULCS ugyanaz, mint az Apple Parancsokban az X-Token (Beállítások → API-kulcs). Ez a fájl nem tartalmazza,
 // a kitöltött szkriptet ne tedd fel sehova.
 const URL_BASE = 'https://vc.baltazarka.com'
-const KULCS = 'IDE_AZ_X_TOKEN'
+const KULCS = 'f36c2834172af6a3a99c09570dbe15a136c78596496b52bd'
 
 const SZIN = { hatter: new Color('#0f1115'), cel: new Color('#ff7ad9'), alacsony: new Color('#ff5d5d'), magas: new Color('#ffb454'), ch: new Color('#2fbf8a'), ins: new Color('#4a8cff'), halk: new Color('#8a93a3') }
 
@@ -150,6 +150,8 @@ try {
 } catch (e) {
   w = hibaWidget(e.message || e)
 }
+// Koppintásra a Cukornapló oldala nyílik meg (Safariban; iOS-en a kezdőképernyős webappot linkkel nem lehet indítani).
+w.url = URL_BASE
 if (config.runsInWidget) Script.setWidget(w)
 else await w.presentSmall()
 Script.complete()
