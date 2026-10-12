@@ -202,8 +202,9 @@ export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 100
   let nadir = m.latest.v
   let nadirIn = 0
   for (let h = 5; h <= horizon; h += 5) {
-    // A hipó-veszély felmérésében óvatosan: a választott módszer és a csillapított trend közül a kisebbet vesszük.
-    const v = Math.min(m.at(h), m.atMode(h, 'trend'))
+    // A hipó-veszély felmérésében óvatosan: a választott módszer, a csillapított trend és az inzulin / szénhidrát
+    // modellje (keverés) közül a legkisebbet vesszük, hogy az aktív inzulin lefelé mutató hatása ne vesszen el.
+    const v = Math.min(m.at(h), m.atMode(h, 'trend'), m.atMode(h, 'blend'))
     if (v < nadir) { nadir = v; nadirIn = h }
   }
   const currentLow = m.latest.v < m.low
@@ -238,12 +239,15 @@ export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 100
 
 /**
  * A várható vércukorgörbe a következő `hours` órára, 5 percenként: [időpont ms, mmol/L].
- * Csak a már felvett adagokból és szénhidrátból számol (a jövőbeli étkezést / adagot nem ismeri).
+ * Mindig az inzulin / szénhidrát modelljét (keverés) mutatja: azt, hogy a már felvett adagokkal és szénhidráttal mi
+ * várható, ha nem történik más (a jövőbeli étkezést / adagot nem ismeri). Az automatikusan választott módszer a
+ * pontszerű előrejelzésre (és a hipó-jelzésre) vonatkozik, nem a görbére: a vízszintes „változatlan" vonal aktív
+ * inzulin mellett félrevezető lenne.
  */
 export function predictSeries(hours = 3, nowTs = Math.floor(Date.now() / 1000)): [number, number][] {
   const m = build(nowTs)
   if (!m) return []
   const out: [number, number][] = [[nowTs * 1000, m.latest.v]]
-  for (let h = 5; h <= hours * 60; h += 5) out.push([(nowTs + h * 60) * 1000, round(m.at(h), 10)])
+  for (let h = 5; h <= hours * 60; h += 5) out.push([(nowTs + h * 60) * 1000, round(m.atMode(h, 'blend'), 10)])
   return out
 }
