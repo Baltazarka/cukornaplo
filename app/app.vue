@@ -55,6 +55,8 @@ const refreshing = ref(false)
 async function reload() {
   if (refreshing.value) return
   refreshing.value = true
+  // A bóluskalkulátor beírt értékeit is kiüríti.
+  useState<number>('bolus-reset', () => 0).value++
   try {
     await refreshNuxtData()
   } catch { /* a következő automatikus frissítés úgyis megpróbálja */ }

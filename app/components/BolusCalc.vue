@@ -105,6 +105,17 @@ Mégis felveszed?`, { confirmLabel: 'Felveszem' }))) return addEntry(body, true)
     throw e
   }
 }
+// A kalkulátor kiürítése: beírt CH, kézi vércukor, javasolt/átírt adag (a frissítés gomb is ezt hívja).
+function clearInputs() {
+  carbs.value = ''
+  bgTouched.value = false
+  logCarbSub.value = ''
+  logDose.value = ''
+  doseTouched.value = false
+}
+const resetTick = useState<number>('bolus-reset', () => 0)
+watch(resetTick, clearInputs)
+
 async function logToDiary() {
   logBusy.value = true
   logMsg.value = ''
@@ -120,6 +131,8 @@ async function logToDiary() {
       done.push(`${fmt(doseV.value)} E bólus`)
     }
     logMsg.value = done.length ? `Beírva a naplóba: ${done.join(', ')}.` : 'Nem történt beírás.'
+    // A beírt adatok a naplóba kerültek, a kalkulátor üres, készen áll a következőre.
+    if (done.length) clearInputs()
     await refresh()
     emit('logged')
   } catch (e: any) {
