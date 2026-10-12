@@ -42,6 +42,17 @@ function showGuide() {
   openGuide()
 }
 
+// Újratöltés (a telepített PWA-ban nincs böngészős frissítés) és „vissza a tetejére” gomb.
+const showTop = ref(false)
+function onScroll() { showTop.value = window.scrollY > 400 }
+onMounted(() => {
+  window.addEventListener('scroll', onScroll, { passive: true })
+  onScroll()
+})
+onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
+function reload() { window.location.reload() }
+function toTop() { window.scrollTo({ top: 0, behavior: 'smooth' }) }
+
 const themeIcon = computed(() => (theme.value === 'dark' ? '🌙' : theme.value === 'light' ? '☀️' : '🖥️'))
 const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.value === 'light' ? 'Világos' : 'Rendszer'))
 </script>
@@ -66,6 +77,9 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.va
           <a href="#" @click.prevent="showGuide">Számítások</a>
           <a href="#" @click.prevent="logout">Kilépés</a>
         </nav>
+        <button v-if="auth.authed || auth.viewer" class="theme-toggle" title="Oldal újratöltése" aria-label="Oldal újratöltése" @click="reload">
+          <span aria-hidden="true">⟳</span>
+        </button>
         <button class="theme-toggle" :title="'Téma: ' + themeLabel" aria-label="Téma váltása" @click="cycleTheme">
           <span aria-hidden="true">{{ themeIcon }}</span>
         </button>
@@ -76,6 +90,7 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.va
     </header>
     <NuxtPage />
     <CalcGuide />
+    <button v-show="showTop" type="button" class="to-top" aria-label="Vissza a tetejére" title="Vissza a tetejére" @click="toTop">↑</button>
     <ToastHost />
     <ConfirmHost />
   </div>
