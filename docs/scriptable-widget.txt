@@ -123,16 +123,9 @@ function kicsi(d) {
   if (c.showLine) {
     vonalKep(w, d, 268, 88, 44, true)
   }
-  // A mérés életkorát az iOS maga számolja élőben (relatív dátum), így nem „ragad” a rajzoláskor kiszámolt szám.
-  const alj = w.addStack()
-  szoveg(alj, 'mmol/L · ', 10, HALK, false)
-  if (d.glucose.ts) {
-    const ido = alj.addDate(new Date(d.glucose.ts * 1000))
-    ido.applyRelativeStyle()
-    ido.font = Font.systemFont(10)
-    ido.textColor = HALK
-    ido.lineLimit = 1
-  }
+  // Az utolsó adat mérési időpontja (óra:perc): nem számláló, ezért nem „ragad” és nem téveszt meg.
+  const mikor = d.glucose.ts ? new Date(d.glucose.ts * 1000).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }) : ''
+  szoveg(w, 'mmol/L' + (mikor ? ' · ' + mikor : ''), 10, HALK, false)
   return w
 }
 

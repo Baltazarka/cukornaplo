@@ -24,6 +24,8 @@ function sampleData(kind: 'in' | 'low' | 'high') {
 }
 const d = computed<any>(() => (sample.value === 'real' ? data.value?.data : sampleData(sample.value)))
 
+// A mérés időpontja óra:perc alakban (a widget alján).
+const measuredAt = computed(() => new Date(Date.now() - (d.value?.glucose?.ageMin ?? 0) * 60000).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }))
 const fmt = (v: number) => v.toLocaleString('hu-HU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 const glucoseColor = computed(() => {
   const g = d.value?.glucose?.v
@@ -116,7 +118,7 @@ async function reset() {
               <path :d="smallLine.path" fill="none" :stroke="smallLine.color" :stroke-width="smallLine.lw" stroke-linejoin="round" />
               <circle :cx="smallLine.dot.x" :cy="smallLine.dot.y" :r="smallLine.lw * 1.3" :fill="smallLine.color" />
             </svg>
-            <div class="wg-age" :style="{ color: ALL.showAge && d.glucose.ageMin > 15 ? form.colors.high : '#8a93a3' }">mmol/L<template v-if="ALL.showAge"> · {{ d.glucose.ageMin }} perce</template></div>
+            <div class="wg-age" style="color: #8a93a3">mmol/L · {{ measuredAt }}</div>
           </div>
           <div class="muted small">Zárképernyő (téglalap; a színeket az iOS adja)</div>
           <div class="wg-lock">
