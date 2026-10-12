@@ -1,10 +1,31 @@
 <script setup lang="ts">
 // Az InPen-automatizálás képernyőképe (public/guide/).
 const AUTOMATION_SHOT = '/guide/automatizalas.webp'
+import widgetTemplate from '../../docs/scriptable-widget.js?raw'
 // Telefonos beállító varázsló: kapcsolatteszt, InPen → Egészség, küldés módja, beállítás, próba.
 const { data: s } = await useFetch('/api/settings')
 const token = computed(() => s.value?.token ?? '')
 const ingestUrl = computed(() => (import.meta.client ? window.location.origin : '') + '/api/ingest')
+
+// Scriptable-widget: a szkript sablonja, a saját címeddel és kulcsoddal kitöltve (csak bejelentkezve érhető el).
+const widgetCopied = ref(false)
+async function copyWidget() {
+  const code = widgetTemplate
+    .replace(/const URL_BASE = '[^']*'/, () => `const URL_BASE = '${window.location.origin}'`)
+    .replace(/const KULCS = '[^']*'/, () => `const KULCS = '${token.value}'`)
+  try {
+    await navigator.clipboard.writeText(code)
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = code
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    ta.remove()
+  }
+  widgetCopied.value = true
+  setTimeout(() => (widgetCopied.value = false), 2000)
+}
 
 function isLanUrl(url: string): boolean {
   try {
@@ -265,6 +286,20 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
         </figure>
       </template>
       <div class="nav-row"><button class="btn ghost" @click="step = 4">← Vissza</button><NuxtLink class="btn" to="/">Kész, irány a napló →</NuxtLink></div>
+    </section>
+
+    <section class="card">
+      <h2>Widget a telefon képernyőjére</h2>
+      <p class="muted small">
+        Vércukor, trendnyíl, aktív szénhidrát (CH), aktív inzulin (B) és a 3 órás vonal a kezdő- vagy zárképernyőn.
+        A kitöltött szkript tartalmazza a címedet és a kulcsodat, ezért csak bejelentkezve másolható; ne oszd meg.
+      </p>
+      <ol class="steps">
+        <li>Telepítsd az ingyenes <b>Scriptable</b> appot.</li>
+        <li>Nyomd meg az alábbi gombot, majd a Scriptable-ben: <b>+</b> (új szkript) → illeszd be → mentsd.</li>
+        <li>Widget kitétele: asztal hosszan nyomva → <b>+</b> → <b>Scriptable</b> (kicsi, zárképernyőn téglalap vagy kör) → koppints rá → <b>Script</b>: a mentett szkript.</li>
+      </ol>
+      <div class="btn-row"><button type="button" :disabled="!token" @click="copyWidget">{{ widgetCopied ? 'Másolva ✓' : 'Kitöltött szkript másolása' }}</button></div>
     </section>
   </main>
 </template>
