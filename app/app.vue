@@ -50,7 +50,17 @@ onMounted(() => {
   onScroll()
 })
 onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
-function reload() { window.location.reload() }
+// Adatfrissítés oldalújratöltés nélkül: minden betöltött lekérdezést újraolvas (nézet, bólus-kalkulátor, terápia…).
+const refreshing = ref(false)
+async function reload() {
+  if (refreshing.value) return
+  refreshing.value = true
+  try {
+    await refreshNuxtData()
+  } catch { /* a következő automatikus frissítés úgyis megpróbálja */ }
+  // Egy pillanatig látszik a forgás, hogy érezhető legyen a frissítés.
+  setTimeout(() => { refreshing.value = false }, 400)
+}
 function toTop() { window.scrollTo({ top: 0, behavior: 'smooth' }) }
 
 const themeIcon = computed(() => (theme.value === 'dark' ? '🌙' : theme.value === 'light' ? '☀️' : '🖥️'))
@@ -77,8 +87,11 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Sötét' : theme.va
           <a href="#" @click.prevent="showGuide">Számítások</a>
           <a href="#" @click.prevent="logout">Kilépés</a>
         </nav>
-        <button v-if="auth.authed || auth.viewer" class="theme-toggle" title="Oldal újratöltése" aria-label="Oldal újratöltése" @click="reload">
-          <span aria-hidden="true">⟳</span>
+        <button v-if="auth.authed || auth.viewer" class="theme-toggle" :class="{ spinning: refreshing }" title="Adatok frissítése" aria-label="Adatok frissítése" @click="reload">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 11a8 8 0 1 0-2.3 6.1" />
+            <path d="M20 4v7h-7" />
+          </svg>
         </button>
         <button class="theme-toggle" :title="'Téma: ' + themeLabel" aria-label="Téma váltása" @click="cycleTheme">
           <span aria-hidden="true">{{ themeIcon }}</span>
