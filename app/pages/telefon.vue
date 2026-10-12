@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // Az InPen-automatizálás képernyőképe (public/guide/).
 const AUTOMATION_SHOT = '/guide/automatizalas.webp'
-import widgetTemplate from '../../docs/scriptable-widget.js?raw'
+import widgetTemplate from '../../docs/scriptable-loader.txt?raw'
 // Telefonos beállító varázsló: kapcsolatteszt, InPen → Egészség, küldés módja, beállítás, próba.
 const { data: s } = await useFetch('/api/settings')
 const token = computed(() => s.value?.token ?? '')
 const ingestUrl = computed(() => (import.meta.client ? window.location.origin : '') + '/api/ingest')
 
-// Scriptable-widget: a szkript sablonja, a saját címeddel és kulcsoddal kitöltve (csak bejelentkezve érhető el).
+// Scriptable-widget: a kis betöltő sablonja, a saját címeddel és kulcsoddal kitöltve (csak bejelentkezve érhető el).
 const widgetCopied = ref(false)
 async function copyWidget() {
   const code = widgetTemplate
@@ -292,14 +292,14 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
       <h2>Widget a telefon képernyőjére</h2>
       <p class="muted small">
         Vércukor, trendnyíl, aktív szénhidrát (CH), aktív inzulin (B) és a 3 órás vonal a kezdő- vagy zárképernyőn.
-        A kitöltött szkript tartalmazza a címedet és a kulcsodat, ezért csak bejelentkezve másolható; ne oszd meg.
+        A kitöltött betöltő tartalmazza a címedet és a kulcsodat, ezért csak bejelentkezve másolható; ne oszd meg.
       </p>
       <ol class="steps">
         <li>Telepítsd az ingyenes <b>Scriptable</b> appot.</li>
-        <li>Nyomd meg az alábbi gombot, majd a Scriptable-ben: <b>+</b> (új szkript) → illeszd be → mentsd.</li>
+        <li>Nyomd meg az alábbi gombot, majd a Scriptable-ben: <b>+</b> (új szkript) → illeszd be → mentsd. Ez egy kis betöltő: a widget kódját minden futáskor a szerverről tölti le, ezért a widget későbbi frissítéseihez nem kell újra bemásolni (offline az utoljára letöltött kód fut).</li>
         <li>Widget kitétele: asztal hosszan nyomva → <b>+</b> → <b>Scriptable</b> (kicsi, zárképernyőn téglalap vagy kör) → koppints rá → <b>Script</b>: a mentett szkript.</li>
       </ol>
-      <div class="btn-row"><button type="button" :disabled="!token" @click="copyWidget">{{ widgetCopied ? 'Másolva ✓' : 'Kitöltött szkript másolása' }}</button></div>
+      <div class="btn-row"><button type="button" :disabled="!token" @click="copyWidget">{{ widgetCopied ? 'Másolva ✓' : 'Kitöltött betöltő másolása' }}</button></div>
       <WidgetEditor />
     </section>
   </main>

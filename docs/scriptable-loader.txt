@@ -1,0 +1,33 @@
+// Cukornapló widget betöltő a Scriptable apphoz. Ezt kell egyszer a telefonra másolni (a Telefon oldalon
+// kitöltve kapod meg); a widget kódját minden futáskor a szerverről tölti le, ezért a frissítéséhez
+// nem kell újra bemásolni. Ha a szerver nem érhető el, az utoljára letöltött változatot használja.
+// A KULCS az X-Token; a kitöltött szkriptet ne tedd fel sehova.
+const URL_BASE = 'https://vc.baltazarka.com'
+const KULCS = 'IDE_AZ_X_TOKEN'
+
+const fm = FileManager.local()
+const mentes = fm.joinPath(fm.documentsDirectory(), 'cukornaplo-widget-kod.js')
+let kod = null
+try {
+  const req = new Request(URL_BASE + '/api/widget-script')
+  req.method = 'POST'
+  req.headers = { 'X-Token': KULCS }
+  req.timeoutInterval = 10
+  const t = await req.loadString()
+  if (req.response && req.response.statusCode === 200 && t.length > 500) {
+    kod = t
+    fm.writeString(mentes, t)
+  }
+} catch (e) { /* offline: a mentett változat jön */ }
+if (!kod && fm.fileExists(mentes)) kod = fm.readString(mentes)
+
+if (!kod) {
+  const w = new ListWidget()
+  w.addText('Cukornapló: a widget kódja nem érhető el.')
+  if (config.runsInWidget) Script.setWidget(w)
+  else await w.presentSmall()
+  Script.complete()
+} else {
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+  await new AsyncFunction('URL_BASE', 'KULCS', kod)(URL_BASE, KULCS)
+}

@@ -102,7 +102,7 @@ async function reset() {
           <div class="wg-small" :style="{ background: form.colors.bg }">
             <div class="wg-top">
               <div class="wg-glu" :style="{ color: glucoseColor }">
-                <span :style="{ fontSize: form.fontSize + 'px' }">{{ fmt(d.glucose.v) }}</span><span v-if="form.showTrend" :style="{ fontSize: Math.round(form.fontSize * 0.74) + 'px' }">&nbsp;{{ widgetArrow(d.trend) }}</span>
+                <span :style="{ fontSize: form.fontSize + 'px' }">{{ fmt(d.glucose.v) }}</span><span v-if="form.showTrend" :style="{ fontSize: Math.round(form.fontSize * 0.6) + 'px' }">&nbsp;{{ widgetArrow(d.trend) }}</span>
               </div>
               <div v-if="form.showCob || form.showIob" class="wg-side">
                 <span v-if="form.showCob" :style="{ color: form.colors.cob }">CH {{ d.cob }} g</span>
@@ -192,7 +192,7 @@ async function reset() {
 }
 .wg-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; }
 .wg-glu { font-weight: 700; line-height: 1; white-space: nowrap; }
-.wg-side { display: flex; flex-direction: column; gap: 2px; font-weight: 700; font-size: 15px; text-align: right; white-space: nowrap; }
+.wg-side { display: flex; flex-direction: column; gap: 2px; font-weight: 700; font-size: 12px; text-align: right; white-space: nowrap; }
 .wg-line { display: block; width: 100%; height: auto; }
 .wg-age { font-size: 10px; }
 .wg-lock {

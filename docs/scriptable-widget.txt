@@ -1,9 +1,7 @@
-// Cukornapló widget a Scriptable apphoz (iPhone). Kezdőképernyős (kicsi) és zárképernyős widget.
-// A kinézetet (elemek, színek, méret) a Cukornapló Telefon oldalán állítod be; ezt a szkriptet nem kell módosítani.
-// Telepítés: a Telefon oldalon a „Kitöltött szkript másolása” gombbal másold ide, a címet és a kulcsot kitölti.
-// A KULCS az X-Token; a kitöltött szkriptet ne tedd fel sehova.
-const URL_BASE = 'https://vc.baltazarka.com'
-const KULCS = 'IDE_AZ_X_TOKEN'
+// Cukornapló widget a Scriptable apphoz: ez a szkript törzse. A telefonon a kis betöltő (scriptable-loader.txt)
+// minden futáskor letölti a szervertől, ezért itt javított változtatásokat nem kell újra bemásolni.
+// A betöltő adja át az URL_BASE (a szerver címe) és a KULCS (X-Token) értékét.
+// A kinézetet (elemek, színek, méret) a Cukornapló Telefon oldalán állítod be.
 
 const ALAP = {
   showTrend: true, showCob: true, showIob: true, showLine: true, showRange: true, showAge: true,
@@ -80,7 +78,18 @@ function szoveg(stack, t, meret, szin, bold) {
   const e = stack.addText(t)
   e.font = bold ? Font.boldSystemFont(meret) : Font.systemFont(meret)
   e.textColor = szin
+  e.lineLimit = 1
+  e.minimumScaleFactor = 0.5 // ha nem fér el, kisebbre veszi, de nem vágja le („5…” helyett „5,1”)
   return e
+}
+
+// A vonal a widget teljes tartalmi szélességét kitölti: a magasság fix, a szélesség rugalmas.
+function vonalKep(w, d, vw, vh, magassag, szinez) {
+  const s = w.addStack()
+  s.size = new Size(0, magassag)
+  const kep = s.addImage(vonal(d, vw, vh, szinez))
+  kep.applyFillingContentMode()
+  return s
 }
 
 function hibaWidget(msg) {
@@ -101,19 +110,18 @@ function kicsi(d) {
   const g = fent.addStack()
   g.bottomAlignContent()
   szoveg(g, szam(d.glucose.v, 1), c.fontSize, szin(d), true)
-  if (c.showTrend) szoveg(g, ' ' + nyil(d.trend), Math.round(c.fontSize * 0.74), szin(d), true)
-  fent.addSpacer()
+  if (c.showTrend) szoveg(g, ' ' + nyil(d.trend), Math.round(c.fontSize * 0.6), szin(d), true)
+  fent.addSpacer(4)
   if (c.showCob || c.showIob) {
     const jobb = fent.addStack()
     jobb.layoutVertically()
-    if (c.showCob) szoveg(jobb, 'CH ' + d.cob + ' g', 14, new Color(c.colors.cob), true).rightAlignText()
+    if (c.showCob) szoveg(jobb, 'CH ' + d.cob + ' g', 12, new Color(c.colors.cob), true).rightAlignText()
     if (c.showCob && c.showIob) jobb.addSpacer(2)
-    if (c.showIob) szoveg(jobb, 'B ' + iobSzoveg(d.iob) + ' E', 14, new Color(c.colors.iob), true).rightAlignText()
+    if (c.showIob) szoveg(jobb, 'B ' + iobSzoveg(d.iob) + ' E', 12, new Color(c.colors.iob), true).rightAlignText()
   }
   w.addSpacer(2)
   if (c.showLine) {
-    // a kép a widget teljes tartalmi szélességét kitölti (a szövegekkel azonos jobb szélig)
-    w.addImage(vonal(d, 268, 88, true))
+    vonalKep(w, d, 268, 88, 44, true)
   }
   const lab = szoveg(w, 'mmol/L' + (c.showAge ? ' · ' + d.glucose.ageMin + ' perce' : ''), 10, c.showAge && d.glucose.ageMin > 15 ? new Color(c.colors.high) : HALK, false)
   return w
@@ -163,7 +171,7 @@ function zar(d, tipus) {
     }
   }
   if (c.showLine) {
-    w.addImage(vonal(d, 300, 52, false))
+    vonalKep(w, d, 300, 52, 24, false)
   }
   return w
 }

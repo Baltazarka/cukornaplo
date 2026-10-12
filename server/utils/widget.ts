@@ -1,4 +1,6 @@
 // A telefon widgetjének adatai és beállításai (a /api/widget és a szerkesztő előnézete is ezt használja).
+import { timingSafeEqual } from 'node:crypto'
+import type { H3Event } from 'h3'
 import { db } from './db'
 import { therapy } from './therapy'
 import { targetRange } from './range'
@@ -37,4 +39,17 @@ export function widgetData(hours: number) {
     range: { low, high },
     series: sensor.map((p) => [Math.round((now - p.ts) / 60), p.v] as [number, number]),
   }
+}
+
+/** A widget-végpontok saját kulcsa (X-Token, mint az adatfogadónál): hiba esetén 401 és a válasz, különben null. */
+export function widgetAuthError(event: H3Event): { ok: false; error: string } | null {
+  const token = String(getHeader(event, 'x-token') ?? '').trim()
+  const expected = String(setting('api_token', '') ?? '')
+  const a = Buffer.from(token)
+  const b = Buffer.from(expected)
+  if (expected === '' || a.length !== b.length || !timingSafeEqual(a, b)) {
+    setResponseStatus(event, 401)
+    return { ok: false, error: 'Hibás vagy hiányzó kulcs (X-Token).' }
+  }
+  return null
 }

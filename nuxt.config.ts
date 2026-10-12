@@ -18,6 +18,8 @@ export default defineNuxtConfig({
   nitro: {
     // A node:sqlite a Node beépített modulja, nem kell natív fordítás.
     externals: { inline: [] },
+    // A telefonos widget kódja (docs/scriptable-widget.txt): a szerver innen adja a betöltőnek.
+    serverAssets: [{ baseName: 'docs', dir: fileURLToPath(new URL('./docs', import.meta.url)) }],
   },
   // Biztonsági fejlécek minden válaszra.
   routeRules: {
