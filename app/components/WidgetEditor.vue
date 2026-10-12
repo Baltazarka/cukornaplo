@@ -37,7 +37,8 @@ function line(w: number, h: number, color: string) {
   const vals = pts.map((p) => p[1])
   const lo = Math.min(d.value.range.low - 0.5, ...vals)
   const hi = Math.max(d.value.range.high + 0.5, ...vals)
-  const x = (m: number) => w - (m / perc) * w
+  const kt = 5 // kis tartalék a jobb szélen, hogy az utolsó pont ne csússzon ki
+  const x = (m: number) => w - kt - (m / perc) * (w - kt)
   const y = (v: number) => h - ((v - lo) / (hi - lo)) * h
   const last = pts[pts.length - 1]
   return {
@@ -47,8 +48,8 @@ function line(w: number, h: number, color: string) {
     color,
   }
 }
-const smallLine = computed(() => line(136, 44, glucoseColor.value))
-const lockLine = computed(() => line(150, 22, '#ffffff'))
+const smallLine = computed(() => line(128, 44, glucoseColor.value))
+const lockLine = computed(() => line(140, 22, '#ffffff'))
 
 const msg = ref('')
 const err = ref<string[]>([])
@@ -102,28 +103,28 @@ async function reset() {
                 <span :style="{ fontSize: form.fontSize + 'px' }">{{ fmt(d.glucose.v) }}</span><span v-if="form.showTrend" :style="{ fontSize: Math.round(form.fontSize * 0.74) + 'px' }">&nbsp;{{ widgetArrow(d.trend) }}</span>
               </div>
               <div v-if="form.showCob || form.showIob" class="wg-side">
-                <span v-if="form.showCob" :style="{ color: form.colors.cob }">CH {{ d.cob }}</span>
-                <span v-if="form.showIob" :style="{ color: form.colors.iob }">B {{ widgetIob(d.iob) }}</span>
+                <span v-if="form.showCob" :style="{ color: form.colors.cob }">CH {{ d.cob }} g</span>
+                <span v-if="form.showIob" :style="{ color: form.colors.iob }">B {{ widgetIob(d.iob) }} E</span>
               </div>
             </div>
-            <svg v-if="form.showLine && smallLine" class="wg-line" width="136" height="44" viewBox="0 0 136 44" aria-hidden="true">
-              <rect v-if="form.showRange" x="0" :y="smallLine.band.y" width="136" :height="smallLine.band.h" fill="#ffffff" fill-opacity="0.1" />
+            <svg v-if="form.showLine && smallLine" class="wg-line" width="128" height="44" viewBox="0 0 128 44" aria-hidden="true">
+              <rect v-if="form.showRange" x="0" :y="smallLine.band.y" width="128" :height="smallLine.band.h" fill="#ffffff" fill-opacity="0.1" />
               <path :d="smallLine.path" fill="none" :stroke="smallLine.color" stroke-width="2" stroke-linejoin="round" />
               <circle :cx="smallLine.dot.x" :cy="smallLine.dot.y" r="3" :fill="smallLine.color" />
             </svg>
-            <div v-if="form.showAge" class="wg-age" :style="{ color: d.glucose.ageMin > 15 ? form.colors.high : '#8a93a3' }">{{ d.glucose.ageMin }} perce</div>
+            <div class="wg-age" :style="{ color: form.showAge && d.glucose.ageMin > 15 ? form.colors.high : '#8a93a3' }">mmol/L<template v-if="form.showAge"> · {{ d.glucose.ageMin }} perce</template></div>
           </div>
           <div class="muted small">Zárképernyő (téglalap; a színeket az iOS adja)</div>
           <div class="wg-lock">
             <div class="wg-lock-row">
-              <b class="wg-lock-g">{{ fmt(d.glucose.v) }}<template v-if="form.showTrend"> {{ widgetArrow(d.trend) }}</template></b>
+              <span class="wg-lock-gw"><b class="wg-lock-g">{{ fmt(d.glucose.v) }}<template v-if="form.showTrend"> {{ widgetArrow(d.trend) }}</template></b><small>mmol/L</small></span>
               <span v-if="form.showCob || form.showIob" class="wg-lock-side">
-                <b v-if="form.showCob">CH {{ d.cob }}</b>
-                <b v-if="form.showIob">B {{ widgetIob(d.iob) }}</b>
+                <b v-if="form.showCob">CH {{ d.cob }} g</b>
+                <b v-if="form.showIob">B {{ widgetIob(d.iob) }} E</b>
               </span>
             </div>
-            <svg v-if="form.showLine && lockLine" width="150" height="22" viewBox="0 0 150 22" aria-hidden="true">
-              <rect v-if="form.showRange" x="0" :y="lockLine.band.y" width="150" :height="lockLine.band.h" fill="#ffffff" fill-opacity="0.18" />
+            <svg v-if="form.showLine && lockLine" width="140" height="22" viewBox="0 0 140 22" aria-hidden="true">
+              <rect v-if="form.showRange" x="0" :y="lockLine.band.y" width="140" :height="lockLine.band.h" fill="#ffffff" fill-opacity="0.18" />
               <path :d="lockLine.path" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" />
               <circle :cx="lockLine.dot.x" :cy="lockLine.dot.y" r="2.5" fill="#ffffff" />
             </svg>
@@ -197,6 +198,8 @@ async function reset() {
   font-family: -apple-system, system-ui, sans-serif;
 }
 .wg-lock-row { display: flex; justify-content: space-between; align-items: center; }
+.wg-lock-gw { display: flex; flex-direction: column; }
+.wg-lock-gw small { font-size: 9px; }
 .wg-lock-g { font-size: 22px; white-space: nowrap; }
 .wg-lock-side { display: flex; flex-direction: column; font-size: 12px; text-align: right; }
 .wg-form { display: flex; flex-direction: column; gap: 12px; }

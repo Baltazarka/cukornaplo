@@ -49,7 +49,8 @@ function vonal(d, w, h, szinez) {
   const vals = pts.map((p) => p[1])
   const lo = Math.min(d.range.low - 0.5, ...vals)
   const hi = Math.max(d.range.high + 0.5, ...vals)
-  const x = (m) => w - (m / perc) * w
+  const kt = 5 // kis tartalék a jobb szélen, hogy az utolsó pont ne csússzon ki
+  const x = (m) => w - kt - (m / perc) * (w - kt)
   const y = (v) => h - ((v - lo) / (hi - lo)) * h
   const sz = szinez ? szin(d) : Color.white()
   if (d.config.showRange) {
@@ -104,16 +105,16 @@ function kicsi(d) {
   if (c.showCob || c.showIob) {
     const jobb = fent.addStack()
     jobb.layoutVertically()
-    if (c.showCob) szoveg(jobb, 'CH ' + d.cob, 15, new Color(c.colors.cob), true).rightAlignText()
+    if (c.showCob) szoveg(jobb, 'CH ' + d.cob + ' g', 14, new Color(c.colors.cob), true).rightAlignText()
     if (c.showCob && c.showIob) jobb.addSpacer(2)
-    if (c.showIob) szoveg(jobb, 'B ' + iobSzoveg(d.iob), 15, new Color(c.colors.iob), true).rightAlignText()
+    if (c.showIob) szoveg(jobb, 'B ' + iobSzoveg(d.iob) + ' E', 14, new Color(c.colors.iob), true).rightAlignText()
   }
   w.addSpacer(2)
   if (c.showLine) {
-    const kep = w.addImage(vonal(d, 300, 80, true))
-    kep.imageSize = new Size(136, 44)
+    const kep = w.addImage(vonal(d, 270, 80, true))
+    kep.imageSize = new Size(128, 44)
   }
-  if (c.showAge) szoveg(w, d.glucose.ageMin + ' perce', 10, d.glucose.ageMin > 15 ? new Color(c.colors.high) : HALK, false)
+  const lab = szoveg(w, 'mmol/L' + (c.showAge ? ' · ' + d.glucose.ageMin + ' perce' : ''), 10, c.showAge && d.glucose.ageMin > 15 ? new Color(c.colors.high) : HALK, false)
   return w
 }
 
@@ -122,10 +123,10 @@ function zar(d, tipus) {
   const w = new ListWidget()
   const nyilSz = c.showTrend ? ' ' + nyil(d.trend) : ''
   const reszek = []
-  if (c.showCob) reszek.push('CH ' + d.cob)
-  if (c.showIob) reszek.push('B ' + iobSzoveg(d.iob))
+  if (c.showCob) reszek.push('CH ' + d.cob + ' g')
+  if (c.showIob) reszek.push('B ' + iobSzoveg(d.iob) + ' E')
   if (tipus === 'accessoryInline') {
-    w.addText([szam(d.glucose.v, 1) + nyilSz].concat(reszek).join(' · '))
+    w.addText([szam(d.glucose.v, 1) + ' mmol/L' + nyilSz].concat(reszek).join(' · '))
     return w
   }
   if (tipus === 'accessoryCircular') {
@@ -138,13 +139,19 @@ function zar(d, tipus) {
       const t2 = s.addText(nyil(d.trend))
       t2.font = Font.boldSystemFont(14)
     }
+    const t3 = s.addText('mmol/L')
+    t3.font = Font.systemFont(8)
     return w
   }
   // accessoryRectangular
   const s = w.addStack()
   s.centerAlignContent()
-  const t1 = s.addText(szam(d.glucose.v, 1) + nyilSz)
+  const bal = s.addStack()
+  bal.layoutVertically()
+  const t1 = bal.addText(szam(d.glucose.v, 1) + nyilSz)
   t1.font = Font.boldSystemFont(22)
+  const t0 = bal.addText('mmol/L')
+  t0.font = Font.systemFont(9)
   s.addSpacer()
   if (reszek.length) {
     const r = s.addStack()
@@ -155,8 +162,8 @@ function zar(d, tipus) {
     }
   }
   if (c.showLine) {
-    const kep = w.addImage(vonal(d, 300, 50, false))
-    kep.imageSize = new Size(150, 22)
+    const kep = w.addImage(vonal(d, 280, 50, false))
+    kep.imageSize = new Size(140, 22)
   }
   return w
 }
