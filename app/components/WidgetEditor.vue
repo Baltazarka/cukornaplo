@@ -3,6 +3,8 @@
 // a widget minden frissítéskor lekéri őket (a telefonon a szkriptet nem kell újra beilleszteni).
 const { data, refresh } = await useFetch<any>('/api/widget-config', { key: 'widget-config' })
 
+// Minden elem mindig látszik: csak a vonal hossza, a betűméret és a színek állíthatók.
+const ALL = { showTrend: true, showCob: true, showIob: true, showLine: true, showRange: true, showAge: true }
 const form = reactive<WidgetConfig>(sanitizeWidgetConfig(null))
 watch(() => data.value?.config, (c) => { if (c) Object.assign(form, JSON.parse(JSON.stringify(c))) }, { immediate: true })
 
@@ -102,31 +104,31 @@ async function reset() {
           <div class="wg-small" :style="{ background: form.colors.bg }">
             <div class="wg-top">
               <div class="wg-glu" :style="{ color: glucoseColor }">
-                <span :style="{ fontSize: form.fontSize + 'px' }">{{ fmt(d.glucose.v) }}</span><span v-if="form.showTrend" :style="{ fontSize: Math.round(form.fontSize * 0.6) + 'px' }">&nbsp;{{ widgetArrow(d.trend) }}</span>
+                <span :style="{ fontSize: form.fontSize + 'px' }">{{ fmt(d.glucose.v) }}</span><span v-if="ALL.showTrend" :style="{ fontSize: Math.round(form.fontSize * 0.6) + 'px' }">&nbsp;{{ widgetArrow(d.trend) }}</span>
               </div>
-              <div v-if="form.showCob || form.showIob" class="wg-side">
-                <span v-if="form.showCob" :style="{ color: form.colors.cob }">CH {{ d.cob }} g</span>
-                <span v-if="form.showIob" :style="{ color: form.colors.iob }">B {{ widgetIob(d.iob) }} E</span>
+              <div v-if="ALL.showCob || ALL.showIob" class="wg-side">
+                <span v-if="ALL.showCob" :style="{ color: form.colors.cob }">CH {{ d.cob }} g</span>
+                <span v-if="ALL.showIob" :style="{ color: form.colors.iob }">B {{ widgetIob(d.iob) }} E</span>
               </div>
             </div>
-            <svg v-if="form.showLine && smallLine" class="wg-line" viewBox="0 0 268 88" aria-hidden="true">
-              <rect v-if="form.showRange" x="0" :y="smallLine.band.y" width="268" :height="smallLine.band.h" fill="#ffffff" fill-opacity="0.1" />
+            <svg v-if="ALL.showLine && smallLine" class="wg-line" viewBox="0 0 268 88" aria-hidden="true">
+              <rect v-if="ALL.showRange" x="0" :y="smallLine.band.y" width="268" :height="smallLine.band.h" fill="#ffffff" fill-opacity="0.1" />
               <path :d="smallLine.path" fill="none" :stroke="smallLine.color" :stroke-width="smallLine.lw" stroke-linejoin="round" />
               <circle :cx="smallLine.dot.x" :cy="smallLine.dot.y" :r="smallLine.lw * 1.3" :fill="smallLine.color" />
             </svg>
-            <div class="wg-age" :style="{ color: form.showAge && d.glucose.ageMin > 15 ? form.colors.high : '#8a93a3' }">mmol/L<template v-if="form.showAge"> · {{ d.glucose.ageMin }} perce</template></div>
+            <div class="wg-age" :style="{ color: ALL.showAge && d.glucose.ageMin > 15 ? form.colors.high : '#8a93a3' }">mmol/L<template v-if="ALL.showAge"> · {{ d.glucose.ageMin }} perce</template></div>
           </div>
           <div class="muted small">Zárképernyő (téglalap; a színeket az iOS adja)</div>
           <div class="wg-lock">
             <div class="wg-lock-row">
-              <span class="wg-lock-gw"><b class="wg-lock-g">{{ fmt(d.glucose.v) }}<template v-if="form.showTrend"> {{ widgetArrow(d.trend) }}</template></b><small>mmol/L</small></span>
-              <span v-if="form.showCob || form.showIob" class="wg-lock-side">
-                <b v-if="form.showCob">CH {{ d.cob }} g</b>
-                <b v-if="form.showIob">B {{ widgetIob(d.iob) }} E</b>
+              <span class="wg-lock-gw"><b class="wg-lock-g">{{ fmt(d.glucose.v) }}<template v-if="ALL.showTrend"> {{ widgetArrow(d.trend) }}</template></b><small>mmol/L</small></span>
+              <span v-if="ALL.showCob || ALL.showIob" class="wg-lock-side">
+                <b v-if="ALL.showCob">CH {{ d.cob }} g</b>
+                <b v-if="ALL.showIob">B {{ widgetIob(d.iob) }} E</b>
               </span>
             </div>
-            <svg v-if="form.showLine && lockLine" class="wg-line" viewBox="0 0 300 52" aria-hidden="true">
-              <rect v-if="form.showRange" x="0" :y="lockLine.band.y" width="300" :height="lockLine.band.h" fill="#ffffff" fill-opacity="0.18" />
+            <svg v-if="ALL.showLine && lockLine" class="wg-line" viewBox="0 0 300 52" aria-hidden="true">
+              <rect v-if="ALL.showRange" x="0" :y="lockLine.band.y" width="300" :height="lockLine.band.h" fill="#ffffff" fill-opacity="0.18" />
               <path :d="lockLine.path" fill="none" stroke="#ffffff" :stroke-width="lockLine.lw" stroke-linejoin="round" />
               <circle :cx="lockLine.dot.x" :cy="lockLine.dot.y" :r="lockLine.lw * 1.3" fill="#ffffff" />
             </svg>
@@ -136,16 +138,7 @@ async function reset() {
 
       <form class="wg-form" @submit.prevent="save">
         <fieldset>
-          <legend>Elemek</legend>
-          <label class="check"><input v-model="form.showTrend" type="checkbox"> Trendnyíl</label>
-          <label class="check"><input v-model="form.showCob" type="checkbox"> Aktív szénhidrát (CH)</label>
-          <label class="check"><input v-model="form.showIob" type="checkbox"> Aktív inzulin (B)</label>
-          <label class="check"><input v-model="form.showLine" type="checkbox"> Trendvonal</label>
-          <label class="check"><input v-model="form.showRange" type="checkbox" :disabled="!form.showLine"> Célsáv a vonalon</label>
-          <label class="check"><input v-model="form.showAge" type="checkbox"> „x perce” felirat</label>
-        </fieldset>
-        <fieldset>
-          <legend>Méret és koppintás</legend>
+          <legend>Méret</legend>
           <label>Vonal hossza
             <select v-model.number="form.lineHours">
               <option :value="1">1 óra</option>
@@ -155,11 +148,6 @@ async function reset() {
           </label>
           <label>Vércukor betűmérete: {{ form.fontSize }}
             <input v-model.number="form.fontSize" type="range" :min="WIDGET_FONT.min" :max="WIDGET_FONT.max" step="1">
-          </label>
-          <label>Koppintásra megnyílik
-            <select v-model="form.tap">
-              <option v-for="(label, k) in WIDGET_TAP_LABELS" :key="k" :value="k">{{ label }}</option>
-            </select>
           </label>
         </fieldset>
         <fieldset class="wg-colors">

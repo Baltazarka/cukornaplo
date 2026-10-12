@@ -7,5 +7,5 @@ export default defineEventHandler((event) => {
   const denied = widgetAuthError(event)
   if (denied) return denied
   const config = widgetConfig()
-  return { ok: true, ...widgetData(config.lineHours), config, tapPath: WIDGET_TAP_PATHS[config.tap] }
+  return { ok: true, ...widgetData(config.lineHours), config }
 })

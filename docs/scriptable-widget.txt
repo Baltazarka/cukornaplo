@@ -177,11 +177,9 @@ function zar(d, tipus) {
 }
 
 let w
-let tap = URL_BASE
 try {
   const d = await adat()
   if (!d.glucose) throw new Error('Nincs friss érték.')
-  tap = URL_BASE + (d.tapPath || '/')
   const f = config.widgetFamily
   w = f && f.startsWith('accessory') ? zar(d, f) : kicsi(d)
   // az iOS ezt csak javaslatként kezeli (kb. 5 percre kérjük)
@@ -189,8 +187,6 @@ try {
 } catch (e) {
   w = hibaWidget(e.message || e)
 }
-// Koppintásra a Cukornapló oldala nyílik meg (Safariban; iOS-en a kezdőképernyős webappot linkkel nem lehet indítani).
-w.url = tap
 if (config.runsInWidget) Script.setWidget(w)
 else await w.presentSmall()
 Script.complete()
