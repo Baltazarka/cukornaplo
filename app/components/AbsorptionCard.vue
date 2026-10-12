@@ -2,7 +2,7 @@
 // Terápia oldal: a szénhidrát felszívódása a tiszta étkezéseidből (étkezés + inzulin, korrekció és ráétkezés
 // nélkül), kategóriánként. Az előrejelzés és az aktív CH ezt használja. Amíg egy kategóriához kevés az adat,
 // az alapértelmezett érvényes: óránként felszívódó gramm (g/óra), ívelt alakkal; a nagyobb étkezés tovább tart.
-const { data } = await useFetch<any>('/api/analysis', { query: { days: 60 }, key: 'analysis-60-absorption' })
+const { data, refresh } = await useFetch<any>('/api/analysis', { query: { days: 60 }, key: 'analysis-60-absorption' })
 const abs = computed(() => data.value?.absorption)
 
 const { data: defs, refresh: refreshDefs } = await useFetch<any>('/api/absorption/defaults', { key: 'absorb-defaults' })
@@ -89,6 +89,7 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
 <template>
   <section v-if="abs" class="card absorb-card">
     <h2>Szénhidrát-felszívódás az adataidból</h2>
+    <RecomputeBar :at="data?.computedAt" kind="analysis" :days="60" @done="refresh()" />
     <p class="muted">
       A tiszta étkezésekből (étkezés és inzulin, korrekció vagy ráétkezés nélkül) kiszámolja, milyen ütemben szívódik fel a szénhidrát nálad.
       Az inzulin hatását levonja a vércukor-változásból, és ami marad, az a szénhidrát hatása. Az előrejelzés és az aktív CH ezt használja.

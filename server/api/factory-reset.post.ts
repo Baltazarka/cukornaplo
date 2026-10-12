@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
   db().exec('DELETE FROM passkeys')
   db().exec('DELETE FROM push_subscriptions')
   db().exec('DELETE FROM login_failures')
+  db().exec('DELETE FROM computed_cache')
   resetSettings()
   try {
     unlinkSync(join(dataDir(), CL_RAW_FILE))

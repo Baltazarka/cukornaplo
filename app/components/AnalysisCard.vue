@@ -19,7 +19,7 @@ function setDays(d: number) {
   days.value = d
   try { localStorage.setItem(DAYS_KEY, String(d)) } catch { /* nincs tároló */ }
 }
-const { data } = await useFetch<any>('/api/analysis', {
+const { data, refresh } = await useFetch<any>('/api/analysis', {
   query: computed(() => ({ days: days.value })),
   key: computed(() => `analysis-${days.value}`),
 })
@@ -67,13 +67,39 @@ function cleanChart(s: any) {
 }
 const signed = (v: number | null | undefined) => (v == null ? '–' : `${v > 0 ? '+' : ''}${fmt(v)}`)
 const minLabel = (v: number) => (v === 0 ? '0' : v < 0 ? `${v} p` : actionLabel(v))
-/** A 4 órás eltérés értelmezése a CH-arány szempontjából (±1 mmol/L-en belül rendben). */
-function cleanVerdict(d4h: number | null | undefined): string {
-  if (d4h == null) return ''
-  if (d4h > 1) return 'a kezdő érték fölött marad, a CH-arány gyenge lehet (több inzulin kellene, kisebb g/E)'
-  if (d4h < -1) return 'a kezdő érték alá megy, a CH-arány erős lehet (kevesebb inzulin kellene, nagyobb g/E)'
-  return 'visszaér a kezdő érték közelébe, a CH-arány rendben lehet'
+/** A medián görbe változása a legutolsó fél órában (mmol/L): pozitív, ha a görbe a végén még emelkedik. */
+function endRise(clean: any): number {
+  const mins: number[] = clean?.curve?.minutes ?? []
+  const p50: (number | null)[] = clean?.curve?.p50 ?? []
+  let last = p50.length - 1
+  while (last >= 0 && p50[last] == null) last--
+  if (last < 0) return 0
+  const target = mins[last] - 30
+  let i = last
+  while (i > 0 && (mins[i] > target || p50[i] == null)) i--
+  return p50[i] == null ? 0 : p50[last]! - p50[i]!
 }
+/** A 4 órás eltérés értelmezése a CH-arány szempontjából (±1 mmol/L-en belül rendben); kevés eseménynél és ha a görbe még emelkedik, óvatosan. */
+function cleanVerdict(clean: any): string {
+  const d4h = clean?.d4h
+  if (d4h == null) return ''
+  const rising = endRise(clean) > 0.6
+  const few = clean.n < MIN ? ` (csak ${clean.n} étkezés alapján, tájékoztató)` : ''
+  if (d4h > 1 && rising) return `a kezdő érték fölött van, és a végén még emelkedik: lassabban felszívódó étkezés (pl. zsíros / fehérjedús), vagy a szénhidrát tovább hat, mint az inzulin, ezért ebből nem dönthető el, hogy a CH-arány gyenge-e${few}`
+  if (d4h > 1) return `a kezdő érték fölött marad, a CH-arány gyenge lehet (több inzulin kellene, kisebb g/E)${few}`
+  if (d4h < -1) return `a kezdő érték alá megy, a CH-arány erős lehet (kevesebb inzulin kellene, nagyobb g/E)${few}`
+  return `visszaér a kezdő érték közelébe, a CH-arány rendben lehet${few}`
+}
+
+// Egész nap (összevont) becslés: akkor mutatjuk, ha valamelyik napszakban még nincs saját becslés, de összesen már van.
+const overall = computed(() => a.value?.overall)
+const showOverall = computed(() => {
+  const o = overall.value?.estimate
+  if (!o || !a.value) return false
+  const segs: any[] = a.value.segments
+  const missing = segs.some((s) => !s.estimate.isf || !s.estimate.icr || !s.estimate.action)
+  return missing && !!(o.isf || o.icr || o.action)
+})
 
 // Mért hatásgörbe: a tiszta korrekciók esése a teljes eséshez viszonyítva, a modellekkel.
 const act = computed(() => a.value?.action)
@@ -114,6 +140,7 @@ const actYTicks = computed(() => {
         <span class="muted small">szenzoradat {{ fmt(a.coverage, 0) }}%</span>
       </div>
     </div>
+    <RecomputeBar :at="a.computedAt" kind="analysis" :days="days" @done="refresh()" />
     <p class="muted small">
       <b>Tiszta korrekció:</b> magas vércukorra adott bólus, előtte 1 óráig és utána a napszakra beállított inzulinhatás-időtartamig étel és más bólus nélkül; ebből látszik az érzékenységi tényező és a valódi hatásidő.
       <b>Tiszta étkezés:</b> beírt CH-val és bólussal; 1 órával előtte és utána a napszak hatásidejéig (legalább 4 óráig) más bólus,
@@ -160,9 +187,34 @@ const actYTicks = computed(() => {
               <small class="est-q">{{ s.estimate.action?.atLimit ? 'nem megbízható' : quality(s.counts.cleanCorrections) }}</small>
             </td>
           </tr>
+          <tr v-if="showOverall" class="overall-row">
+            <td class="seg-time">Egész nap<small class="muted">összevont</small></td>
+            <td>
+              <div class="gather"><span class="gather-bar"><i :style="{ width: pct(overall.counts.cleanCorrections) }" /></span>{{ count(overall.counts.cleanCorrections) }}</div>
+            </td>
+            <td>
+              <div class="gather"><span class="gather-bar"><i :style="{ width: pct(overall.counts.cleanMeals) }" /></span>{{ count(overall.counts.cleanMeals) }}</div>
+            </td>
+            <td class="num">
+              <b v-if="overall.estimate.isf" :class="{ 'est-bad': overall.estimate.isf.unreliable }">{{ fmt(overall.estimate.isf.value) }}</b><span v-else class="muted">?</span>
+              <small class="est-q">{{ overall.estimate.isf?.unreliable ? 'nem megbízható' : quality(overall.counts.cleanCorrections) }}</small>
+            </td>
+            <td class="num">
+              <b v-if="overall.estimate.icr">{{ fmt(overall.estimate.icr.value) }}</b><span v-else class="muted">?</span>
+              <small class="est-q">{{ quality(overall.counts.cleanMeals) }}</small>
+            </td>
+            <td class="num">
+              <b v-if="overall.estimate.action" :class="{ 'est-bad': overall.estimate.action.atLimit }">{{ overall.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(overall.estimate.action.dia) }}</b><span v-else class="muted">?</span>
+              <small class="est-q">{{ overall.estimate.action?.atLimit ? 'nem megbízható' : quality(overall.counts.cleanCorrections) }}</small>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
+    <p v-if="showOverall" class="muted small">
+      Az „Egész nap” sor az összes napszak eseményét egybevonja, ezért akkor is ad becslést, ha napszakonként még kevés az adat.
+      Csak tájékoztató: a napszakok eltérhetnek egymástól, a szerkesztőbe nem kerül be automatikusan.
+    </p>
 
     <div class="btn-row">
       <button type="button" class="ghost" :disabled="!hasEstimate" @click="apply">Becslések beírása a szerkesztőbe</button>
@@ -218,7 +270,7 @@ const actYTicks = computed(() => {
               <template v-if="s.clean.n >= 2" #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
             </MiniBandChart>
           </ClientOnly>
-          <p class="muted small">4 óra múlva {{ signed(s.clean.d4h) }} mmol/L: {{ cleanVerdict(s.clean.d4h) }}.</p>
+          <p class="muted small">4 óra múlva {{ signed(s.clean.d4h) }} mmol/L: {{ cleanVerdict(s.clean) }}.</p>
         </div>
       </div>
       <p v-else class="muted small">Még nincs tiszta étkezés. Akkor kerül ide, ha beírt CH-val és bólussal eszel, és utána 4 óráig nem eszel és nem adsz más bólust.</p>

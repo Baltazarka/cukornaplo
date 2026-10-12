@@ -1,5 +1,6 @@
 // Céltartomány mentése.
 import { clampRange } from '../utils/range'
+import { invalidateComputed } from '../utils/jobs'
 
 export default defineEventHandler(async (event) => {
   const body = (await readBody(event)) ?? {}
@@ -11,5 +12,6 @@ export default defineEventHandler(async (event) => {
   }
   const clamped = clampRange(low, high)
   saveSettings({ range_low: clamped.low, range_high: clamped.high })
+  invalidateComputed()
   return { ok: true, range: clamped }
 })

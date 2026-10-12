@@ -98,6 +98,12 @@ export function db(): DatabaseSync {
     hba1c REAL NOT NULL,
     created_at INTEGER NOT NULL
   )`)
+  // Előre kiszámolt, nehéz eredmények (elemzés, előrejelzés-teszt): a Terápia oldal ezeket olvassa.
+  d.exec(`CREATE TABLE IF NOT EXISTS computed_cache (
+    key TEXT PRIMARY KEY,
+    at INTEGER NOT NULL,
+    json TEXT NOT NULL
+  )`)
   _db = d
   return d
 }

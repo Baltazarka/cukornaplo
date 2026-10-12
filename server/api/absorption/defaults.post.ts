@@ -1,5 +1,7 @@
 // Az alapértelmezett felszívódási ütem (g/óra) mentése; üres vagy hiányzó érték a gyári értékre áll vissza.
 import { ABSORB_RATE_LIMITS, resetDefaultAbsorbRate, resetAbsorptionCache } from '../../utils/absorption'
+import { invalidateComputed } from '../../utils/jobs'
+import { resetPredictChoice } from '../../utils/predict'
 
 export default defineEventHandler(async (event) => {
   const b = (await readBody(event)) ?? {}
@@ -18,5 +20,8 @@ export default defineEventHandler(async (event) => {
   saveSettings({ absorb_rates: Object.keys(saved).length ? saved : null, absorb_defaults: null })
   resetDefaultAbsorbRate()
   resetAbsorptionCache()
+  // Az előrejelzés és a visszateszt az alapértelmezett felszívódási ütemtől függ.
+  invalidateComputed('predict')
+  resetPredictChoice()
   return { ok: true }
 })

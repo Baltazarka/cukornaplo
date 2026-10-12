@@ -349,6 +349,7 @@ export function analyze(from: number, to: number) {
   }
 
   // --- Napszakonkénti összesítés és becslés.
+  const allIcr: number[] = [] // az összes napszak CH-arány értékei az „egész nap” becsléshez
   const segments = segmentGroups(t).map((sg) => {
     const segAll = meals.filter((m) => m.seg === sg.index)
     const segMeals = segAll.filter((m) => !m.fatty)
@@ -374,6 +375,7 @@ export function analyze(from: number, to: number) {
       }
     }
     const icrEst = icrValues.length >= MIN_EVENTS ? r1(median(icrValues)!) : null
+    allIcr.push(...icrValues)
 
     return {
       index: sg.index,
@@ -401,8 +403,22 @@ export function analyze(from: number, to: number) {
     }
   })
 
+  // Egész nap (összevont) becslés: ha napszakonként kevés az esemény, de összesen elég, ez tájékoztatásul szolgál.
+  // Az érzékenység és a hatásidő a mért eseményekből jön (napszaktól függetlenül); a CH-arány az étkezéseket a saját
+  // napszakuk beállított érzékenységével számolja, majd a mediánt veszi.
+  const overallFit = corrections.length >= MIN_EVENTS ? fitAction(corrections, maxDia) : null
+  const overall = {
+    counts: { cleanCorrections: corrections.length, cleanMeals: allIcr.length },
+    estimate: {
+      isf: overallFit ? { value: overallFit.isf, n: overallFit.n, unreliable: overallFit.atLimit } : null,
+      icr: allIcr.length >= MIN_EVENTS ? { value: r1(median(allIcr)!), n: allIcr.length } : null,
+      action: overallFit,
+    },
+  }
+
   return {
     therapySet: !!t,
+    overall,
     coverage: glucoseCoverage(sensorGlucose, from, Math.min(to, Math.floor(Date.now() / 1000))),
     counts: { meals: meals.length, corrections: correctionCount, cleanCorrections: corrections.length },
     segments,

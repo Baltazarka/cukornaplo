@@ -6,8 +6,9 @@
 //  - alapértelmezett: óránként felszívódó gramm (g/óra), ívelt (parabolikus) alakkal. A teljes idő = gramm ÷ g/óra,
 //    legalább 45 perc. Amíg egy kategóriához kevés a tiszta étkezés, ez érvényes.
 // Az előrejelzés és az aktív CH használja.
-import { analyze, ABSORB_STEP, type AbsorbCategory, type AbsorptionProfile } from './analysis'
-import { startOfDayTs, todayYmd, addDaysYmd } from './time'
+import { ABSORB_STEP, type AbsorbCategory, type AbsorptionProfile } from './analysis'
+import { analysisCached } from './analysisCache'
+import { todayYmd } from './time'
 
 /** Gyári alapértelmezett felszívódási ütem, gramm / óra. */
 export const BUILTIN_ABSORB_RATE: Record<AbsorbCategory, number> = { normal: 20, fatty: 12, fast: 30 }
@@ -49,8 +50,8 @@ export function learnedAbsorption(): Record<AbsorbCategory, AbsorptionProfile> |
   if (cache && now - cache.at < CACHE_SEC) return cache.data
   let data: Record<AbsorbCategory, AbsorptionProfile> | null = null
   try {
-    const today = todayYmd()
-    data = analyze(startOfDayTs(addDaysYmd(today, -(LEARN_DAYS - 1))), startOfDayTs(addDaysYmd(today, 1))).absorption
+    // A Terápia oldal 60 napos elemzésének tárolt eredménye (éjszaka újraszámolva); nincs külön számolás.
+    data = analysisCached(LEARN_DAYS, todayYmd()).data.absorption
   } catch {
     data = null
   }
