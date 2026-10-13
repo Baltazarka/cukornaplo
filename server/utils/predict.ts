@@ -26,6 +26,8 @@ const SLOPE_MAX = 0.2 // mmol/L/perc: ennél meredekebb trendet nem extrapolálu
 const BLEND_W0 = 0.1 // a modell súlya az első lépésnél (5 perc), lépésenként 2,5-szeresére nő
 const BLEND_GROWTH = 2.5
 const MAX_GLUCOSE = 30
+const RETRO_TAU_MIN = 30 // a modellből nem magyarázott lendület lecsengésének időállandója
+const RETRO_MAX = 0.1 // mmol/L/perc: a nem magyarázott lendület felső korlátja
 export type PredictMode = 'persist' | 'trend' | 'residual' | 'blend'
 export const PREDICT_MODES: PredictMode[] = ['persist', 'trend', 'residual', 'blend']
 /** A kiválasztott módszer távolságonként és állapotonként (aktív inzulin / CH van-e). */
@@ -140,6 +142,12 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
     if (sxx > 0) slope = Math.max(-SLOPE_MAX, Math.min(SLOPE_MAX, (recent.reduce((a, p) => a + (p.ts - mx) * (p.v - my), 0) / sxx) * 60))
   }
 
+  // Visszamenőleges korrekció (mint a Loopban): a megfigyelt trend és a modell által várt meredekség különbsége
+  // (pl. fel nem jegyzett étkezés, hajnali emelkedés) nem tűnik el hirtelen, hanem lassan, ~30 perc időállandóval cseng le.
+  // Így az aktív inzulin hatása mellett sem esik a görbe indokolatlanul gyorsan.
+  const retroRate = slope == null ? 0 : Math.max(-RETRO_MAX, Math.min(RETRO_MAX, slope - (carbRate - insulinRate)))
+  const retro = (h: number) => retroRate * RETRO_TAU_MIN * (1 - Math.exp(-h / RETRO_TAU_MIN))
+
   const atMode = (h: number, md: PredictMode) => {
     if (md === 'persist' || (md === 'trend' && slope == null)) return Math.min(MAX_GLUCOSE, Math.max(1.5, latest.v))
     if (md === 'trend') return Math.min(MAX_GLUCOSE, Math.max(1.5, latest.v + slope! * Math.min(h, TREND_CAP_MIN)))
@@ -157,7 +165,7 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
     } else {
       // Rövid távon a trend, hosszabb távon a modell: a modell súlya lépésenként (5 perc) 2,5-szeresére nő.
       const w = BLEND_W0 * BLEND_GROWTH ** (h / 5)
-      v = (model * w + (latest.v + slope * h)) / (w + 1)
+      v = ((model + retro(h)) * w + (latest.v + slope * h)) / (w + 1)
     }
     return Math.min(MAX_GLUCOSE, Math.max(1.5, v))
   }
