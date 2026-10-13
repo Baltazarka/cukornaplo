@@ -147,24 +147,28 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
     if (sxx > 0) slope = Math.max(-SLOPE_MAX, Math.min(SLOPE_MAX, (recent.reduce((a, p) => a + (p.ts - mx) * (p.v - my), 0) / sxx) * 60))
   }
 
+  // Az utolsó mérés kora: a becslés a mérés időpontjától számol (a mérés és a „most” közötti inzulin- és CH-hatás
+  // sem maradhat ki: 8 E aktív inzulinnál 10 perc késés ~0,5 mmol/L).
+  const lagMin = Math.max(0, (nowTs - latest.ts) / 60)
   const atMode = (h: number, md: PredictMode) => {
+    const hh = h + lagMin // a mérés óta eltelt perc a célidőpontig
     if (md === 'persist' || (md === 'trend' && slope == null)) return Math.min(MAX_GLUCOSE, Math.max(1.5, latest.v))
-    if (md === 'trend') return Math.min(MAX_GLUCOSE, Math.max(1.5, latest.v + slope! * Math.min(h, TREND_CAP_MIN)))
+    if (md === 'trend') return Math.min(MAX_GLUCOSE, Math.max(1.5, latest.v + slope! * Math.min(hh, TREND_CAP_MIN)))
     let insulinEffect = 0
     for (const d of doses) {
       const m = (nowTs - d.ts) / 60
-      insulinEffect += d.v * (d.model.iob(m) - d.model.iob(m + h)) * isfAt(d.ts)
+      insulinEffect += d.v * (d.model.iob(m - lagMin) - d.model.iob(m + h)) * isfAt(d.ts)
     }
     let carbEffect = 0
-    for (const c of meals) carbEffect += c.grams * (absorbed(c, h) - absorbed(c, 0)) * c.perG
+    for (const c of meals) carbEffect += c.grams * (absorbed(c, h) - absorbed(c, -lagMin)) * c.perG
     const model = latest.v - insulinEffect + carbEffect
     let v: number
     if (md === 'residual' || slope == null) {
-      v = model + (md === 'residual' ? residual * Math.min(h, MOMENTUM_MIN) : 0)
+      v = model + (md === 'residual' ? residual * Math.min(hh, MOMENTUM_MIN) : 0)
     } else {
       // Rövid távon a trend, hosszabb távon a modell: a modell súlya lépésenként (5 perc) 2,5-szeresére nő.
-      const w = BLEND_W0 * BLEND_GROWTH ** (h / 5)
-      v = (model * w + (latest.v + slope * h)) / (w + 1)
+      const w = BLEND_W0 * BLEND_GROWTH ** (hh / 5)
+      v = (model * w + (latest.v + slope * hh)) / (w + 1)
     }
     return Math.min(MAX_GLUCOSE, Math.max(1.5, v))
   }
@@ -177,8 +181,9 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
   }
   // Hosszú távú érték: a teljes még aktív inzulin és a még fel nem szívódó CH hatásával.
   let eventual = latest.v
-  for (const d of doses) eventual -= d.v * d.model.iob((nowTs - d.ts) / 60) * isfAt(d.ts)
-  for (const c of meals) eventual += c.grams * (1 - absorbed(c, 0)) * c.perG
+  // (a mérés időpontjától: ami a mérés óta már hatott, az még nincs benne a mért értékben)
+  for (const d of doses) eventual -= d.v * d.model.iob((latest.ts - d.ts) / 60) * isfAt(d.ts)
+  for (const c of meals) eventual += c.grams * (1 - absorbed(c, -lagMin)) * c.perG
   const range = targetRange()
   return { latest, low: range.low, high: range.high, target: seg.target, isf: seg.isf, perG, maxBolus: t.maxBolus, eventual, iob: iobNow, cob, treated, active, at, atMode }
 }
@@ -217,7 +222,10 @@ export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 100
   const currentLow = m.latest.v < m.low
   const risk = (nadir < m.low || currentLow) && !m.treated
   // Szénhidrát: annyi, hogy a mélypont a célértékre emelkedjen (5 g-ra kerekítve, 10–30 g között).
-  const carbsNeeded = risk ? Math.min(30, Math.max(10, roundTo((m.target - nadir) / m.perG, 5))) : null
+  // A mélypontot a távon belüli legkisebb és a hosszú távú érték közül a kisebb adja: nagy aktív inzulinnál a mélypont
+  // az előrejelzési távon túl is lehet (a javaslat így nem alulbecsül; 30 g-nál nem több).
+  const lowest = Math.min(nadir, m.eventual)
+  const carbsNeeded = risk ? Math.min(30, Math.max(10, roundTo((m.target - lowest) / m.perG, 5))) : null
   // Inzulin: csak ha a vércukor most is és a hosszú távú értéke is a céltartomány fölött van, nincs hipó-veszély,
   // és nem esik gyorsan. A javaslat (hosszú távú érték − cél) ÷ ISF, 0,5 E-re kerekítve, a maximális bólusig.
   const fallingFast = (m.latest.rate ?? 0) <= -0.11

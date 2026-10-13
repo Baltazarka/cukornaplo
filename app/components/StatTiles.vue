@@ -70,7 +70,7 @@ const donut = computed(() => {
         <span title="gyors változás, ≥ 0,17 mmol/L/perc"><TrendArrows :dir="1" :level="3" />{{ fmt(change.rapid, 0) }}%</span>
       </div>
     </div>
-    <div class="tile"><div class="tile-label">Szenzoradat</div><div class="tile-value">{{ fmt(coverage, 0) }} <small>%</small></div></div>
+    <div class="tile"><div class="tile-label" title="Az első szenzormérés óta eltelt időhöz képest, hány százalékban van mérés (5 percenként)">Szenzoradat</div><div class="tile-value">{{ fmt(coverage, 0) }} <small>%</small></div></div>
     <div class="tile">
       <div class="tile-label">Céltartományban<sub>TIR</sub></div>
       <div class="tile-value">{{ fmt(s.n ? s.pct.inRange : null, 0) }} <small>%</small></div>

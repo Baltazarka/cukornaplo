@@ -5,7 +5,7 @@ Személyes cukorbetegség-napló. Nuxt 4 (SPA, `ssr: false`) + Nitro szerver, SQ
 ## Munkamenet
 - A felhasználó magyarul ír; válaszolj magyarul, tömören.
 - **Mindig commitolj és pusholj `main`-re**, kérdezés nélkül, ha egy kész változtatás elkészült.
-- Commit üzenet magyarul, a végén: `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
+- Commit üzenet magyarul, a végén a Claude Code által megadott `Co-Authored-By` sorral (az aktuális modell nevével).
 - Két gépen (otthon / munkahely) dolgozik, git-en át szinkronban: munka előtt `git pull`.
 
 ## Technikai szabályok

@@ -178,7 +178,7 @@ onBeforeUnmount(() => {
                 <li>Egyébként <b>korrekció</b> (magas vércukor, vagy nincs mérés).</li>
               </ol>
               <dl class="guide-dl">
-                <div><dt>TDD</dt><dd>Total Daily Dose: a napi összes inzulin (étkezési + korrekció + bázis). Időszakos nézetben napi átlag, de csak azokra a napokra osztva, amelyeken volt InPen-adat (a kimaradt napok nem húzzák le).</dd></div>
+                <div><dt>TDD</dt><dd>Total Daily Dose: a napi összes inzulin (étkezési + korrekció + bázis). Időszakos nézetben napi átlag, de csak azokra a napokra osztva, amelyeken volt InPen-adat (a kimaradt napok nem húzzák le); a mai, még le nem zárt nap kimarad az átlagból, ha van lezárt nap adattal.</dd></div>
                 <div><dt>Becsült bázis (*)</dt><dd>ha egy lezárt napon volt InPen-adat, de bázis nem, a beállított bázisadaggal számolunk, csillaggal jelölve. A mai napra nem becsülünk.</dd></div>
                 <div><dt>„Ma eddig”</dt><dd>a mai nap összesítője csak a mostanáig beadott adagokat tartalmazza.</dd></div>
                 <div><dt>Kördiagram</dt><dd>a TDD-n belüli arány: étkezési bólus, korrekció, bázis, százalékban.</dd></div>

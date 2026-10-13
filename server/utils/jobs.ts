@@ -3,6 +3,7 @@ import { analysisKey, analysisCompute, ANALYSIS_DAYS } from './analysisCache'
 import { accuracyJob } from './predictAccuracy'
 import { readComputed, computeNow, getComputed, clearComputed, type Computed } from './computed'
 import { resetAbsorptionCache } from './absorption'
+import { resetPredictChoice } from './predict'
 import { todayYmd } from './time'
 
 export { analysisCached, analysisKey } from './analysisCache'
@@ -26,9 +27,23 @@ export function recompute(kind: 'analysis' | 'accuracy', days: number, end = tod
   return computeNow(accuracyKey(days), () => accuracyJob(days)).at
 }
 
-/** Adat vagy beállítás változása után: a tárolt eredmények érvénytelenek. */
+let warmTimer: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * Adat vagy beállítás változása után: a tárolt eredmények érvénytelenek. A memóriabeli gyorsítótárak (tanult
+ * felszívódás, módszerválasztás) is ürülnek; teljes törlésnél az előszámolás kis késéssel a háttérben újraindul.
+ */
 export function invalidateComputed(prefix = ''): void {
   clearComputed(prefix)
+  resetAbsorptionCache()
+  resetPredictChoice()
+  if (prefix === '') {
+    clearTimeout(warmTimer)
+    warmTimer = setTimeout(() => {
+      warmAll(true).catch((e) => console.error('[előszámolás]', e))
+    }, 10_000)
+    warmTimer.unref?.()
+  }
 }
 
 const pause = () => new Promise<void>((r) => setTimeout(r, 300))

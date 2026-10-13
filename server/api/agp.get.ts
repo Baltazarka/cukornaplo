@@ -53,8 +53,13 @@ export default defineEventHandler((event) => {
   let sensorN = 0
   const carbTs = rows.filter((r) => r.type === 'carbs').map((r) => Number(r.ts))
   const basalDays = new Set<string>()
+  // A mai (még le nem zárt) napot a napi átlagokból kihagyjuk, ha van lezárt nap inzulin- / CH-adattal: egy félnapnyi
+  // adat a teljes napra osztva lehúzná az átlagot.
+  const skipToday = end >= today && rows.some((r) => r.type !== 'glucose' && ymdInTz(Number(r.ts)) < today)
+  let firstSensorTs = Infinity
   for (const r of rows) {
     const m = minuteOfDayInTz(Number(r.ts))
+    if (skipToday && r.type !== 'glucose' && ymdInTz(Number(r.ts)) >= today) continue
     const v = Number(r.value)
     if (r.type === 'glucose') {
       bins[Math.floor(m / BIN_MIN)].push(v)
@@ -63,6 +68,7 @@ export default defineEventHandler((event) => {
       if (r.source !== 'manual') {
         gPoints.push({ ts: Number(r.ts), v })
         sensorN++
+        if (Number(r.ts) < firstSensorTs) firstSensorTs = Number(r.ts)
       }
     } else if (r.type === 'insulin') {
       const kind = insulinKind(Number(r.ts), r.subtype, carbTs).kind
@@ -88,11 +94,12 @@ export default defineEventHandler((event) => {
 
   // Napi átlagok: csak azokra a napokra osztunk, amelyeken volt InPen-bejegyzés (különben a kimaradt napok lehúznák).
   const daily = groupByDay(rows)
-  const penDays = Object.values(daily).filter((d) => d.insulin > 0 || d.carbs > 0).length || 1
+  const penDays = Object.entries(daily).filter(([k, d]) => (d.insulin > 0 || d.carbs > 0) && !(skipToday && k >= today)).length || 1
   const perDay = (arr: number[]) => arr.map((v) => Math.round((v / penDays) * 100) / 100)
 
   // Lefedettség: a mérések száma az időszak eltelt részéhez képest (ma csak a mostanáig eltelt idő számít).
-  const elapsedSec = Math.min(endTs, Math.floor(Date.now() / 1000)) - startTs
+  // Az első szenzormérés óta eltelt időhöz viszonyítva: ha csak az időszak egy részéről van adat, nem ez „rontja” a lefedettséget.
+  const elapsedSec = Math.min(endTs, Math.floor(Date.now() / 1000)) - Math.max(startTs, Number.isFinite(firstSensorTs) ? firstSensorTs : startTs)
   const coverage = elapsedSec > 0 ? Math.min(100, (100 * sensorN) / (elapsedSec / 300)) : 0
 
   const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0)

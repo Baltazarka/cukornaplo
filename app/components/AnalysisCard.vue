@@ -182,7 +182,7 @@ const actYTicks = computed(() => {
             <td class="num">
               <span class="muted">{{ fmt(s.therapy?.isf) }} →</span>
               <b v-if="s.estimate.isf" :class="{ 'est-bad': s.estimate.isf.unreliable }">{{ fmt(s.estimate.isf.value) }}</b><span v-else class="muted">?</span>
-              <small class="est-q">{{ s.estimate.isf?.unreliable ? 'nem megbízható' : quality(s.counts.cleanCorrections) }}</small>
+              <small class="est-q">{{ s.estimate.isf?.unreliable ? 'nem megbízható' : quality(s.estimate.isf?.n ?? s.counts.cleanCorrections) }}</small>
             </td>
             <td class="num">
               <span class="muted">{{ fmt(s.therapy?.icr) }} →</span>
@@ -193,7 +193,7 @@ const actYTicks = computed(() => {
             <td class="num">
               <span class="muted">{{ s.therapy ? actionLabel(s.therapy.actionMinutes) : '–' }} →</span>
               <b v-if="s.estimate.action" :class="{ 'est-bad': s.estimate.action.unreliable }">{{ s.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(s.estimate.action.dia) }}</b><span v-else class="muted">?</span>
-              <small class="est-q">{{ s.estimate.action?.unreliable ? 'nem megbízható' : quality(s.counts.cleanCorrections) }}</small>
+              <small class="est-q">{{ s.estimate.action?.unreliable ? 'nem megbízható' : quality(s.estimate.action?.n ?? s.counts.cleanCorrections) }}</small>
             </td>
           </tr>
           <tr v-if="showOverall" class="overall-row">
@@ -206,7 +206,7 @@ const actYTicks = computed(() => {
             </td>
             <td class="num">
               <b v-if="overall.estimate.isf" :class="{ 'est-bad': overall.estimate.isf.unreliable }">{{ fmt(overall.estimate.isf.value) }}</b><span v-else class="muted">?</span>
-              <small class="est-q">{{ overall.estimate.isf?.unreliable ? 'nem megbízható' : quality(overall.counts.cleanCorrections) }}</small>
+              <small class="est-q">{{ overall.estimate.isf?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
             </td>
             <td class="num">
               <b v-if="overall.estimate.icr">{{ fmt(overall.estimate.icr.value) }}</b><span v-else class="muted">?</span>
@@ -214,7 +214,7 @@ const actYTicks = computed(() => {
             </td>
             <td class="num">
               <b v-if="overall.estimate.action" :class="{ 'est-bad': overall.estimate.action.unreliable }">{{ overall.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(overall.estimate.action.dia) }}</b><span v-else class="muted">?</span>
-              <small class="est-q">{{ overall.estimate.action?.unreliable ? 'nem megbízható' : quality(overall.counts.cleanCorrections) }}</small>
+              <small class="est-q">{{ overall.estimate.action?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
             </td>
           </tr>
         </tbody>

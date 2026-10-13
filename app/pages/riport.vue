@@ -286,9 +286,9 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
             <tr v-for="sg in an.segments" :key="sg.index">
               <td>{{ sg.start }}–{{ sg.end }}</td>
               <td class="num">{{ sg.counts.cleanCorrections }} / {{ sg.counts.cleanMeals }}</td>
-              <td class="num">{{ fmt(sg.therapy?.isf) }} → {{ sg.estimate.isf ? fmt(sg.estimate.isf.value) : '?' }}</td>
-              <td class="num">{{ fmt(sg.therapy?.icr) }} → {{ sg.estimate.icr ? fmt(sg.estimate.icr.value) : '?' }}</td>
-              <td class="num">{{ sg.therapy ? actionLabel(sg.therapy.actionMinutes) : '–' }} → {{ sg.estimate.action ? actionLabel(sg.estimate.action.dia) : '?' }}</td>
+              <td class="num">{{ fmt(sg.therapy?.isf) }} → {{ sg.estimate.isf ? fmt(sg.estimate.isf.value) : '?' }}<template v-if="sg.estimate.isf?.unreliable"> <small>(nem megbízható)</small></template></td>
+              <td class="num">{{ fmt(sg.therapy?.icr) }} → {{ sg.estimate.icr ? fmt(sg.estimate.icr.value) : '?' }}<template v-if="sg.estimate.icr?.unreliable"> <small>(még emelkedik)</small></template></td>
+              <td class="num">{{ sg.therapy ? actionLabel(sg.therapy.actionMinutes) : '–' }} → {{ sg.estimate.action ? actionLabel(sg.estimate.action.dia) : '?' }}<template v-if="sg.estimate.action?.unreliable"> <small>(nem megbízható)</small></template></td>
             </tr>
           </tbody>
         </table>

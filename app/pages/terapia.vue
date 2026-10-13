@@ -172,8 +172,8 @@ async function save() {
             <tr v-for="s in visible" :key="s.key">
               <td v-if="byTimeOfDay"><input v-model="s.start" type="time" step="900" required aria-label="Kezdő időpont"></td>
               <td><input v-model.number="s.target" type="number" step="0.1" min="3.9" max="13.9" required aria-label="Glükóz célértéke"></td>
-              <td><input v-model.number="s.isf" type="number" step="0.1" min="0.1" max="20" required aria-label="Inzulinérzékenységi tényező"></td>
-              <td><input v-model.number="s.icr" type="number" step="0.1" min="0.5" max="150" required aria-label="Inzulin-szénhidrát arány"></td>
+              <td><input v-model.number="s.isf" type="number" step="0.05" min="0.1" max="20" required aria-label="Inzulinérzékenységi tényező"></td>
+              <td><input v-model.number="s.icr" type="number" step="0.05" min="0.5" max="150" required aria-label="Inzulin-szénhidrát arány"></td>
               <td v-if="byTimeOfDay">
                 <select v-model.number="s.actionMinutes" aria-label="Inzulinhatás időtartama ebben a napszakban">
                   <option value="">közös ({{ actionLabel(actionMinutes) }})</option>

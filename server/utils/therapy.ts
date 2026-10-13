@@ -81,7 +81,7 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
     }
     if (target != null && isf != null && icr != null) {
       segments.push({
-        start, target: round(target, 1), isf: round(isf, 1), icr: round(icr, 1),
+        start, target: round(target, 1), isf: round(isf, 2), icr: round(icr, 2),
         ...(segAction != null ? { actionMinutes: segAction } : {}),
       })
     }
@@ -129,6 +129,8 @@ export function segmentAt(t: Therapy, ts: number): TherapySegment {
 
 /** Egy bólus hatásideje percben: a beadás napszakáé, ha ott külön meg van adva. */
 export function actionMinutesAt(t: Therapy, ts: number): number {
+  // Napszakbeállítás nélkül a közös hatásidő érvényes (a rejtett, napszakonkénti érték nem írhatja felül).
+  if (!t.byTimeOfDay) return t.actionMinutes
   return segmentAt(t, ts).actionMinutes ?? t.actionMinutes
 }
 

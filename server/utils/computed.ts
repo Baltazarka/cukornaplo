@@ -53,7 +53,8 @@ export function storeComputed<T>(key: string, data: T): Computed<T> {
 
 /** Törli a tárolt eredményeket (előtaggal csak az azzal kezdődőket): adat vagy beállítás változása után. */
 export function clearComputed(prefix = ''): void {
-  db().prepare('DELETE FROM computed_cache WHERE key LIKE ?').run(prefix.replace(/[%_]/g, '') + '%')
+  // Az éjszakai jelző és az adatváltozás-jelző megmarad (különben az éjszakai számolás újra lefutna).
+  db().prepare("DELETE FROM computed_cache WHERE key LIKE ? AND key NOT IN ('nightly', 'meta:dirty')").run(prefix.replace(/[%_]/g, '') + '%')
 }
 
 /** Azonnali (szinkron) számolás és tárolás. */
