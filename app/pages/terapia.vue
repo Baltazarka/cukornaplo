@@ -30,6 +30,22 @@ const visible = computed(() =>
   byTimeOfDay.value ? segments.value : [...segments.value].sort((a, b) => hmToMinutes(a.start) - hmToMinutes(b.start)).slice(0, 1),
 )
 
+// Egyeztetés: az érzékenység (mmol/L/E) és a CH-arány (g/E) hányadosa megmondja, mennyit emel 1 g szénhidrát
+// (mmol/L). Felnőtteknél ez jellemzően 0,1–0,3; ennél jóval nagyobb vagy kisebb érték gyanús (az ISF vagy a CH-arány
+// elírva vagy más egységben). Nem tiltás, csak figyelmeztetés: a beállítás a diabetológus döntése.
+const RATIO_OK = [0.08, 0.35] as const
+const consistency = computed(() =>
+  visible.value
+    .map((s) => {
+      const isf = Number(s.isf)
+      const icr = Number(s.icr)
+      if (!(isf > 0) || !(icr > 0)) return null
+      const r = isf / icr
+      return r < RATIO_OK[0] || r > RATIO_OK[1] ? { start: s.start, r, isf, icr } : null
+    })
+    .filter((x): x is { start: string; r: number; isf: number; icr: number } => x != null),
+)
+
 function addSegment() {
   const last = [...segments.value].sort((a, b) => hmToMinutes(a.start) - hmToMinutes(b.start)).at(-1)!
   const m = Math.min(23 * 60 + 30, hmToMinutes(last.start) + 180)
@@ -171,6 +187,11 @@ async function save() {
           </tbody>
         </table>
       </div>
+      <p v-for="c in consistency" :key="c.start" class="notice small" role="note">
+        <b>Egyeztesd{{ byTimeOfDay ? ` (${c.start})` : '' }}:</b> az ISF {{ c.isf.toLocaleString('hu-HU') }} mmol/L/E és a CH-arány {{ c.icr.toLocaleString('hu-HU') }} g/E együtt azt jelenti,
+        hogy 1 g szénhidrát kb. {{ c.r.toLocaleString('hu-HU', { maximumFractionDigits: 2 }) }} mmol/L-t emel. Ez szokatlanul {{ c.r > RATIO_OK[1] ? 'nagy' : 'kicsi' }}
+        (jellemzően 0,1–0,3), ezért az egyik érték (vagy mindkettő) valószínűleg nem pontos. Az előrejelzés, a javaslatok és a becslések mind erre épülnek, ezért érdemes a diabetológussal átbeszélni.
+      </p>
       <p v-if="byTimeOfDay" class="muted small">Minden napszak a következő kezdetéig tart, az utolsó éjfélen át az elsőig. Mentéskor időrendbe kerülnek.
         Ha egy napszakhoz külön inzulinhatás-időt adsz meg, a napi grafikonon az abban beadott bólusok hatásgörbéje ezzel rajzolódik; „közös” esetén a fenti érték érvényes.</p>
       <p v-else class="muted small">Kikapcsolva ezek az értékek egész nap érvényesek. A többi napszakot megőrzöm, visszakapcsolva újra látszanak.</p>
