@@ -1,7 +1,7 @@
 // Vércukor-előrejelzés (hipó-előjelzéshez, grafikonhoz). Loop-szerű modell + xDrip+-szerű trendkeverés:
 //  - aktív inzulin hatása (a bólusonkénti hatásmodellből, a beadás napszakának hatásidejével és
-//    a pillanatnyi ISF-fel),
-//  - fel nem szívódott szénhidrát hatása (felszívódási görbe, ISF ÷ CH-arány mmol/L / g),
+//    a beadás napszakának ISF-jével),
+//  - fel nem szívódott szénhidrát hatása (felszívódási görbe, az étkezés napszakának ISF ÷ CH-aránya mmol/L / g),
 //  - lendület (trend): a legutóbbi mérések meredeksége; rövid távon a trend, hosszabb távon a modell dönt
 //    (súlyozott átlag, a trend súlya lépésenként gyorsan csökken, mint az xDrip+-ban).
 //  Módszerek: 'persist' (az utolsó érték marad), 'trend' (csillapított lineáris extrapoláció, legfeljebb 20 percre),
@@ -103,25 +103,32 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
   if (!latest || nowTs - latest.ts > MAX_AGE_SEC) return null
 
   const seg = segmentAt(t, latest.ts)
-  const perG = seg.isf / seg.icr // mmol/L / g szénhidrát
+  const perG = seg.isf / seg.icr // mmol/L / g szénhidrát (a mostani napszakban: a javaslatokhoz)
+  // Minden adag / étkezés a beadás (étkezés) napszakának ISF-jével és CH-arányával hat, nem a mostanival
+  // (ahogy a Loop is teszi): napszakhatáron így nem ugrik a becslés.
+  const isfAt = (ts: number) => segmentAt(t, ts).isf
+  const perGAt = (ts: number) => {
+    const s2 = segmentAt(t, ts)
+    return s2.isf / s2.icr
+  }
   const carbRows = db()
     .prepare("SELECT ts, value, subtype FROM entries WHERE type = 'carbs' AND ts >= ? AND ts <= ? ORDER BY ts")
     .all(nowTs - 8 * 3600, nowTs) as { ts: number; value: number; subtype: string | null }[]
   const doses = rapidDoses(t, nowTs, nowTs + 1, carbRows.map((c) => Number(c.ts)))
 
   let insulinRate = 0
-  for (const d of doses) insulinRate += d.v * d.model.activity((nowTs - d.ts) / 60) * seg.isf
+  for (const d of doses) insulinRate += d.v * d.model.activity((nowTs - d.ts) / 60) * isfAt(d.ts)
 
   // Szénhidrát: a tiszta étkezésekből tanult felszívódási görbe (vagy az alapértelmezett ívelt).
   const meals = carbRows
-    .map((c) => ({ grams: Number(c.value), ts: Number(c.ts), cat: absorbCategory(c.subtype) }))
+    .map((c) => ({ grams: Number(c.value), ts: Number(c.ts), cat: absorbCategory(c.subtype), perG: perGAt(Number(c.ts)) }))
     .filter((c) => (nowTs - c.ts) / 60 < absorbSpanMin(c.cat, c.grams))
   const absorbed = (c: { cat: ReturnType<typeof absorbCategory>; ts: number; grams: number }, h: number) => absorbedFraction(c.cat, (nowTs - c.ts) / 60 + h, c.grams)
   let carbRate = 0
   let cob = 0
   let treated = false
   for (const c of meals) {
-    carbRate += (c.grams * (absorbed(c, 5) - absorbed(c, 0)) * perG) / 5
+    carbRate += (c.grams * (absorbed(c, 5) - absorbed(c, 0)) * c.perG) / 5
     cob += c.grams * (1 - absorbed(c, 0))
     if (nowTs - c.ts <= RECENT_TREAT_SEC && c.grams >= 10) treated = true
   }
@@ -146,10 +153,10 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
     let insulinEffect = 0
     for (const d of doses) {
       const m = (nowTs - d.ts) / 60
-      insulinEffect += d.v * (d.model.iob(m) - d.model.iob(m + h)) * seg.isf
+      insulinEffect += d.v * (d.model.iob(m) - d.model.iob(m + h)) * isfAt(d.ts)
     }
     let carbEffect = 0
-    for (const c of meals) carbEffect += c.grams * (absorbed(c, h) - absorbed(c, 0)) * perG
+    for (const c of meals) carbEffect += c.grams * (absorbed(c, h) - absorbed(c, 0)) * c.perG
     const model = latest.v - insulinEffect + carbEffect
     let v: number
     if (md === 'residual' || slope == null) {
@@ -170,8 +177,8 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
   }
   // Hosszú távú érték: a teljes még aktív inzulin és a még fel nem szívódó CH hatásával.
   let eventual = latest.v
-  for (const d of doses) eventual -= d.v * d.model.iob((nowTs - d.ts) / 60) * seg.isf
-  for (const c of meals) eventual += c.grams * (1 - absorbed(c, 0)) * perG
+  for (const d of doses) eventual -= d.v * d.model.iob((nowTs - d.ts) / 60) * isfAt(d.ts)
+  for (const c of meals) eventual += c.grams * (1 - absorbed(c, 0)) * c.perG
   const range = targetRange()
   return { latest, low: range.low, high: range.high, target: seg.target, isf: seg.isf, perG, maxBolus: t.maxBolus, eventual, iob: iobNow, cob, treated, active, at, atMode }
 }
