@@ -238,7 +238,7 @@ felszívódott(x) = 2x²              ha x &lt; 0,5
 korrekció     = (vércukor − célérték) ÷ érzékenység (mmol/L/E)</pre>
               <ul class="guide-ul">
                 <li><b>Célérték fölött</b>: a még aktív inzulin a korrekcióból vonódik le, legfeljebb nulláig; az étkezési adagból nem (a Medtronic kalkulátorok logikája).</li>
-                <li><b>Célérték alatt</b>: a korrekció negatív, és csökkenti az étkezési adagot; óvatosságból az aktív inzulin is levonódik belőle (ez szigorúbb a Medtronicnál), mert az tovább csökkenti a vércukrot.</li>
+                <li><b>Célérték alatt</b>: a korrekció negatív, és csökkenti az étkezési adagot; óvatosságból az aktív inzulin is levonódik belőle (ez szigorúbb a Medtronicnál), mert az tovább csökkenti a vércukrot. A levonás a célértéknél nulláról indul, és 1 mmol/L-rel a célérték alatt éri el a teljeset, így a javaslat a célérték körül nem ugrik.</li>
                 <li><b>Javasolt adag</b> = max(0, étkezési + korrekció − levont aktív inzulin), <b>0,5 E-re lefelé kerekítve</b>, és legfeljebb a beállított maximális dózis.</li>
                 <li><b>Vércukor</b>: a legutóbbi CGM-érték, ha 15 percnél frissebb; különben be kell írni.</li>
                 <li><b>Átmenet a napszakok között</b> (kikapcsolható): a CH-arány és az érzékenység a napszak kezdetén a beállított érték, és a következő napszak kezdetéig egyenletesen halad annak értékéig. Pl. 06:00-kor 2 g/E, 12:00-kor 4 g/E → 09:00-kor 3 g/E. A célérték mindig a napszaké. Az InPen lépcsősen számol, ezért a napszakok vége felé eltérhet.</li>
