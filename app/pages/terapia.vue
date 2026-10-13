@@ -30,21 +30,22 @@ const visible = computed(() =>
   byTimeOfDay.value ? segments.value : [...segments.value].sort((a, b) => hmToMinutes(a.start) - hmToMinutes(b.start)).slice(0, 1),
 )
 
-// Egyeztetés: az érzékenység (mmol/L/E) és a CH-arány (g/E) hányadosa megmondja, mennyit emel 1 g szénhidrát
-// (mmol/L). Felnőtteknél ez jellemzően 0,1–0,3; ennél jóval nagyobb vagy kisebb érték gyanús (az ISF vagy a CH-arány
-// elírva vagy más egységben). Nem tiltás, csak figyelmeztetés: a beállítás a diabetológus döntése.
-const RATIO_OK = [0.08, 0.35] as const
-const consistency = computed(() =>
-  visible.value
-    .map((s) => {
-      const isf = Number(s.isf)
-      const icr = Number(s.icr)
-      if (!(isf > 0) || !(icr > 0)) return null
-      const r = isf / icr
-      return r < RATIO_OK[0] || r > RATIO_OK[1] ? { start: s.start, r, isf, icr } : null
-    })
-    .filter((x): x is { start: string; r: number; isf: number; icr: number } => x != null),
-)
+// Tájékoztatás a napi összinzulinból (TDD, az utolsó 30 nap átlaga, bázissal): az ökölszabályok szerinti kiinduló
+// értékek (ISF ≈ 100 ÷ TDD mmol/L/E, CH-arány ≈ 500 ÷ TDD g/E). Nem tiltás és nem javaslat: a szabály csak kiindulópont,
+// a beállítás a diabetológus döntése. Csak akkor emeljük ki, ha az ISF több mint kétszeresen eltér a szabálytól.
+const { data: period } = await useFetch<any>('/api/agp', { query: { days: 30 }, key: 'agp-30-tdd' })
+const tdd = computed(() => {
+  const t = period.value?.totals
+  return t && t.penDays >= 3 && t.insulinPerDay > 0 ? (t.insulinPerDay as number) : null
+})
+const rule = computed(() => (tdd.value ? { isf: 100 / tdd.value, icr: 500 / tdd.value } : null))
+const isfOff = computed(() => {
+  if (!rule.value) return []
+  return visible.value
+    .filter((s) => Number(s.isf) > 0 && (Number(s.isf) > rule.value!.isf * 2 || Number(s.isf) < rule.value!.isf / 2))
+    .map((s) => s.start)
+})
+const hu = (v: number, dec = 1) => v.toLocaleString('hu-HU', { maximumFractionDigits: dec })
 
 function addSegment() {
   const last = [...segments.value].sort((a, b) => hmToMinutes(a.start) - hmToMinutes(b.start)).at(-1)!
@@ -187,10 +188,13 @@ async function save() {
           </tbody>
         </table>
       </div>
-      <p v-for="c in consistency" :key="c.start" class="notice small" role="note">
-        <b>Egyeztesd{{ byTimeOfDay ? ` (${c.start})` : '' }}:</b> az ISF {{ c.isf.toLocaleString('hu-HU') }} mmol/L/E és a CH-arány {{ c.icr.toLocaleString('hu-HU') }} g/E együtt azt jelenti,
-        hogy 1 g szénhidrát kb. {{ c.r.toLocaleString('hu-HU', { maximumFractionDigits: 2 }) }} mmol/L-t emel. Ez szokatlanul {{ c.r > RATIO_OK[1] ? 'nagy' : 'kicsi' }}
-        (jellemzően 0,1–0,3), ezért az egyik érték (vagy mindkettő) valószínűleg nem pontos. Az előrejelzés, a javaslatok és a becslések mind erre épülnek, ezért érdemes a diabetológussal átbeszélni.
+      <p v-if="rule" class="muted small">
+        Tájékoztatásul: a napi összinzulinod átlaga {{ hu(tdd!, 0) }} E (utolsó 30 nap, bázissal). Az ökölszabályok szerinti kiinduló érték ehhez
+        ISF ≈ {{ hu(rule.isf) }} mmol/L/E (100 ÷ TDD) és CH-arány ≈ {{ hu(rule.icr) }} g/E (500 ÷ TDD). Ezek csak kiindulópontok, a saját értékeid ettől eltérhetnek.
+      </p>
+      <p v-if="isfOff.length" class="notice small" role="note">
+        <b>Egyeztesd:</b> az ISF{{ byTimeOfDay ? ` (${isfOff.join(', ')})` : '' }} több mint kétszeresen eltér a napi összinzulinodból számolt kiinduló értéktől.
+        Az előrejelzés és a javaslatok erre épülnek, ezért érdemes a diabetológussal átbeszélni.
       </p>
       <p v-if="byTimeOfDay" class="muted small">Minden napszak a következő kezdetéig tart, az utolsó éjfélen át az elsőig. Mentéskor időrendbe kerülnek.
         Ha egy napszakhoz külön inzulinhatás-időt adsz meg, a napi grafikonon az abban beadott bólusok hatásgörbéje ezzel rajzolódik; „közös” esetén a fenti érték érvényes.</p>
