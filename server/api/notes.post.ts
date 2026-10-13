@@ -1,4 +1,5 @@
 // Új jegyzet: időpont (YYYY-MM-DD + HH:MM, az app időzónájában), címkék, szöveg.
+import { markDirty } from '../utils/computed'
 import { db } from '../utils/db'
 import { zonedToTs } from '../utils/normalize'
 
@@ -26,5 +27,6 @@ export default defineEventHandler(async (event) => {
   }
   const info = db().prepare('INSERT INTO notes (ts, tags, text, created_at) VALUES (?, ?, ?, ?)')
     .run(ts, tags.join(','), text, Math.floor(Date.now() / 1000))
+  markDirty()
   return { ok: true, id: Number(info.lastInsertRowid) }
 })

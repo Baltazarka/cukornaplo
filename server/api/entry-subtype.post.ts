@@ -1,4 +1,5 @@
 // Egy inzulinbejegyzés típusának kézi átállítása: étkezési bólus / korrekció / bázis, vagy üres = automatikus.
+import { markDirty } from '../utils/computed'
 import { db } from '../utils/db'
 
 export default defineEventHandler(async (event) => {
@@ -14,5 +15,6 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 404)
     return { ok: false, error: 'Nincs ilyen inzulinbejegyzés.' }
   }
+  markDirty()
   return { ok: true }
 })

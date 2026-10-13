@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto'
 import type { H3Event } from 'h3'
 import { parseTextLines, parseJsonPayload, recordIngest, setBasalDose, type Parsed } from './normalize'
 import { storeRows } from './db'
+import { markDirty } from './computed'
 
 function safeEqual(a: string, b: string): boolean {
   const ab = Buffer.from(a)
@@ -105,6 +106,8 @@ export async function handleIngest(event: H3Event) {
   const firstLine = lines.length ? lines[0].slice(0, 120) : null
 
   const [inserted, duplicates] = storeRows(parsed.rows)
+  // Az új inzulin / CH az elemzéseket érinti (a szenzorértékek nem: azok a napi frissítéssel kerülnek be).
+  if (inserted > 0 && parsed.rows.some((r) => r.type !== 'glucose')) markDirty()
   recordIngest('api', inserted, duplicates, parsed.errors, received, firstLine)
 
   const response: Record<string, any> = {

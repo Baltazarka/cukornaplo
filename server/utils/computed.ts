@@ -10,21 +10,44 @@ export interface Computed<T> {
   at: number
 }
 
+/**
+ * A számolás (algoritmus) változata: ha a kód változik, és a tárolt eredmény régebbi változatú, nem használjuk
+ * (újraszámolódik). Az elemzéseket / előrejelzés-tesztet érintő kódváltoztatásnál növeld.
+ */
+export const COMPUTE_VERSION = 2
+
 const inflight = new Set<string>()
+const DIRTY_KEY = 'meta:dirty'
 
 export function readComputed<T>(key: string): Computed<T> | null {
   const row = db().prepare('SELECT at, json FROM computed_cache WHERE key = ?').get(key) as { at: number; json: string } | undefined
   if (!row) return null
   try {
-    return { data: JSON.parse(row.json) as T, at: Number(row.at) }
+    const o = JSON.parse(row.json) as { __v?: number; data?: T }
+    if (o?.__v !== COMPUTE_VERSION) return null // régi kódverzióval készült: nem használjuk
+    return { data: o.data as T, at: Number(row.at) }
   } catch {
     return null
   }
 }
 
+/**
+ * Jelzi, hogy a mért adat / jelölés megváltozott (kézi bejegyzés, törlés, típusátállítás, import stb.): az ennél
+ * régebbi tárolt eredmények a következő olvasáskor a háttérben újraszámolódnak (addig a régit adjuk).
+ * Az új szenzormérések nem érvénytelenítenek: azok a napi / éjszakai frissítéssel kerülnek be.
+ */
+export function markDirty(): void {
+  db().prepare('INSERT OR REPLACE INTO computed_cache (key, at, json) VALUES (?, ?, ?)').run(DIRTY_KEY, Math.floor(Date.now() / 1000), '{}')
+}
+
+function dirtyAt(): number {
+  const row = db().prepare('SELECT at FROM computed_cache WHERE key = ?').get(DIRTY_KEY) as { at: number } | undefined
+  return row ? Number(row.at) : 0
+}
+
 export function storeComputed<T>(key: string, data: T): Computed<T> {
   const at = Math.floor(Date.now() / 1000)
-  db().prepare('INSERT OR REPLACE INTO computed_cache (key, at, json) VALUES (?, ?, ?)').run(key, at, JSON.stringify(data))
+  db().prepare('INSERT OR REPLACE INTO computed_cache (key, at, json) VALUES (?, ?, ?)').run(key, at, JSON.stringify({ __v: COMPUTE_VERSION, data }))
   return { data, at }
 }
 
@@ -42,7 +65,8 @@ export function computeNow<T>(key: string, fn: () => T): Computed<T> {
 export function getComputed<T>(key: string, ttlSec: number, fn: () => T): Computed<T> {
   const row = readComputed<T>(key)
   if (!row) return computeNow(key, fn)
-  if (Math.floor(Date.now() / 1000) - row.at > ttlSec && !inflight.has(key)) {
+  const now = Math.floor(Date.now() / 1000)
+  if ((now - row.at > ttlSec || row.at < dirtyAt()) && !inflight.has(key)) {
     inflight.add(key)
     setTimeout(() => {
       try {

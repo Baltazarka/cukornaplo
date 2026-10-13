@@ -1,4 +1,5 @@
 // Egy inzulin-, szénhidrát- vagy kézi vércukor-bejegyzés törlése a naplóból (a szenzor mérései nem törölhetők).
+import { markDirty } from '../utils/computed'
 import { deleteEntry } from '../utils/db'
 
 export default defineEventHandler(async (event) => {
@@ -12,5 +13,6 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 404)
     return { ok: false, error: 'Nincs ilyen törölhető bejegyzés.' }
   }
+  markDirty()
   return { ok: true }
 })

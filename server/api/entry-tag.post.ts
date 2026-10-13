@@ -1,6 +1,7 @@
 // Szénhidrát-bejegyzés jelölése: „zsíros / fehérjedús” (subtype = 'fatty'), „gyors CH” (subtype =
 // 'fast', pl. hipó kezelése, gyümölcslé), vagy jelölés nélkül. A zsíros étkezések külön látszanak az
 // elemzésben és kimaradnak a CH-arány becsléséből; a gyors CH a bázisellenőrzésben rövidebb ideig zavar.
+import { markDirty } from '../utils/computed'
 import { db } from '../utils/db'
 
 export default defineEventHandler(async (event) => {
@@ -16,5 +17,6 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 404)
     return { ok: false, error: 'Nincs ilyen szénhidrát-bejegyzés.' }
   }
+  markDirty()
   return { ok: true }
 })

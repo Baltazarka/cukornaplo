@@ -116,7 +116,7 @@ export function normalizeRow(
   let sub: string | null = null
   if (t === 'insulin' && subtype !== '') {
     const st = stripAccents(subtype).toLowerCase()
-    if (st.includes('bas') || st.includes('alap') || st === '1') sub = 'basal'
+    if (st.includes('bas') || st.includes('baz') || st.includes('alap') || st === '1') sub = 'basal'
     else if (st.includes('bol') || st === '2') sub = 'bolus'
   }
 

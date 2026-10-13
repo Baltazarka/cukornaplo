@@ -4,6 +4,8 @@
 //   (inzulin) vagy fatty | fast (CH), force?: true }
 // Ha 30 percen belül már van ugyanilyen típusú bejegyzés, 409-cel visszaszól (force: true-val mégis
 // felveszi). Ha az InPen / Health később ugyanezt az adagot küldi, a kézi sor beolvad (db.ts storeRows).
+import { markDirty } from '../utils/computed'
+import { isAssumedBasal } from '../utils/basal'
 import { db, MANUAL_SOURCE, MANUAL_MATCH_SEC } from '../utils/db'
 import { zonedToTs } from '../utils/normalize'
 import { hmInTz, ymdInTz } from '../utils/time'
@@ -38,7 +40,9 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 400)
     return { ok: false, error: `A mennyiség ${lim.min}–${lim.max} ${lim.unit} lehet.` }
   }
-  const sub = (SUBS[type] as readonly string[]).includes(body.sub) ? String(body.sub) : null
+  let sub = (SUBS[type] as readonly string[]).includes(body.sub) ? String(body.sub) : null
+  // Típus nélküli, a beállított bázisadaggal egyező inzulin bázis (mint az adatfogadásnál).
+  if (type === 'insulin' && sub === null && isAssumedBasal(value, null)) sub = 'basal'
 
   const [y, mo, d] = date.split('-').map(Number)
   const [h, mi] = time.split(':').map(Number)
@@ -75,5 +79,6 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 409)
     return { ok: false, error: 'Pontosan ilyen bejegyzés (időpont és mennyiség) már van.' }
   }
+  markDirty()
   return { ok: true, id: Number(info.lastInsertRowid) }
 })

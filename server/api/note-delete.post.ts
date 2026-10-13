@@ -1,4 +1,5 @@
 // Jegyzet törlése.
+import { markDirty } from '../utils/computed'
 import { db } from '../utils/db'
 
 export default defineEventHandler(async (event) => {
@@ -8,5 +9,6 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 404)
     return { ok: false, error: 'Nincs ilyen jegyzet.' }
   }
+  markDirty()
   return { ok: true }
 })
