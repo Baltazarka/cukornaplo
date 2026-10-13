@@ -106,7 +106,7 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
   const perG = seg.isf / seg.icr // mmol/L / g szénhidrát
   const carbRows = db()
     .prepare("SELECT ts, value, subtype FROM entries WHERE type = 'carbs' AND ts >= ? AND ts <= ? ORDER BY ts")
-    .all(nowTs - 6 * 3600, nowTs) as { ts: number; value: number; subtype: string | null }[]
+    .all(nowTs - 8 * 3600, nowTs) as { ts: number; value: number; subtype: string | null }[]
   const doses = rapidDoses(t, nowTs, nowTs + 1, carbRows.map((c) => Number(c.ts)))
 
   let insulinRate = 0
