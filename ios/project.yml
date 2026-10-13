@@ -1,0 +1,29 @@
+# XcodeGen leírás: a GitHub Actions ebből generálja az Xcode-projektet (nincs szükség Macre).
+name: CukornaploAlarm
+options:
+  bundleIdPrefix: hu.cukornaplo
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  CukornaploAlarm:
+    type: application
+    platform: iOS
+    sources:
+      - CukornaploAlarm
+      - Resources
+    info:
+      path: CukornaploAlarm/Info.plist
+      properties:
+        CFBundleDisplayName: Cukor riasztó
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        UIBackgroundModes: [audio]
+        UILaunchScreen: {}
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: hu.cukornaplo.alarm
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
