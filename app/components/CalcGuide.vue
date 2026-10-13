@@ -306,10 +306,11 @@ becslés(t) = (modell(t) · w + trend(t)) ÷ (w + 1),   w = 0,1 · 2,5^(t / 5 pe
               <p>Napszakonként legalább 3 tiszta esemény kell a becsléshez, 5 a megbízhatóhoz; a végeredmény a medián.</p>
               <h4>Hatásidő és érzékenység (ISF) – tiszta korrekciókból</h4>
               <ul class="guide-ul">
-                <li><b>Tiszta korrekció</b>: 1 órával előtte és utána a beadás napszakára beállított hatásidőig nincs CH, más bólus, sem sport-, betegség- vagy alkohol-jegyzet; ebben az ablakban legalább 70%-ban van szenzoradat; legalább 1 mmol/L-t esett. Ha utána sem jön étel vagy bólus, a görbét legfeljebb 6 óráig, az első ilyen eseményig tovább használjuk (a hatásidő illesztéséhez).</li>
+                <li><b>Tiszta korrekció</b>: 1 órával előtte és utána a beadás napszakára beállított hatásidőig nincs CH, más bólus, sem sport-, betegség- vagy alkohol-jegyzet; a korábbi étkezés CH-ja már felszívódott (normál 4, zsíros 6, gyors 2 óra), a korábbi bólusok még ható maradéka legfeljebb a korrekció 15%-a (de legalább 0,25 E), és a kezdő vércukor nem változik gyorsan (1 nyíl alatt); ebben az ablakban legalább 70%-ban van szenzoradat; legalább 1 mmol/L-t esett. Ha utána sem jön étel vagy bólus, a görbét legfeljebb 6 óráig, az első ilyen eseményig tovább használjuk (a hatásidő illesztéséhez).</li>
                 <li>Minden korrekció esését 1 egységre vetítjük (esés ÷ adag), és 5 percenként vesszük a korrekciók mediánját.</li>
                 <li>Erre illesztjük a fenti inzulinmodellt: hatásidő 2 órától a Terápia oldalon kiválasztott bólusinzulin alkalmazási előírás szerinti leghosszabb hatásidejéig (NovoRapid: 5 óra), 15 percenként; csúcs 40–120 perc (5 percenként, legfeljebb a hatásidő 40%-a). Minden párra az esés nagysága zárt alakban adódik: <code class="guide-f">esés(t) ≈ ISF × (1 − aktív(t))</code>, a legkisebb négyzetek módszerével; a legkisebb eltérésű pár nyer. Az amplitúdó az ISF.</li>
                 <li><b>Nem megbízható</b>, ha határ nélkül hosszabb hatásidő illene jobban, vagyis a vércukor az inzulin leghosszabb hatásidején túl is esett. Ezt az inzulin nem magyarázza (inkább a bázis vagy más tényező), ezért ilyenkor a hatásidő és az érzékenység nem kerül át a szerkesztőbe.</li>
+                <li><b>A görbe vége</b>: ahol az események felénél (de legalább 3 eseménynél) kevesebbnél van adat, ott a medián nem számít bele az illesztésbe. Ha az így megmaradó görbe rövidebb, mint az illesztett hatásidő (30 percnél jobban), az ISF és a hatásidő <b>nem megbízható</b>: a görbe vége kevés (főleg éjszakai) eseményből állna.</li>
                 <li><b>Napszakhatár</b>: minden esemény a beadás (étkezés) időpontjának napszakához tartozik, akkor is, ha a hatása átnyúlik a következőbe; a hatásidő is a beadás napszakáé.</li>
               </ul>
               <h4>CH-arány – tiszta étkezésekből</h4>
@@ -325,6 +326,12 @@ CH-arány = szénhidrát ÷ étkezésre jutó inzulin</pre>
                 Vagyis: ha a végpontban magasabb vagy, több inzulin kellett volna (kisebb g/E), ha alacsonyabb, kevesebb. Az ISF itt a
                 beállított érték, ezért ha az ISF rossz, a CH-arány becslése is torz – előbb az ISF-et érdemes rendbe tenni.
                 Zsíros étkezések nem számítanak; 0,2 E-nél kisebb eredményt kihagyunk.
+              </p>
+              <p>
+                <b>Megbízhatóság</b>: ha a tiszta étkezések legalább felénél a vércukor a végpont előtti fél órában még több mint
+                0,6 mmol/L-t emelkedik, a szénhidrát nem szívódott fel teljesen, és a CH-arány túl nagy (kevés inzulin) lehet:
+                ilyenkor „még emelkedik” jelzést kap, és a „Becslések beírása” nem veszi át. Azt a CH-arányt sem veszi át, amelyik
+                mellett az ISF is több mint 10%-kal változna, mert a CH-arány a régi ISF-fel készült. Zsíros / fehérjedús étkezésnél a végpont 6 óra.
               </p>
               <p>
                 A <b>tiszta étkezések görbéje</b> napszakonként mutatja a vércukor változását a kezdő értékhez képest (medián,

@@ -24,6 +24,11 @@ const MIN_COVERAGE = 0.7 // a vizsgált ablak legalább 70%-ában legyen szenzor
 const MIN_DROP = 1 // mmol/L: ennél kisebb esésből nem becsülünk hatásidőt
 const CLEAN_PRE_MIN = 60 // tiszta étkezés: az étkezés / saját bólus előtt 1 óráig nincs más bólus
 const STEEP_RATE = 0.11 // mmol/L/perc (2 nyíl): ilyen gyorsan változó kezdő vércukornál nem tiszta az étkezés
+/** Tiszta korrekció: a korábbi bólusok még ható maradéka legfeljebb ennyi E, de legalább a korrekció ennyi hányada. */
+const CORR_LEFTOVER_MIN_E = 0.25
+const CORR_LEFTOVER_FRAC = 0.15
+/** A CH-arány megbízhatatlan, ha a medián görbe a végpont előtti 30 percben ennyi mmol/L-nél többet még emelkedik. */
+const ICR_RISING = 0.6
 /** Ezek a jegyzetek erősen befolyásolják az érzékenységet: az ablakban nem tiszta az esemény. */
 const DISTURBING_TAGS = ['sport', 'betegseg', 'alkohol']
 /** A felszívódási görbe rácsa: percenként 15-ös lépés 0-tól 360-ig. */
@@ -111,6 +116,8 @@ export interface MealEvent {
   endMin: number
   /** Vércukor-eltérés a végpontban a kezdőhöz képest. */
   dEnd: number | null
+  /** A vércukor változása a végpont előtti 30 percben (mmol/L): pozitív, ha még emelkedik. */
+  endRise: number | null
   /** Az ablakban (étkezéstől a végpontig) ténylegesen hatott inzulin, E: a saját bólus és az előző bólusok maradéka. */
   acted: number
   /** Gyors CH-nak jelölve: a CH-arány becslésében marad, csak a darabszám miatt tartjuk számon. */
@@ -225,7 +232,8 @@ export function analyze(from: number, to: number) {
     // A CH-arány végpontja: a napszak hatásideje, de legalább 4 (és legfeljebb 6) óra, hogy a bólus
     // a végére kifusson. Tiszta: 1 órával az étkezés / saját bólus előtt és a végpontig nincs más bólus,
     // 2 órával előtte és a végpontig nincs más CH, nincs zavaró jegyzet, és a kezdő vércukor nem változik gyorsan.
-    const endMin = Math.min(FATTY_WINDOW_MIN, Math.max(MEAL_WINDOW_MIN, diaAt(g.ts)))
+    // A zsíros / fehérjedús étkezésnél a késői emelkedés miatt a teljes 6 órás ablak a végpont.
+    const endMin = g.fatty ? FATTY_WINDOW_MIN : Math.min(FATTY_WINDOW_MIN, Math.max(MEAL_WINDOW_MIN, diaAt(g.ts)))
     const tEnd = g.ts + endMin * 60
     const startTs = Math.min(g.ts, firstBolus ?? g.ts)
     const otherBolus = boluses.some((b) => !own.has(b) && b.ts >= startTs - CLEAN_PRE_MIN * 60 && b.ts <= tEnd)
@@ -238,6 +246,9 @@ export function analyze(from: number, to: number) {
       .filter((b) => b.ts <= tEnd && b.ts > g.ts - diaAt(b.ts) * 60)
       .reduce((a, b) => a + actedIn(b, g.ts, tEnd), 0)
     const vEnd = values[(MEAL_PRE_MIN + endMin) / STEP] ?? null
+    // Emelkedik-e még a végpontban (a CH nem szívódott fel teljesen): változás az utolsó 30 percben.
+    const vEnd30 = values[(MEAL_PRE_MIN + endMin - 30) / STEP] ?? null
+    const endRise = vEnd != null && vEnd30 != null ? vEnd - vEnd30 : null
     let peak = -Infinity
     let peakMin = 0
     let min = Infinity
@@ -299,6 +310,7 @@ export function analyze(from: number, to: number) {
       fatty: g.fatty,
       endMin,
       dEnd: vEnd != null ? r2(vEnd - startBG) : null,
+      endRise: endRise != null ? r2(endRise) : null,
       acted: r2(acted),
       fast: g.fast && !g.fatty,
       d6h: d6h != null ? r1(d6h) : null,
@@ -321,8 +333,21 @@ export function analyze(from: number, to: number) {
     if (boluses.some((x) => x !== b && x.ts >= pre && x.ts <= cleanEnd)) continue
     if (carbs.some((c) => c.ts >= pre && c.ts <= cleanEnd)) continue
     if (disturbed(pre, cleanEnd)) continue
+    // Korábbi étkezés még felszívódó CH-ja és korábbi bólusok még ható maradéka sem torzíthat: a 60 perces
+    // előzmény kevés (egy 1–3 órával korábbi étkezési bólus maradéka több E lehet, mint maga a korrekció).
+    const carbBefore = carbs.some((c) => c.ts < b.ts && b.ts - c.ts < (c.fatty ? FATTY_WINDOW_MIN : c.fast ? FAST_WINDOW_MIN : MEAL_WINDOW_MIN) * 60)
+    if (carbBefore) continue
+    const leftover = boluses.reduce((a, x) => {
+      if (x === b || x.ts >= b.ts) return a
+      const m = modelOf(x.ts)
+      return a + x.v * m.iob((b.ts - x.ts) / 60)
+    }, 0)
+    if (leftover > Math.max(CORR_LEFTOVER_MIN_E, CORR_LEFTOVER_FRAC * b.v)) continue
     const startBG = sample(b.ts)
     if (startBG == null) continue
+    // Gyorsan változó kezdő vércukornál (sodródás, ráemelkedés) a „tiszta” esés nem értelmezhető.
+    const bgBefore = sample(b.ts - 900)
+    if (bgBefore != null && Math.abs(startBG - bgBefore) / 15 >= STEEP_RATE) continue
     // A következő étkezés vagy bólus (a hatásidő után): onnantól a görbe már nem tiszta.
     const nextEvent = Math.min(
       ...boluses.filter((x) => x !== b && x.ts > cleanEnd).map((x) => x.ts),
@@ -375,6 +400,10 @@ export function analyze(from: number, to: number) {
       }
     }
     const icrEst = icrValues.length >= MIN_EVENTS ? r1(median(icrValues)!) : null
+    // Megbízhatatlan, ha a tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH ilyenkor nem
+    // szívódott fel teljesen, és a CH-arány túl nagynak (kevés inzulin) jönne ki.
+    const risingN = cleanCarbMeals.filter((m) => (m.endRise ?? 0) > ICR_RISING).length
+    const icrRising = cleanCarbMeals.length > 0 && risingN * 2 >= cleanCarbMeals.length
     allIcr.push(...icrValues)
 
     return {
@@ -396,8 +425,8 @@ export function analyze(from: number, to: number) {
       estimate: {
         // Ha az illesztés az inzulin leghosszabb hatásidején akadt meg, más is csökkentette a
         // vércukrot (pl. bázis): az érzékenység és a hatásidő ilyenkor nem megbízható.
-        isf: actionFit ? { value: actionFit.isf, n: actionFit.n, unreliable: actionFit.atLimit } : null,
-        icr: icrEst != null ? { value: icrEst, n: icrValues.length } : null,
+        isf: actionFit ? { value: actionFit.isf, n: actionFit.n, unreliable: actionFit.unreliable } : null,
+        icr: icrEst != null ? { value: icrEst, n: icrValues.length, unreliable: icrRising, rising: risingN } : null,
         action: actionFit,
       },
     }
@@ -410,8 +439,8 @@ export function analyze(from: number, to: number) {
   const overall = {
     counts: { cleanCorrections: corrections.length, cleanMeals: allIcr.length },
     estimate: {
-      isf: overallFit ? { value: overallFit.isf, n: overallFit.n, unreliable: overallFit.atLimit } : null,
-      icr: allIcr.length >= MIN_EVENTS ? { value: r1(median(allIcr)!), n: allIcr.length } : null,
+      isf: overallFit ? { value: overallFit.isf, n: overallFit.n, unreliable: overallFit.unreliable } : null,
+      icr: allIcr.length >= MIN_EVENTS ? { value: r1(median(allIcr)!), n: allIcr.length, unreliable: false, rising: 0 } : null,
       action: overallFit,
     },
   }
@@ -517,9 +546,16 @@ function mealSummary(meals: MealEvent[]) {
   }
 }
 
-/** Az egységnyi esési görbék mediánja 5 percenként. */
+/**
+ * Az egységnyi esési görbék mediánja 5 percenként. Ahol az események felénél kevesebbnél (de legalább
+ * MIN_EVENTS-nél) van adat, ott nincs érték: a görbe vége kevés (főleg éjszakai) eseményből torzítaná az illesztést.
+ */
 function medianCurve(events: CorrectionEvent[]): (number | null)[] {
-  return events[0].perUnit.map((_, i) => median(events.map((e) => e.perUnit[i]).filter((x): x is number => x != null)))
+  const need = Math.min(events.length, Math.max(MIN_EVENTS, Math.ceil(events.length / 2)))
+  return events[0].perUnit.map((_, i) => {
+    const v = events.map((e) => e.perUnit[i]).filter((x): x is number => x != null)
+    return v.length >= need ? median(v) : null
+  })
 }
 
 /**
@@ -554,7 +590,15 @@ function fitAction(events: CorrectionEvent[], maxDia: number) {
   }
   // atLimit: határ nélkül hosszabb hatásidő illene jobban, vagyis a vércukor a határon túl is esett.
   const atLimit = !!free && free.dia > maxDia
-  return best && { peak: best.peak, dia: best.dia, isf: r1(best.isf), rmse: r2(best.err), n: events.length, maxDia, atLimit }
+  // A görbe tényleges (elég eseménnyel alátámasztott) hossza: ha rövidebb a hatásidőnél, a hatásidő és az ISF
+  // sem eldönthető belőle.
+  const last = med.findLastIndex((v) => v != null)
+  const spanMin = last < 0 ? 0 : last * STEP
+  const short = !!best && spanMin < best.dia - 30
+  return best && {
+    peak: best.peak, dia: best.dia, isf: r1(best.isf), rmse: r2(best.err), n: events.length, maxDia, atLimit,
+    spanMin, short, unreliable: atLimit || short,
+  }
 }
 
 /**

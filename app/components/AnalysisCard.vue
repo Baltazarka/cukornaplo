@@ -38,13 +38,21 @@ const quality = (n: number) => (n >= GOOD ? 'megbízható' : n >= MIN ? 'előzet
 // A felső határon akadt illesztés (a vércukor az inzulin leghosszabb hatásidején túl is esett) nem
 // megbízható: az érzékenységet és a hatásidőt ilyenkor nem írjuk be a szerkesztőbe.
 const reliableIsf = (s: any) => (s.estimate.isf && !s.estimate.isf.unreliable ? s.estimate.isf.value : undefined)
-const reliableDia = (s: any) => (s.estimate.action && !s.estimate.action.atLimit ? s.estimate.action.dia : undefined)
-const hasEstimate = computed(() => a.value?.segments.some((s: any) => reliableIsf(s) != null || s.estimate.icr || reliableDia(s) != null))
+const reliableDia = (s: any) => (s.estimate.action && !s.estimate.action.unreliable ? s.estimate.action.dia : undefined)
+// A CH-arány csak akkor átvehető, ha nem emelkedik még a végpontban, és az ISF-et sem írjuk át egyszerre (az ICR a régi ISF-fel készült).
+const reliableIcr = (s: any) => {
+  if (!s.estimate.icr || s.estimate.icr.unreliable) return undefined
+  const newIsf = reliableIsf(s)
+  const cur = s.therapy?.isf
+  if (newIsf != null && cur && Math.abs(newIsf - cur) / cur > 0.1) return undefined
+  return s.estimate.icr.value
+}
+const hasEstimate = computed(() => a.value?.segments.some((s: any) => reliableIsf(s) != null || reliableIcr(s) != null || reliableDia(s) != null))
 function apply() {
   emit('apply', a.value.segments.map((s: any) => ({
     start: s.start,
     isf: reliableIsf(s),
-    icr: s.estimate.icr?.value,
+    icr: reliableIcr(s),
     actionMinutes: reliableDia(s),
   })))
 }
@@ -137,7 +145,7 @@ const actYTicks = computed(() => {
         <div class="segmented" role="group" aria-label="Időszak">
           <button v-for="d in PERIODS" :key="d" type="button" :aria-pressed="days === d" @click="setDays(d)">{{ d }} nap</button>
         </div>
-        <span class="muted small">szenzoradat {{ fmt(a.coverage, 0) }}%</span>
+        <span class="muted small">szenzoradat az időszak {{ fmt(a.coverage, 0) }}%-ában</span>
       </div>
     </div>
     <RecomputeBar :at="a.computedAt" kind="analysis" :days="days" @done="refresh()" />
@@ -178,13 +186,14 @@ const actYTicks = computed(() => {
             </td>
             <td class="num">
               <span class="muted">{{ fmt(s.therapy?.icr) }} →</span>
-              <b v-if="s.estimate.icr">{{ fmt(s.estimate.icr.value) }}</b><span v-else class="muted">?</span>
+              <b v-if="s.estimate.icr" :class="{ 'est-bad': s.estimate.icr.unreliable }">{{ fmt(s.estimate.icr.value) }}</b><span v-else class="muted">?</span>
+              <small v-if="s.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">még emelkedik</small>
               <small class="est-q">{{ quality(s.counts.cleanMeals) }}</small>
             </td>
             <td class="num">
               <span class="muted">{{ s.therapy ? actionLabel(s.therapy.actionMinutes) : '–' }} →</span>
-              <b v-if="s.estimate.action" :class="{ 'est-bad': s.estimate.action.atLimit }">{{ s.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(s.estimate.action.dia) }}</b><span v-else class="muted">?</span>
-              <small class="est-q">{{ s.estimate.action?.atLimit ? 'nem megbízható' : quality(s.counts.cleanCorrections) }}</small>
+              <b v-if="s.estimate.action" :class="{ 'est-bad': s.estimate.action.unreliable }">{{ s.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(s.estimate.action.dia) }}</b><span v-else class="muted">?</span>
+              <small class="est-q">{{ s.estimate.action?.unreliable ? 'nem megbízható' : quality(s.counts.cleanCorrections) }}</small>
             </td>
           </tr>
           <tr v-if="showOverall" class="overall-row">
@@ -204,8 +213,8 @@ const actYTicks = computed(() => {
               <small class="est-q">{{ quality(overall.counts.cleanMeals) }}</small>
             </td>
             <td class="num">
-              <b v-if="overall.estimate.action" :class="{ 'est-bad': overall.estimate.action.atLimit }">{{ overall.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(overall.estimate.action.dia) }}</b><span v-else class="muted">?</span>
-              <small class="est-q">{{ overall.estimate.action?.atLimit ? 'nem megbízható' : quality(overall.counts.cleanCorrections) }}</small>
+              <b v-if="overall.estimate.action" :class="{ 'est-bad': overall.estimate.action.unreliable }">{{ overall.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(overall.estimate.action.dia) }}</b><span v-else class="muted">?</span>
+              <small class="est-q">{{ overall.estimate.action?.unreliable ? 'nem megbízható' : quality(overall.counts.cleanCorrections) }}</small>
             </td>
           </tr>
         </tbody>
