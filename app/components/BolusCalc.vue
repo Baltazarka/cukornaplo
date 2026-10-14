@@ -116,10 +116,7 @@ function clearInputs() {
 const resetTick = useState<number>('bolus-reset', () => 0)
 watch(resetTick, clearInputs)
 
-// --- Átvitel a Guardian appba: beírás után a CH és az adag egy sorban, mellette a Guardian app nyitógombja ---
-/** Ilyen nevű iOS Parancs nyitja meg a Guardian appot (webappból közvetlenül nem nyitható meg). */
-const GUARDIAN_SHORTCUT = 'Guardian'
-const guardianUrl = `shortcuts://run-shortcut?name=${encodeURIComponent(GUARDIAN_SHORTCUT)}`
+// --- Átvitel a Guardian appba: beírás után a CH és az adag egy sorban (GuardianLine) ---
 const lastLogged = ref<{ carbs: number | null; dose: number | null } | null>(null)
 // Új számolás kezdetén a sor eltűnik.
 watch(carbs, (v) => { if (v.trim() !== '') lastLogged.value = null })
@@ -252,13 +249,7 @@ const trendText = computed(() => {
         <p class="muted">Az adag a mostani időponttal kerül be. Írd át a tényleg beadott mennyiségre, ha eltér a javasolttól. Ha az InPen később ugyanezt az adagot küldi, a két bejegyzés összeolvad.</p>
       </div>
 
-      <div v-if="lastLogged" class="bc-guardian">
-        <span>Guardianbe:
-          <b v-if="lastLogged.carbs">{{ fmt(lastLogged.carbs, 0) }} g CH</b><template v-if="lastLogged.carbs && lastLogged.dose"> · </template><b v-if="lastLogged.dose">{{ fmt(lastLogged.dose) }} E</b>
-        </span>
-        <a class="btn sm" :href="guardianUrl" title="A Telefon oldalon leírt „Guardian” Parancsot futtatja">Guardian megnyitása</a>
-        <button type="button" class="link-btn" aria-label="Bezárás" @click="lastLogged = null">✕</button>
-      </div>
+      <GuardianLine v-if="lastLogged" :carbs="lastLogged.carbs" :dose="lastLogged.dose" @close="lastLogged = null" />
 
       <div v-if="result" class="bc-warn small">
         <p v-if="low" class="alert">Alacsony a vércukor: előbb kezeld gyors szénhidráttal. Étkezési bólust csak rendeződés után adj.</p>

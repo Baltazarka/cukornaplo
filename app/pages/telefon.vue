@@ -304,9 +304,9 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
     </section>
 
     <section class="card">
-      <h2>Guardian app megnyitása a bóluskalkulátorból</h2>
+      <h2>Guardian app megnyitása beírás után</h2>
       <p class="muted small">
-        A kalkulátorban a naplóba írás után egy sorban látszik a CH és az adag, mellette a <b>Guardian megnyitása</b> gomb,
+        A bóluskalkulátorban és a naplóban a CH vagy az inzulin beírása után egy sorban látszik a beírt érték, mellette a <b>Guardian megnyitása</b> gomb,
         hogy a Guardian appba is felvihesd. A webapp a Guardian appot csak egy Parancson keresztül tudja megnyitni:
       </p>
       <ol class="steps">

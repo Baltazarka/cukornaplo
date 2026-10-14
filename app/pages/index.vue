@@ -184,8 +184,11 @@ const entryForm = ref<{ type: 'insulin' | 'carbs' | 'glucose'; date: string; tim
 const entryError = ref('')
 useToastFrom(entryError, 'error')
 const entrySaving = ref(false)
+// A legutóbb felvett CH vagy inzulin, hogy a Guardian appba is felvihesd (GuardianLine).
+const lastGuardian = ref<{ carbs: number | null; dose: number | null; time: string } | null>(null)
 function openEntryForm(type: 'insulin' | 'carbs' | 'glucose') {
   noteForm.value = null
+  lastGuardian.value = null
   // Alapból a megnézett nap, de átírható (pl. tegnapi adag utólagos felvétele).
   const date = data.value?.day ?? ''
   entryForm.value = { type, date, time: date === data.value?.today ? defaultTime() : '12:00', value: '', sub: '' }
@@ -198,6 +201,12 @@ async function saveEntry(force = false) {
   try {
     await $fetch('/api/entry-add', { method: 'POST', body: { ...f, force } })
     entryForm.value = null
+    if (f.type !== 'glucose') {
+      const v = Number(f.value.replace(',', '.'))
+      // Másik napra vett bejegyzésnél a dátum is kell, hogy a Guardianben is oda kerüljön.
+      const time = f.date && f.date !== data.value!.today ? `${f.date.slice(5).replace('-', '.')}. ${f.time}` : f.time
+      lastGuardian.value = { carbs: f.type === 'carbs' ? v : null, dose: f.type === 'insulin' ? v : null, time }
+    }
     // Másik napra vett bejegyzésnél oda ugrunk, hogy látszódjon.
     if (f.date && f.date !== data.value!.day) go(f.date)
     else await refresh()
@@ -309,6 +318,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
             <button type="button" class="ghost sm" @click="openNoteForm">+ Jegyzet</button>
           </div>
         </div>
+        <GuardianLine v-if="lastGuardian && !entryForm" v-bind="lastGuardian" @close="lastGuardian = null" />
         <form v-if="entryForm" class="note-form" @submit.prevent="saveEntry()">
           <b class="small">{{ entryForm.type === 'insulin' ? 'Inzulin felvétele' : entryForm.type === 'carbs' ? 'Szénhidrát felvétele' : 'Vércukor felvétele (kézi mérés)' }}</b>
           <div class="note-form-row">
