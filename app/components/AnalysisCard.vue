@@ -178,6 +178,7 @@ const actYTicks = computed(() => {
             </td>
             <td>
               <div class="gather"><span class="gather-bar"><i :style="{ width: pct(s.counts.cleanMeals) }" /></span>{{ count(s.counts.cleanMeals) }}</div>
+              <small v-if="s.counts.truncatedMeals" class="muted" title="Ezeknél az étkezést 3 óra után megzavarta valami (korrekció, ráevés, hipó kezelése): csak a zavarásig számít, a már felszívódott CH-val.">ebből {{ s.counts.truncatedMeals }} rövidített</small>
             </td>
             <td class="num">
               <span class="muted">{{ fmt(s.therapy?.isf) }} →</span>

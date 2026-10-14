@@ -8,6 +8,7 @@ import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from './insulinKind'
 import { notesBetween } from './notes'
 import { targetRange } from './range'
 import { minuteOfDayInTz, ymdInTz } from './time'
+import { defaultFraction, defaultTotalMin } from './absorption'
 
 /** Ennyi tiszta esemény kell egy napszakban a becsléshez, illetve a megbízható becsléshez. */
 export const MIN_EVENTS = 3
@@ -29,6 +30,11 @@ const CORR_LEFTOVER_MIN_E = 0.25
 const CORR_LEFTOVER_FRAC = 0.15
 /** A CH-arány megbízhatatlan, ha a medián görbe a végpont előtti 30 percben ennyi mmol/L-nél többet még emelkedik. */
 const ICR_RISING = 0.6
+/**
+ * Rövidített ablak: ha a tiszta étkezést legalább ennyi perc után zavarja meg valami (korrekció, ráevés, hipó
+ * kezelése, zavaró jegyzet), az étkezés a zavarásig számít a CH-arány becslésében. Rövidebb ablakból nem becsülünk.
+ */
+const TRUNC_MIN = 180
 /** Ezek a jegyzetek erősen befolyásolják az érzékenységet: az ablakban nem tiszta az esemény. */
 const DISTURBING_TAGS = ['sport', 'betegseg', 'alkohol']
 /** A felszívódási görbe rácsa: percenként 15-ös lépés 0-tól 360-ig. */
@@ -112,8 +118,12 @@ export interface MealEvent {
   clean: boolean
   /** Zsíros / fehérjedús étkezésnek jelölve (a naplóban): a CH-arány becsléséből kimarad. */
   fatty: boolean
-  /** A CH-arány végpontja (perc): a napszak hatásideje, de legalább 4 óra. */
+  /** A CH-arány végpontja (perc): a napszak hatásideje, de legalább 4 óra; rövidített ablaknál a zavarásig (≥ 3 óra). */
   endMin: number
+  /** A végpontot egy későbbi esemény (korrekció, ráevés, hipó kezelése) rövidítette le. */
+  truncated: boolean
+  /** A végpontig felszívódott CH aránya (az alapértelmezett felszívódási modellből). */
+  absorbed: number
   /** Vércukor-eltérés a végpontban a kezdőhöz képest. */
   dEnd: number | null
   /** A vércukor változása a végpont előtti 30 percben (mmol/L): pozitív, ha még emelkedik. */
@@ -233,11 +243,23 @@ export function analyze(from: number, to: number) {
     // a végére kifusson. Tiszta: 1 órával az étkezés / saját bólus előtt és a végpontig nincs más bólus,
     // 2 órával előtte és a végpontig nincs más CH, nincs zavaró jegyzet, és a kezdő vércukor nem változik gyorsan.
     // A zsíros / fehérjedús étkezésnél a késői emelkedés miatt a teljes 6 órás ablak a végpont.
-    const endMin = g.fatty ? FATTY_WINDOW_MIN : Math.min(FATTY_WINDOW_MIN, Math.max(MEAL_WINDOW_MIN, diaAt(g.ts)))
-    const tEnd = g.ts + endMin * 60
+    const fullEndMin = g.fatty ? FATTY_WINDOW_MIN : Math.min(FATTY_WINDOW_MIN, Math.max(MEAL_WINDOW_MIN, diaAt(g.ts)))
+    const fullEnd = g.ts + fullEndMin * 60
     const startTs = Math.min(g.ts, firstBolus ?? g.ts)
-    const otherBolus = boluses.some((b) => !own.has(b) && b.ts >= startTs - CLEAN_PRE_MIN * 60 && b.ts <= tEnd)
-    const otherCarbs = carbs.some((c) => (c.ts < g.ts || c.ts > g.last) && c.ts >= g.ts - 2 * 3600 && c.ts <= tEnd)
+    // Előzmény: 1 órával előtte más bólus, 2 órával előtte más CH → nem tiszta.
+    const preBolus = boluses.some((b) => !own.has(b) && b.ts >= startTs - CLEAN_PRE_MIN * 60 && b.ts <= g.ts)
+    const preCarbs = carbs.some((c) => c.ts < g.ts && c.ts >= g.ts - 2 * 3600)
+    // Az étkezés utáni első zavarás (más bólus / korrekció, újabb CH, hipó kezelése, zavaró jegyzet) a végpontig.
+    // Ha legalább 3 óra után jön, az étkezés a zavarásig számít (rövidített ablak); korábban nem tiszta.
+    const disturbAt = Math.min(
+      ...boluses.filter((b) => !own.has(b) && b.ts > g.ts && b.ts <= fullEnd).map((b) => b.ts),
+      ...carbs.filter((c) => c.ts > g.last && c.ts <= fullEnd).map((c) => c.ts),
+      ...disturbTs.filter((ts) => ts > g.ts && ts <= fullEnd),
+      Infinity,
+    )
+    const truncated = Number.isFinite(disturbAt) && !g.fatty && disturbAt - g.ts >= TRUNC_MIN * 60
+    const endMin = truncated ? Math.floor((disturbAt - g.ts) / 60 / STEP) * STEP : fullEndMin
+    const tEnd = g.ts + endMin * 60
     const correctionAfter = boluses.some((b) => b.kind === 'correction' && b.ts > g.ts + MEAL_WINDOW_SEC && b.ts <= end)
     const before = sample(g.ts - 900)
     const steep = before != null && Math.abs(startBG - before) / 15 >= STEEP_RATE
@@ -266,11 +288,12 @@ export function analyze(from: number, to: number) {
       : correctionAfter || (d4h != null && d4h > 2) ? 'high'
       : peak > high ? 'spike'
       : 'ok'
-    const isClean = !otherBolus && !otherCarbs && !correctionAfter && !steep && !disturbed(g.ts - 2 * 3600, tEnd)
+    const isClean = !preBolus && !preCarbs && !steep && !disturbed(g.ts - 2 * 3600, g.ts)
+      && (!Number.isFinite(disturbAt) || truncated)
     // Felszívódási görbe a tiszta étkezésből: a vércukor-változásból levonva az inzulin hatását marad a
     // szénhidrát hatása; ennek a végponti értékhez viszonyított hányada a felszívódott CH aránya.
     // (a gyors CH-t gyakran inzulin nélkül, hipó kezelésére viszik be, ezért ott nem kell saját bólus)
-    if (t && isClean && g.carbs && (g.boluses.length || (g.fast && !g.fatty))) {
+    if (t && isClean && !truncated && g.carbs && (g.boluses.length || (g.fast && !g.fatty))) {
       const isf = segmentAt(t, g.ts).isf
       const effectAt = (m: number): number | null => {
         const v = values[(MEAL_PRE_MIN + m) / STEP]
@@ -309,6 +332,8 @@ export function analyze(from: number, to: number) {
       clean: isClean,
       fatty: g.fatty,
       endMin,
+      truncated,
+      absorbed: g.carbs ? r2(defaultFraction(endMin / defaultTotalMin(g.fatty ? 'fatty' : g.fast ? 'fast' : 'normal', g.carbs))) : 1,
       dEnd: vEnd != null ? r2(vEnd - startBG) : null,
       endRise: endRise != null ? r2(endRise) : null,
       acted: r2(acted),
@@ -396,7 +421,8 @@ export function analyze(from: number, to: number) {
     if (isfForIcr) {
       for (const m of cleanCarbMeals) {
         const mealNeeded = m.acted + m.dEnd! / isfForIcr
-        if (mealNeeded > 0.2) icrValues.push(m.carbs! / mealNeeded)
+        // Csak a végpontig felszívódott CH számít (rövidített ablaknál, vagy nagy étkezésnél még nem szívódott fel minden).
+        if (mealNeeded > 0.2) icrValues.push((m.carbs! * m.absorbed) / mealNeeded)
       }
     }
     const icrEst = icrValues.length >= MIN_EVENTS ? r1(median(icrValues)!) : null
@@ -416,6 +442,7 @@ export function analyze(from: number, to: number) {
         fattyMeals: fattyMeals.length,
         fastMeals: segMeals.filter((m) => m.fast).length,
         cleanMeals: cleanCarbMeals.length,
+        truncatedMeals: cleanCarbMeals.filter((m) => m.truncated).length,
         cleanCorrections: segCorr.length,
       },
       meals: mealSummary(segMeals),

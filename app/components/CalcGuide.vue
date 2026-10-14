@@ -318,6 +318,13 @@ hatott inzulin = Σ bólus × (aktív(étkezéskor) − aktív(végpontban))
 étkezésre jutó inzulin = hatott inzulin + (érték a végpontban − kezdő érték) ÷ ISF
 CH-arány = szénhidrát ÷ étkezésre jutó inzulin</pre>
               <p>
+                <b>Rövidített ablak</b>: ha a tiszta étkezést legalább 3 óra után megzavarja valami (korrekció, ráevés, hipó
+                kezelése, sport / betegség / alkohol jegyzet), az étkezés a zavarásig számít, végpontja a zavarás időpontja.
+                3 órán belüli zavarásnál nem számít. A képletben a szénhidrátból csak a végpontig felszívódott rész szerepel
+                (az alapértelmezett felszívódási modellből, a beállított g/óra ütemmel); ez a teljes ablakú, nagy étkezéseknél is
+                érvényes. A rövidített étkezések a tanult felszívódási görbébe nem kerülnek be.
+              </p>
+              <p>
                 A „hatott inzulin” az étkezés és a végpont között ténylegesen hatott rész: a saját bólus(ok), és a korábbi (de
                 1 óránál régebbi) bólusok még ható maradéka, a fenti inzulinmodellel, a beadás napszakának hatásidejével.
               </p>
