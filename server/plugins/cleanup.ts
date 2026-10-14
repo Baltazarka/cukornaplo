@@ -1,4 +1,5 @@
 // Indításkori adattisztítás (minden indításkor lefut, de csak akkor módosít, ha van mit):
+//  - az InPenből jött vércukor ujjbegyes mérés: kézi mérésnek jelöljük (nem szenzoradat);
 //  - ugyanaz a szenzormérés két úton (Apple Health és CareLink) ~1 percen belül kétszer szerepelt: a Health-ből
 //    jött (percre kerekített) másolat törlődik, a CareLink pontos időpontú sora marad;
 //  - a típus nélküli, bázisnak tekintendő inzulinadagok (a beállított bázisadag, vagy a maximális bólusnál nagyobb)
@@ -16,6 +17,9 @@ export default defineNitroPlugin(() => {
 function cleanup(): void {
   try {
     const d = db()
+    // Az InPenből (Apple Health-en át) jött vércukor ujjbegyes mérés: kézi mérésnek jelöljük, hogy a szenzorgörbe,
+    // a lefedettség és az elemzés ne keverje a szenzoradattal (és a lenti duplatörlés se érintse).
+    const inpen = d.prepare("UPDATE entries SET source = ? WHERE type = 'glucose' AND source LIKE '%inpen%'").run(MANUAL_SOURCE)
     const dup = d.prepare(
       `DELETE FROM entries WHERE id IN (
          SELECT a.id FROM entries a
@@ -48,8 +52,9 @@ function cleanup(): void {
       }
     }
     const removed = Number(dup.changes)
-    if (removed || basal || unbasal) {
-      console.log(`[adattisztítás] ${removed} dupla szenzorérték törölve, ${basal} adag bázisnak jelölve, ${unbasal} tévesen bázisnak jelölt adag visszaállítva`)
+    const relabeled = Number(inpen.changes)
+    if (removed || basal || unbasal || relabeled) {
+      console.log(`[adattisztítás] ${removed} dupla szenzorérték törölve, ${basal} adag bázisnak jelölve, ${unbasal} tévesen bázisnak jelölt adag visszaállítva, ${relabeled} InPen-vércukor kézi mérésnek jelölve`)
       markDirty()
     }
   } catch (e) {

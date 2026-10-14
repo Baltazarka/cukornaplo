@@ -5,10 +5,8 @@ import { glucoseStats } from '../utils/stats'
 import { targetRange } from '../utils/range'
 import { startOfDayTs, todayYmd, addDaysYmd, huWeekday, hmInTz, minuteOfDayInTz, ymdInTz } from '../utils/time'
 import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from '../utils/insulinKind'
-import { bolusByDay } from '../utils/dailyInsulin'
 import { changeTime } from '../utils/trend'
 import { notesBetween } from '../utils/notes'
-import { assumedBasalDose } from '../utils/basal'
 
 const PERIODS = [7, 14, 30]
 
@@ -63,9 +61,6 @@ export default defineEventHandler((event) => {
   }
 
   const notes = notesBetween(from, to)
-  const basalDose = assumedBasalDose()
-  // A bólus a hatás szerint oszlik meg a napok között (az éjfél körül beadott adag fennmaradó része a következő napé).
-  const alloc = bolusByDay(start, end)
   const out = [...byDay.values()].map((d) => {
     // A bejegyzések mellé a legközelebbi (±10 perc) glükózérték.
     for (const e of d.events) {
@@ -78,18 +73,16 @@ export default defineEventHandler((event) => {
     }
     const stats = glucoseStats(d.glucose.map((g) => g[1]), low, high)
     const sum = (pred: (e: Day['events'][number]) => boolean) => d.events.filter(pred).reduce((a, e) => a + e.v, 0)
-    // Lezárt nap InPen-adattal, de bázis nélkül: a beállított bázisadag (becsült).
-    const basalAssumed = basalDose != null && d.date < today && sum((e) => e.kind === 'basal') === 0 && d.events.some((e) => e.type === 'insulin')
     return {
       ...d,
       notes: notes.filter((n) => n.day === d.date).map((n) => ({ time: n.time, minute: n.minute, tags: n.tags, text: n.text })),
       stats,
       coverage: coverageOf(d.date, d.sensorN),
       totals: {
-        meal: alloc ? alloc[d.date].meal : sum((e) => e.kind === 'meal' || e.kind === 'meal-nocarb'),
-        correction: alloc ? alloc[d.date].correction : sum((e) => e.kind === 'correction'),
-        basal: basalAssumed ? basalDose! : sum((e) => e.kind === 'basal'),
-        basalAssumed,
+        // A beadás időpontja szerint, csak a naplózott adagok (becsült bázis nélkül).
+        meal: sum((e) => e.kind === 'meal' || e.kind === 'meal-nocarb'),
+        correction: sum((e) => e.kind === 'correction'),
+        basal: sum((e) => e.kind === 'basal'),
         carbs: sum((e) => e.type === 'carbs'),
       },
     }

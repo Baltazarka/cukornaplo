@@ -498,6 +498,7 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .analysis-table .seg-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .analysis-table td.num b { margin-left: 2px; }
 .analysis-table .est-q { display: block; font-size: 11px; color: var(--text-muted); }
+.analysis-table .est-drift { display: block; font-size: 11px; color: var(--status-serious); white-space: nowrap; }
 .gather { display: flex; align-items: center; gap: 8px; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .gather-bar { width: 56px; height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; flex: none; }
 .gather-bar i { display: block; height: 100%; background: var(--status-good); border-radius: 3px; }

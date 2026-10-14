@@ -238,20 +238,33 @@ function clParseTime(value: any): number | null {
   return Number.isNaN(t) ? null : Math.floor(t / 1000)
 }
 
-/** A nyers CareLink válaszból glükóz sorok (mmol/L), xDrip-szerű időzóna-javítással. */
+/**
+ * Időzóna-hiba javítása (xDrip-módszer): ha a készülék órája egész órával eltér a CareLink szerveridejétől, az összes
+ * időpontot ennyivel toljuk. A viszonyítás a készülék feltöltéskori ideje; csak ha az hiányzik, a legutolsó szenzorérték.
+ * Csak a pontosan egész órás (±10 perc) eltérés számít időzóna-hibának: szenzorkimaradás után a legutolsó érték
+ * 30–90 perccel is régebbi lehet, ami kerekítve tévesen egy órás eltolásnak látszana.
+ */
+function clTimeShift(pd: any): number {
+  const serverMs = pd.lastMedicalDeviceDataUpdateServerTime ?? pd.lastConduitUpdateServerDateTime ?? null
+  if (typeof serverMs !== 'number' || serverMs <= 1) return 0
+  const deviceTs = clParseTime(pd.medicalDeviceTimeAsString ?? pd.sMedicalDeviceTime ?? null)
+  const lastSg = pd.lastSG
+  const lastTs = lastSg && typeof lastSg === 'object' ? clParseTime(lastSg.datetime ?? lastSg.timestamp ?? null) : null
+  const ref = deviceTs ?? lastTs
+  if (ref == null) return 0
+  const delta = serverMs / 1000 - ref
+  const hours = Math.round(delta / 3600)
+  if (hours === 0 || Math.abs(hours) >= 26 || Math.abs(delta - hours * 3600) > 10 * 60) return 0
+  return hours * 3600
+}
+
+/** A nyers CareLink válaszból glükóz sorok (mmol/L), időzóna-javítással (clTimeShift). */
 export function clExtractGlucose(data: any): Row[] {
   const pd = data?.patientData && typeof data.patientData === 'object' ? data.patientData : data
   const sgs = pd?.sgs
   if (!Array.isArray(sgs)) return []
 
-  let shift = 0
-  const serverMs = pd.lastMedicalDeviceDataUpdateServerTime ?? pd.lastConduitUpdateServerDateTime ?? null
-  const lastSg = pd.lastSG
-  const lastTs = lastSg && typeof lastSg === 'object' ? clParseTime(lastSg.datetime ?? lastSg.timestamp ?? null) : null
-  if (typeof serverMs === 'number' && serverMs > 1 && lastTs) {
-    const diffHours = Math.round((serverMs / 1000 - lastTs) / 3600)
-    if (diffHours !== 0 && Math.abs(diffHours) < 26) shift = diffHours * 3600
-  }
+  const shift = clTimeShift(pd)
 
   const rows: Row[] = []
   const now = Math.floor(Date.now() / 1000)

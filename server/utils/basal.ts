@@ -1,6 +1,5 @@
-// A bázisinzulin (Toujeo) külön tollal megy, az InPen csak akkor tud róla, ha beírod az appba.
-// Ha egy lezárt napon nincs bázis a naplóban, a TDD és a bólus/bázis arány a beállított
-// bázisadaggal számol („becsült”), hogy ne tűnjön úgy, mintha aznap nem lett volna bázis.
+// A beállított bázisadag (Toujeo): csak a típus nélküli adagok bázisként való felismeréséhez kell.
+// A napi összinzulin és a bázisarány mindig csak a naplózott adagokból számol (nincs becsült bázis).
 
 import { therapy } from './therapy'
 import { looksBasal } from './normalize'

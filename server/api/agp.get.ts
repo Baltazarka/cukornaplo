@@ -7,9 +7,7 @@ import { startOfDayTs, todayYmd, addDaysYmd, minuteOfDayInTz } from '../utils/ti
 import { groupByDay, summaryRows } from '../utils/summary'
 import { changeTime, type GPoint } from '../utils/trend'
 import { insulinKind } from '../utils/insulinKind'
-import { bolusByDay, withAllocatedInsulin } from '../utils/dailyInsulin'
 import { detectHypos, hypoCount } from '../utils/hypo'
-import { assumedBasalDose } from '../utils/basal'
 import { ymdInTz } from '../utils/time'
 
 const PERIODS = [7, 14, 30]
@@ -52,7 +50,6 @@ export default defineEventHandler((event) => {
   const hypoPoints: GPoint[] = [] // szenzor + kézi mérés (a hipóesemények észleléséhez)
   let sensorN = 0
   const carbTs = rows.filter((r) => r.type === 'carbs').map((r) => Number(r.ts))
-  const basalDays = new Set<string>()
   // A mai (még le nem zárt) napot a napi átlagokból kihagyjuk, ha van lezárt nap inzulin- / CH-adattal: egy félnapnyi
   // adat a teljes napra osztva lehúzná az átlagot.
   const skipToday = end >= today && rows.some((r) => r.type !== 'glucose' && ymdInTz(Number(r.ts)) < today)
@@ -73,7 +70,6 @@ export default defineEventHandler((event) => {
     } else if (r.type === 'insulin') {
       const kind = insulinKind(Number(r.ts), r.subtype, carbTs).kind
       ;(kind === 'basal' ? basal : kind === 'meal' ? meal : correction)[Math.floor(m / 60)] += v
-      if (kind === 'basal') basalDays.add(ymdInTz(Number(r.ts)))
     } else {
       carbs[Math.floor(m / 60)] += v
     }
@@ -92,7 +88,7 @@ export default defineEventHandler((event) => {
     agp.p95.push(ok ? r1(quantile(pool, 0.95)) : null)
   }
 
-  // Napi átlagok: csak azokra a napokra osztunk, amelyeken volt InPen-bejegyzés (különben a kimaradt napok lehúznák).
+  // Napi átlagok: csak azokra a napokra osztunk, amelyeken volt inzulin- vagy CH-bejegyzés (különben a kimaradt napok lehúznák).
   const daily = groupByDay(rows)
   const penDays = Object.entries(daily).filter(([k, d]) => (d.insulin > 0 || d.carbs > 0) && !(skipToday && k >= today)).length || 1
   const perDay = (arr: number[]) => arr.map((v) => Math.round((v / penDays) * 100) / 100)
@@ -103,12 +99,8 @@ export default defineEventHandler((event) => {
   const coverage = elapsedSec > 0 ? Math.min(100, (100 * sensorN) / (elapsedSec / 300)) : 0
 
   const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0)
-  // Lezárt napok InPen-adattal, de bázis nélkül: a beállított bázisadaggal számolunk (becsült).
-  const basalDose = assumedBasalDose()
-  const assumedDays = basalDose == null
-    ? 0
-    : Object.entries(daily).filter(([k, d]) => k < today && d.insulin > 0 && !basalDays.has(k)).length
-  const totalBasal = sum(basal) + assumedDays * (basalDose ?? 0)
+  // Csak a naplózott adagok, a beadás időpontja szerint (becsült bázis nélkül).
+  const totalBasal = sum(basal)
   const totalInsulin = sum(meal) + sum(correction) + totalBasal
   const totalCarbs = carbs.reduce((a, b) => a + b, 0)
 
@@ -129,13 +121,12 @@ export default defineEventHandler((event) => {
       mealPerDay: sum(meal) / penDays,
       correctionPerDay: sum(correction) / penDays,
       basalPerDay: totalBasal / penDays,
-      basalAssumedDays: assumedDays,
       carbsPerDay: totalCarbs / penDays,
       penDays,
     },
     change: changeTime(gPoints),
     hypos: hypoCount(detectHypos(hypoPoints, low, RANGE_VERY_LOW)),
     coverage,
-    summary: withAllocatedInsulin(summaryRows(daily, end, days, low, high), bolusByDay(start, end)),
+    summary: summaryRows(daily, end, days, low, high),
   }
 })

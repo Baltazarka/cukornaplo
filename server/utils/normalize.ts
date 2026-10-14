@@ -47,17 +47,27 @@ const MONTHS: Record<string, number> = {
 
 const APP_TZ = process.env.APP_TZ || 'Europe/Budapest'
 
-/** Egy adott zónájú faliidő → UTC unix másodperc (DST-helyesen). */
+/**
+ * Egy adott zónájú faliidő → UTC unix másodperc (DST-helyesen). A zóna eltolását a tényleges időpontban kell venni,
+ * nem a faliidőt UTC-nek tekintve: az átállás napján (pl. október utolsó vasárnapja 01:00–03:00) a kettő eltér,
+ * ezért egy második lépésben az első becslés időpontjának eltolásával számolunk újra. Kétszer előforduló faliidőnél
+ * (őszi 02:00–03:00) a későbbi (téli időszámítás szerinti), nem létezőnél (tavaszi 02:00–03:00) egy órával későbbi.
+ */
 export function zonedToTs(y: number, mo: number, d: number, h: number, mi: number, s: number, tz = APP_TZ): number {
-  const guess = Date.UTC(y, mo - 1, d, h, mi, s)
+  const wall = Date.UTC(y, mo - 1, d, h, mi, s)
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone: tz, hourCycle: 'h23',
     year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
   })
-  const p: Record<string, string> = {}
-  for (const part of dtf.formatToParts(new Date(guess))) p[part.type] = part.value
-  const asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second)
-  return Math.floor((guess - (asUTC - guess)) / 1000)
+  /** A zóna eltolása (ms) az adott UTC-időpontban. */
+  const offsetAt = (ms: number) => {
+    const p: Record<string, string> = {}
+    for (const part of dtf.formatToParts(new Date(ms))) p[part.type] = part.value
+    return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - Math.floor(ms / 1000) * 1000
+  }
+  const first = wall - offsetAt(wall)
+  const off = offsetAt(first)
+  return Math.floor((wall - off) / 1000)
 }
 
 /** ISO 8601, Apple Health vagy a magyar Parancsok-dátum ("2026. 10. 07. 8:15", "2026. okt. 7. 8:15:30"). */
@@ -143,7 +153,11 @@ export function normalizeRow(
   if (t === 'insulin' && sub === null && basalDose !== null && Math.abs(v - basalDose) < 0.05) sub = 'basal'
   if (t === 'insulin' && sub === null && looksBasal(v, basalDose, maxBolus)) sub = 'basal'
 
-  return { type: t, ts, value: v, subtype: sub, source: source.trim() !== '' ? source.trim().slice(0, 80) : null }
+  let src = source.trim() !== '' ? source.trim().slice(0, 80) : null
+  // Az InPen appba beírt vércukor ujjbegyes mérés, nem szenzoradat: kézi mérésként tároljuk (a görbe, a trend,
+  // a lefedettség és az elemzés csak a szenzorból számol).
+  if (t === 'glucose' && src && /inpen/i.test(src)) src = 'manual'
+  return { type: t, ts, value: v, subtype: sub, source: src }
 }
 
 export interface Parsed { rows: Row[]; errors: string[] }

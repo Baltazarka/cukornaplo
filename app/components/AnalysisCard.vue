@@ -150,9 +150,11 @@ const actYTicks = computed(() => {
     </div>
     <RecomputeBar :at="a.computedAt" kind="analysis" :days="days" @done="refresh()" />
     <p class="muted small">
-      <b>Tiszta korrekció:</b> magas vércukorra adott bólus, előtte 1 óráig és utána a napszakra beállított inzulinhatás-időtartamig étel és más bólus nélkül; ebből látszik az érzékenységi tényező és a valódi hatásidő.
-      <b>Tiszta étkezés:</b> beírt CH-val és bólussal; 1 órával előtte és utána a napszak hatásidejéig (legalább 4 óráig) más bólus,
-      2 órával előtte és utána más étel nélkül, sport-, betegség- vagy alkohol-jegyzet nélkül, és nem gyorsan változó kezdő vércukorral.
+      <b>Tiszta korrekció:</b> magas vércukorra adott bólus, előtte 1 óráig és utána a napszakra beállított inzulinhatás-időtartamig étel és más bólus nélkül,
+      és egy korábbi étkezés CH-ja már felszívódott; ebből látszik az érzékenységi tényező és a valódi hatásidő.
+      <b>Tiszta étkezés:</b> beírt CH-val és bólussal; 1 órával előtte és utána a napszak hatásidejéig (legalább 4 óráig) más bólus nélkül,
+      utána más étel nélkül, egy korábbi étkezés CH-ja már felszívódott, sport-, betegség- vagy alkohol-jegyzet nélkül, nem hipóból indul, és nem gyorsan változó kezdő vércukorral.
+      Csak a szenzor méréseiből számol (a kézi mérés nem keveredik bele).
       A korábbi bólusok még ható részét beszámítja; ebből becsülhető a CH-arány.
       Napszakonként legalább {{ MIN }} kell a becsléshez, {{ GOOD }} a megbízhatóhoz.
     </p>
@@ -172,7 +174,13 @@ const actYTicks = computed(() => {
         </thead>
         <tbody>
           <tr v-for="s in a.segments" :key="s.index">
-            <td class="seg-time">{{ s.start }}<span class="muted">–{{ s.end }}</span></td>
+            <td class="seg-time">
+              {{ s.start }}<span class="muted">–{{ s.end }}</span>
+              <small
+                v-if="s.estimate.drifting" class="est-drift"
+                title="A böjti időszakokban (étel és ható bólus nélkül) a vércukor ebben a napszakban átlagosan ennyit változik óránként: a bázis nem fedi az alapigényt, ezért a korrekciók esése és az étkezések végpontja torzul, a becslések nem megbízhatók."
+              >sodródás {{ s.estimate.drift > 0 ? '+' : '' }}{{ fmt(s.estimate.drift) }}/óra</small>
+            </td>
             <td>
               <div class="gather"><span class="gather-bar"><i :style="{ width: pct(s.counts.cleanCorrections) }" /></span>{{ count(s.counts.cleanCorrections) }}</div>
             </td>
@@ -188,7 +196,8 @@ const actYTicks = computed(() => {
             <td class="num">
               <span class="muted">{{ fmt(s.therapy?.icr) }} →</span>
               <b v-if="s.estimate.icr" :class="{ 'est-bad': s.estimate.icr.unreliable }">{{ fmt(s.estimate.icr.value) }}</b><span v-else class="muted">?</span>
-              <small v-if="s.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">még emelkedik</small>
+              <small v-if="s.estimate.icr?.unreliable && s.estimate.drifting" class="est-q" title="Jelentős bázis-sodródás ebben a napszakban: a végpont torzul.">nem megbízható</small>
+              <small v-else-if="s.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">még emelkedik</small>
               <small class="est-q">{{ quality(s.counts.cleanMeals) }}</small>
             </td>
             <td class="num">

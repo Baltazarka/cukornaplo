@@ -27,10 +27,10 @@ nyilak: ≥ 0,06 / 0,11 / 0,17 mmol/L/perc = 1 / 2 / 3 nyíl</pre>
         <h3>Inzulin</h3>
         <pre>bázis: = bázisadag, vagy &gt; max. bólus és a bázisadag ±25%-a
 étkezési: CH 30 perccel előtte – 60 percen belül;  különben korrekció
-TDD = étkezési + korrekció + bázis   (* = becsült bázis)
+TDD = étkezési + korrekció + bázis   (naplózott adagok)
 aktív inzulin = Σ adag × aktív(t)   (exponenciális modell,
                 csúcs 75 perc, hatásidő a terápiából)</pre>
-        <p>A késő esti bólus a hatásgörbéje szerint oszlik meg a két nap között.</p>
+        <p>A napi összeg a beadás időpontja szerint számol; a be nem írt bázist nem becsüli.</p>
       </div>
       <div>
         <h3>Szénhidrát-felszívódás</h3>
