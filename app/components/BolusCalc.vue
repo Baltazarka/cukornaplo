@@ -224,10 +224,10 @@ const trendText = computed(() => {
         <b>Beírás a naplóba</b>
         <label v-if="carbsV" class="bc-log-row">
           <span class="bc-log-check"><input v-model="logCarbs" type="checkbox"> CH <b>{{ fmt(carbsV, 0) }} g</b></span>
-          <select v-model="logCarbSub" class="sub-select" aria-label="Étkezés típusa">
-            <option value="">normál</option>
-            <option value="fatty">zsíros / fehérjedús</option>
-            <option value="fast">gyors CH</option>
+          <select v-model="logCarbSub" class="sub-select" aria-label="Étkezés típusa" :title="logCarbSub === 'fatty' ? CARB_TAG_HINT.fatty : logCarbSub === 'fast' ? CARB_TAG_HINT.fast : CARB_TAG_HINT.normal">
+            <option value="" :title="CARB_TAG_HINT.normal">normál</option>
+            <option value="fatty" :title="CARB_TAG_HINT.fatty">zsíros / fehérjedús</option>
+            <option value="fast" :title="CARB_TAG_HINT.fast">gyors CH</option>
           </select>
         </label>
         <label class="bc-log-row">

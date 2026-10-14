@@ -327,9 +327,9 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
               <option value="correction">Korrekció</option>
               <option value="basal">Bázis</option>
             </select>
-            <div v-else-if="entryForm.type === 'carbs'" class="note-tags" role="group" aria-label="Jelölés">
-              <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fatty'" @click="entryForm.sub = entryForm.sub === 'fatty' ? '' : 'fatty'">zsíros</button>
-              <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fast'" @click="entryForm.sub = entryForm.sub === 'fast' ? '' : 'fast'">gyors</button>
+            <div v-else-if="entryForm.type === 'carbs'" class="note-tags" role="group" aria-label="Jelölés" :title="CARB_TAG_HINT.normal">
+              <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fatty'" :title="CARB_TAG_HINT.fatty" @click="entryForm.sub = entryForm.sub === 'fatty' ? '' : 'fatty'">zsíros</button>
+              <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fast'" :title="CARB_TAG_HINT.fast" @click="entryForm.sub = entryForm.sub === 'fast' ? '' : 'fast'">gyors</button>
             </div>
           </div>
           <p v-if="entryForm.type !== 'glucose'" class="muted small">Ha az InPen később ugyanezt elküldi (azonos mennyiség, 30 percen belül), a kézi sor beolvad, nem lesz dupla.</p>
@@ -390,12 +390,12 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                       <template v-if="!readOnly && e.type === 'carbs'">
                         <button
                           type="button" class="tag-toggle" :aria-pressed="e.sub === 'fatty'"
-                          title="Zsíros / fehérjedús étkezés: később emeli a vércukrot, ezért a CH-arány becslése kihagyja"
+                          :title="CARB_TAG_HINT.fatty"
                           @click="toggleCarbTag(e, 'fatty')"
                         >zsíros</button>
                         <button
                           type="button" class="tag-toggle" :aria-pressed="e.sub === 'fast'"
-                          title="Gyors szénhidrát (pl. hipó kezelése, gyümölcslé, szőlőcukor): hamar emel és hamar lecseng"
+                          :title="CARB_TAG_HINT.fast"
                           @click="toggleCarbTag(e, 'fast')"
                         >gyors</button>
                       </template>
