@@ -2,6 +2,7 @@
 # (jelszó-hash, API-kulcs, CareLink belépési kulcs, az SQLite egészségügyi adatbázis)
 data/
 data-dev/
+data-real/
 **/carelink_last.json
 # Parancsok-mentések: benne van az X-Token (API-kulcs)
 *.shortcut

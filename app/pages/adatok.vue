@@ -184,6 +184,14 @@ async function factoryReset() {
         </template>
         <template v-else>még nem érkezett adat.</template>
       </p>
+      <div class="btn-row">
+        <a class="btn ghost" href="/api/export" download>Adatbázis letöltése elemzéshez</a>
+      </div>
+      <p class="muted small">
+        A mért adatok másolata (SQLite) a terápiás beállításokkal, titkok nélkül (jelszó, API-kulcs, CareLink-belépés,
+        passkey-k, megosztási linkek nincsenek benne). Ha a fejlesztői gépen a projekt <code>data-real</code> mappájába teszed,
+        a saját adataidon lehet ellenőrizni a számításokat; ez a mappa nem kerül git-be.
+      </p>
     </section>
 
     <section class="card" id="carelink">

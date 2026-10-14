@@ -20,3 +20,4 @@ Személyes cukorbetegség-napló. Nuxt 4 (SPA, `ssr: false`) + Nitro szerver, SQ
 ## Ellenőrzés
 - `pnpm build` a fordítás ellenőrzésére; kipróbáláshoz ideiglenes `node .output/server/index.mjs` más porton, utána állítsd le.
 - Hosszú shell heredoc helyett írj segédszkriptet fájlba.
+- Valódi adatos ellenőrzés: a Beállítások oldalon letöltött másolatból `node scripts/use-export.mjs <fájl>` készít `data-real/` mappát (git- és Docker-mentes); a szerver ezzel `DATA_DIR=data-real CARELINK_INTERVAL=0` mellett futtatható. Az egészségügyi adatot ne másold ki a gépről, és ne kerüljön commitba.
