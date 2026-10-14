@@ -302,5 +302,17 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
       <div class="btn-row"><button type="button" :disabled="!token" @click="copyWidget">{{ widgetCopied ? 'Másolva ✓' : 'Kitöltött betöltő másolása' }}</button></div>
       <WidgetEditor />
     </section>
+
+    <section class="card">
+      <h2>Guardian app megnyitása a bóluskalkulátorból</h2>
+      <p class="muted small">
+        A kalkulátorban a naplóba írás után egy sorban látszik a CH és az adag, mellette a <b>Guardian megnyitása</b> gomb,
+        hogy a Guardian appba is felvihesd. A webapp a Guardian appot csak egy Parancson keresztül tudja megnyitni:
+      </p>
+      <ol class="steps">
+        <li>Parancsok app → <b>+</b> (új parancs) → művelet: <b>App megnyitása</b> → válaszd a <b>Guardian</b> appot.</li>
+        <li>A parancs neve legyen pontosan <b>Guardian</b>, majd mentsd.</li>
+      </ol>
+    </section>
   </main>
 </template>
