@@ -1,4 +1,4 @@
-// Terápiás beállítások (az InPen app „Inzulinbeállítások” képernyőjének megfelelője).
+// Terápiás beállítások: célérték, érzékenységi tényező (ISF), CH-arány és hatásidő napszakonként.
 // A szerver (settings.json `therapy` kulcs) és a felület közös típusa.
 
 export interface TherapySegment {

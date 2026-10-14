@@ -3,7 +3,7 @@
 // { date: 'YYYY-MM-DD', time: 'HH:MM', type: 'insulin' | 'carbs' | 'glucose', value, sub?: meal | correction | basal
 //   (inzulin) vagy fatty | fast (CH), force?: true }
 // Ha 30 percen belül már van ugyanilyen típusú bejegyzés, 409-cel visszaszól (force: true-val mégis
-// felveszi). Ha az InPen / Health később ugyanezt az adagot küldi, a kézi sor beolvad (db.ts storeRows).
+// felveszi). Ha a telefon (Apple Health) később ugyanezt az adagot küldi, a kézi sor beolvad (db.ts storeRows).
 import { markDirty } from '../utils/computed'
 import { isAssumedBasal } from '../utils/basal'
 import { db, MANUAL_SOURCE, MANUAL_MATCH_SEC } from '../utils/db'
@@ -52,7 +52,7 @@ export default defineEventHandler(async (event) => {
     return { ok: false, error: 'Az időpont nem lehet a jövőben.' }
   }
 
-  // Hasonló bejegyzés a közelben (pl. az InPen már elküldte): csak rákérdezünk. (Vércukornál nincs ilyen: a szenzor
+  // Hasonló bejegyzés a közelben (pl. véletlenül kétszer beírva, vagy a telefon már elküldte): csak rákérdezünk. (Vércukornál nincs ilyen: a szenzor
   // ötpercenként mér, a kézi mérés külön pont.)
   if (body.force !== true && type !== 'glucose') {
     const near = db()

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 // Bóluskalkulátor: a beírt szénhidrátból, a vércukorból (alapból a friss CGM-érték), a most érvényes
 // napszak CH-arányából, érzékenységéből és célértékéből, valamint a még aktív inzulinból javasol adagot.
-// Tájékoztató. A számolt szénhidrátot és adagot kérésre be lehet írni a naplóba is (az InPenből később
-// érkező ugyanilyen adag a kézi bejegyzéssel összeolvad).
+// Tájékoztató. A számolt szénhidrátot és adagot kérésre be lehet írni a naplóba is (a mostani időponttal).
 const emit = defineEmits<{ (e: 'logged'): void }>()
 const { data, refresh } = await useFetch<any>('/api/bolus-context', { key: 'bolus-context' })
 
@@ -97,7 +96,7 @@ async function addEntry(body: Record<string, any>, force = false): Promise<void>
   try {
     await $fetch('/api/entry-add', { method: 'POST', body: { ...body, force } })
   } catch (e: any) {
-    // Hasonló bejegyzés a közelben (pl. az InPen már elküldte): rákérdezünk.
+    // Hasonló bejegyzés a közelben (pl. véletlenül kétszer beírva): rákérdezünk.
     if (e?.data?.duplicate && !force && (await askConfirm(`${e.data.error}
 
 Mégis felveszed?`, { confirmLabel: 'Felveszem' }))) return addEntry(body, true)
@@ -246,7 +245,7 @@ const trendText = computed(() => {
         </label>
         <p v-if="doseInvalid" class="alert">Az adag 0,1–100 E között lehet.</p>
         <button type="button" :disabled="logBusy || !canLog" @click="logToDiary">Beírás a naplóba (most)</button>
-        <p class="muted">Az adag a mostani időponttal kerül be. Írd át a tényleg beadott mennyiségre, ha eltér a javasolttól. Ha az InPen később ugyanezt az adagot küldi, a két bejegyzés összeolvad.</p>
+        <p class="muted">Az adag a mostani időponttal kerül be. Írd át a tényleg beadott mennyiségre, ha eltér a javasolttól.</p>
       </div>
 
       <GuardianLine v-if="lastLogged" :carbs="lastLogged.carbs" :dose="lastLogged.dose" @close="lastLogged = null" />
@@ -261,7 +260,7 @@ const trendText = computed(() => {
 
       <p class="muted small bc-note">
         Tájékoztató számítás a beállított terápiás értékekből{{ data.insulin ? ` (${data.insulin})` : '' }}. A beadott adagról te döntesz.
-        Az InPen app napszakonként lépcsősen számol; átmenettel ezért a napszakok vége felé eltérhet tőle.
+        Átmenet nélkül a napszakhatáron lépcsősen vált az érték; átmenettel a napszakok vége felé már a következő napszak felé közelít.
       </p>
     </template>
   </section>

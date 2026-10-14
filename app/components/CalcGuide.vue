@@ -98,7 +98,7 @@ onBeforeUnmount(() => {
               <h3>Alapfogalmak és mértékegységek</h3>
               <dl class="guide-dl">
                 <div><dt>Glükóz</dt><dd>mmol/L. A CGM (Guardian 4) 5 percenként mér; ami mg/dL-ben érkezik, azt 18,018-cal osztva váltjuk át.</dd></div>
-                <div><dt>Inzulin</dt><dd>egység (E). A gyors hatású (NovoRapid) bólusok kézi könyvelésből (napló, bóluskalkulátor) vagy az InPenből (Apple Health), a bázis (Toujeo) beírva vagy a beállított bázisadag alapján.</dd></div>
+                <div><dt>Inzulin</dt><dd>egység (E). A gyors hatású (NovoRapid) bólusok és a bázis (Toujeo) kézi könyvelésből (napló, bóluskalkulátor); a régebbi adatok egy része az InPenből (Apple Health) jött. A be nem írt bázist nem becsüljük.</dd></div>
                 <div><dt>Szénhidrát (CH)</dt><dd>gramm (g).</dd></div>
                 <div><dt>Kézi vércukor</dt><dd>kézzel mért érték (mmol/L), a naplóban „+ Vércukor”. Jelölve marad, hogy nem szenzoradat.</dd></div>
                 <div><dt>CH-arány (ICR)</dt><dd>g/E: hány gramm szénhidrátot fed le 1 egység inzulin. Nagyobb szám = kevesebb inzulin ugyanarra az ételre.</dd></div>
@@ -176,17 +176,17 @@ onBeforeUnmount(() => {
             <!-- 5. Inzulin -->
             <section id="guide-inzulin">
               <h3>Inzulin: besorolás, TDD, kördiagram</h3>
-              <p>Az InPen csak annyit küld, hogy bólus volt; a típust így becsüljük (a naplóban kézzel bármikor felülírható, és a kézi beállítás mindig erősebb):</p>
+              <p>Ha a bólus típusa nincs megadva („Automatikus”), így becsüljük (a naplóban kézzel bármikor felülírható, és a kézi beállítás mindig erősebb):</p>
               <ol class="guide-ol">
                 <li><b>Bázis</b>, ha a beérkező adag pontosan akkora, mint a főoldalon beállított „Bázisadagom” (±0,05 E), vagy a maximális bólusnál nagyobb és a bázisadag ±25%-án belül van (pl. 50 E az 52 helyett), vagy kézzel bázisnak jelölted.</li>
                 <li><b>Étkezési bólus</b>, ha a beadás után 60 percen belül (előbólus) vagy előtte 30 percen belül szénhidrát van a naplóban.</li>
-                <li>Egyébként <b>korrekció</b>: a CH nélküli adag (az InPen-ben megadott típus az Apple Health-en át nem jön át, ezért ezt a CH alapján döntjük el). Ha a telefon mégis küld típust („korrekció”, „étkezés”), azt használjuk.</li>
+                <li>Egyébként <b>korrekció</b>: a CH nélküli adag. Ha a bejegyzésnek van típusa („korrekció”, „étkezés”), azt használjuk.</li>
               </ol>
               <dl class="guide-dl">
                 <div><dt>TDD</dt><dd>Total Daily Dose: a napi összes inzulin (étkezési + korrekció + bázis), a beadás időpontja szerint, csak a naplózott adagokból (a be nem írt bázist nem becsüljük). Minden nézetben (napi, időszak, 14 napos táblázat, riport) ugyanígy számol. Időszakos nézetben napi átlag, de csak azokra a napokra osztva, amelyeken volt inzulin- vagy CH-bejegyzés (a kimaradt napok nem húzzák le); a mai, még le nem zárt nap kimarad az átlagból, ha van lezárt nap adattal.</dd></div>
                 <div><dt>„Ma eddig”</dt><dd>a mai nap összesítője csak a mostanáig beadott adagokat tartalmazza.</dd></div>
                 <div><dt>Kördiagram</dt><dd>a TDD-n belüli arány: étkezési bólus, korrekció, bázis, százalékban.</dd></div>
-                <div><dt>Kézi bejegyzés</dt><dd>ha az InPen később ugyanazt a mennyiséget ±30 percen belül elküldi, a kézi sor beolvad (az InPen időpontja marad, a kézi típus / jelölés átkerül). Dátum és időpont megadható.</dd></div>
+                <div><dt>Kézi bejegyzés</dt><dd>dátum és időpont megadható. Ha ±30 percen belül már van ugyanekkora bejegyzés, rákérdez (véletlen dupla beírás ellen). Ha telefonról (Apple Health) később ugyanaz az adag érkezik, a kézi sor beolvad.</dd></div>
               </dl>
             </section>
 
@@ -246,7 +246,7 @@ korrekció     = (vércukor − célérték) ÷ érzékenység (mmol/L/E)</pre>
                 <li><b>Vércukor</b>: a legutóbbi CGM-érték, ha 15 percnél frissebb; különben be kell írni.</li>
                 <li><b>Átmenet a napszakok között</b> (kikapcsolható): a CH-arány és az érzékenység a napszak kezdetén a beállított érték, és a következő napszak kezdetéig egyenletesen halad annak értékéig. Pl. 06:00-kor 2 g/E, 12:00-kor 4 g/E → 09:00-kor 3 g/E. A célérték mindig a napszaké. Az InPen lépcsősen számol, ezért a napszakok vége felé eltérhet.</li>
                 <li><b>Figyelmeztetések</b>: alacsony vércukor (a céltartomány alja alatt), a maximális dózis elérése, 14 mmol/L fölött ketonvizsgálat, gyors emelkedés / esés (2–3 nyíl) – a trendet a számítás nem veszi figyelembe.</li>
-                <li>A számolt szénhidrát és adag kérésre <b>beírható a naplóba</b> (a mostani időponttal; az adag átírható a ténylegesen beadottra). Ha az InPen később ugyanazt az adagot küldi, a kézi sor beolvad.</li>
+                <li>A számolt szénhidrát és adag kérésre <b>beírható a naplóba</b> (a mostani időponttal; az adag átírható a ténylegesen beadottra).</li>
                 <li>Ha újabb a kézzel felvitt vércukor a szenzor értékénél, azt használja („kézi” jelzéssel).</li>
               </ul>
             </section>
@@ -311,7 +311,7 @@ becslés(t) = (modell(t) · w + trend(t)) ÷ (w + 1),   w = 0,1 · 2,5^(t / 5 pe
               <h4>Hatásidő és érzékenység (ISF) – tiszta korrekciókból</h4>
               <ul class="guide-ul">
                 <li><b>Tiszta korrekció</b>: 1 órával előtte és utána a beadás napszakára beállított hatásidőig nincs CH, más bólus, sem sport-, betegség- vagy alkohol-jegyzet; a korábbi étkezés CH-ja már felszívódott (a mérete szerinti felszívódási idő, de legalább normál 4, zsíros 6, gyors 2 óra), a korábbi bólusok még ható maradéka legfeljebb a korrekció 15%-a (de legalább 0,25 E), és a kezdő vércukor nem változik gyorsan (1 nyíl alatt); ebben az ablakban legalább 70%-ban van szenzoradat; legalább 1 mmol/L-t esett. Ha utána sem jön étel vagy bólus, a görbét legfeljebb 6 óráig, az első ilyen eseményig tovább használjuk (a hatásidő illesztéséhez).</li>
-                <li>Minden korrekció esését 1 egységre vetítjük (esés ÷ adag), és 5 percenként vesszük a korrekciók mediánját.</li>
+                <li>Minden korrekció esését 1 egységre vetítjük (esés ÷ adag), és 5 percenként vesszük a korrekciók <b>adaggal súlyozott</b> mediánját: egy 1 E-s korrekciónál a mérési zaj és a bázis-sodródás egységnyire vetítve négyszer akkora, mint egy 4 E-snél, ezért a kis adagok kevesebbet számítanak.</li>
                 <li>Erre illesztjük a fenti inzulinmodellt: hatásidő 2 órától a Terápia oldalon kiválasztott bólusinzulin alkalmazási előírás szerinti leghosszabb hatásidejéig (NovoRapid: 5 óra), 15 percenként; csúcs 40–120 perc (5 percenként, legfeljebb a hatásidő 40%-a). Minden párra az esés nagysága zárt alakban adódik: <code class="guide-f">esés(t) ≈ ISF × (1 − aktív(t))</code>, a legkisebb négyzetek módszerével; a legkisebb eltérésű pár nyer. Az amplitúdó az ISF.</li>
                 <li><b>Nem megbízható</b>, ha határ nélkül hosszabb hatásidő illene jobban, vagyis a vércukor az inzulin leghosszabb hatásidején túl is esett. Ezt az inzulin nem magyarázza (inkább a bázis vagy más tényező), ezért ilyenkor a hatásidő és az érzékenység nem kerül át a szerkesztőbe.</li>
                 <li><b>A görbe vége</b>: ahol az események felénél (de legalább 3 eseménynél) kevesebbnél van adat, ott a medián nem számít bele az illesztésbe. Ha az így megmaradó görbe rövidebb, mint az illesztett hatásidő (30 percnél jobban), az ISF és a hatásidő <b>nem megbízható</b>: a görbe vége kevés (főleg éjszakai) eseményből állna.</li>
@@ -358,7 +358,7 @@ CH-arány = felszívódott szénhidrát ÷ étkezésre jutó inzulin</pre>
               </p>
               <p>
                 A <b>tiszta étkezések görbéje</b> napszakonként mutatja a vércukor változását a kezdő értékhez képest (medián,
-                legalább 2 étkezésnél 25–75%-os sávval). Ha 4 óra múlva 1 mmol/L-nél többel a kezdő érték fölött marad, a CH-arány
+                legalább 3 étkezésnél 25–75%-os sávval). Ha 4 óra múlva 1 mmol/L-nél többel a kezdő érték fölött marad, a CH-arány
                 gyenge lehet; ha 1-nél többel alatta, erős.
               </p>
             </section>
@@ -401,11 +401,11 @@ CH-arány = felszívódott szénhidrát ÷ étkezésre jutó inzulin</pre>
               <h3>Korlátok</h3>
               <ul class="guide-ul">
                 <li>A CGM kb. 10%-ot téved, és 5–15 percet késik az ujjbegyes méréshez képest; gyors változásnál többet.</li>
-                <li>A telefonról (InPen / Apple Health) érkező adat késhet: a nemrég beadott adag addig hiányzik az aktív inzulinból. Kézi könyvelésnél ez nem fordul elő, és az adag típusa (étkezési / korrekció / bázis) is pontos.</li>
+                <li>Az aktív inzulin csak a beírt adagokból számol: a be nem írt (vagy később beírt) adag addig hiányzik belőle.</li>
                 <li>A modell nem ismeri a sportot, betegséget, stresszt, alkoholt és a beadás helyét; a zsír / fehérje késői hatását csak a „zsíros” jelölt étkezésekre tanulja meg.</li>
                 <li>Az előrejelzés és a javaslatok becslések: új étkezést, adagot nem ismernek, a CareLink-adat késhet, és nem helyettesítik a szenzor és a pumpa riasztásait. Az inzulinjavaslat beadás előtt ellenőrzendő.</li>
                 <li>A becslések kevés eseményből szórnak; mindig a darabszámmal együtt értelmezd őket.</li>
-                <li>Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian és az InPen app értékeit használd.</li>
+                <li>Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian app értékeit és a diabetológusod útmutatását használd.</li>
               </ul>
             </section>
           </div>

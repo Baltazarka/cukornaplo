@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Főoldali kártya: az InPen „Inzulinbeállítások” értékei, a most érvényes napszak kiemelve.
+// Főoldali kártya: a terápiás beállítások (célérték, ISF, CH-arány napszakonként), a most érvényes napszak kiemelve.
 import type { Therapy } from '#shared/types/therapy'
 
 const { data } = await useFetch<{ therapy: Therapy | null }>('/api/therapy', { key: 'therapy' })
@@ -87,7 +87,7 @@ const updated = computed(() =>
     </template>
 
     <template v-else>
-      <p class="muted small">Még nincs megadva. Írd be az InPen app <b>Inzulinbeállítások</b> képernyőjének értékeit: célérték, érzékenységi tényező és CH-arány napszakonként.</p>
+      <p class="muted small">Még nincs megadva. Add meg a diabetológussal egyeztetett értékeket: célérték, érzékenységi tényező és CH-arány napszakonként.</p>
       <NuxtLink v-if="!readOnly" to="/terapia" class="btn">Beállítás</NuxtLink>
     </template>
   </section>

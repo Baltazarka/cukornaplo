@@ -452,6 +452,7 @@ export function analyze(from: number, to: number) {
 
   // --- Napszakonkénti összesítés és becslés.
   const allIcr: number[] = [] // az összes napszak CH-arány értékei az „egész nap” becsléshez
+  const allIcrMeals: MealEvent[] = []
   // Bázisellenőrzés (böjti időszakok sodródása), és ebből napszakonként az átlagos sodródás a becslések megbízhatóságához.
   const basal = basalCheck(sensorGlucose, glucose, carbs, boluses, diaAt, low, from, Math.min(to, Math.floor(Date.now() / 1000)))
   const driftOf = (start: string, end: string): number | null => {
@@ -489,19 +490,28 @@ export function analyze(from: number, to: number) {
     // a része, ami az étkezés és a végpont között hatott (inzulinmodellből).
     const isfForIcr = sg.seg?.isf ?? null
     const icrValues: number[] = []
+    // A ténylegesen felhasznált étkezések: a darabszám, a megbízhatósági címke, a „még emelkedik” jelzés és a görbe
+    // is ezekből készül, hogy ugyanarról az étkezéskörről szóljanak, mint maga a becslés.
+    const icrMeals: MealEvent[] = []
     if (isfForIcr) {
       for (const m of cleanCarbMeals) {
         const mealNeeded = m.acted + m.dEnd! / isfForIcr
         // Csak a végpontig felszívódott CH számít (rövidített ablaknál, vagy nagy étkezésnél még nem szívódott fel minden).
-        if (mealNeeded > 0.2) icrValues.push((m.carbs! * m.absorbed) / mealNeeded)
+        if (mealNeeded > 0.2) {
+          icrValues.push((m.carbs! * m.absorbed) / mealNeeded)
+          icrMeals.push(m)
+        }
       }
     }
+    // Terápiás beállítás nélkül nincs CH-arány becslés: ott a tiszta étkezések maguk számítanak.
+    const usedMeals = isfForIcr ? icrMeals : cleanCarbMeals
     const icrEst = icrValues.length >= MIN_EVENTS ? r1(median(icrValues)!) : null
     // Megbízhatatlan, ha a tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH ilyenkor nem
     // szívódott fel teljesen, és a CH-arány túl nagynak (kevés inzulin) jönne ki.
-    const risingN = cleanCarbMeals.filter((m) => (m.endRise ?? 0) > ICR_RISING).length
-    const icrRising = cleanCarbMeals.length > 0 && risingN * 2 >= cleanCarbMeals.length
+    const risingN = usedMeals.filter((m) => (m.endRise ?? 0) > ICR_RISING).length
+    const icrRising = usedMeals.length > 0 && risingN * 2 >= usedMeals.length
     allIcr.push(...icrValues)
+    allIcrMeals.push(...icrMeals)
     // Jelentős bázis-sodródás (bármelyik irányba): a korrekciók esése és az étkezések végpontja is torzul.
     const drift = driftOf(sg.start, sg.end)
     const drifting = drift != null && Math.abs(drift) >= DRIFT_LIMIT
@@ -515,14 +525,14 @@ export function analyze(from: number, to: number) {
         meals: segMeals.length,
         fattyMeals: fattyMeals.length,
         fastMeals: segMeals.filter((m) => m.fast).length,
-        cleanMeals: cleanCarbMeals.length,
-        truncatedMeals: cleanCarbMeals.filter((m) => m.truncated).length,
+        cleanMeals: usedMeals.length,
+        truncatedMeals: usedMeals.filter((m) => m.truncated).length,
         cleanCorrections: segCorr.length,
       },
       meals: mealSummary(segMeals),
       fatty: mealSummary(fattyMeals),
       // A CH-arány becsléséhez használt tiszta étkezések görbéje (Terápia oldal).
-      clean: mealSummary(cleanCarbMeals),
+      clean: mealSummary(usedMeals),
       estimate: {
         // Ha az illesztés az inzulin leghosszabb hatásidején akadt meg, más is csökkentette a
         // vércukrot (pl. bázis): az érzékenység és a hatásidő ilyenkor nem megbízható.
@@ -540,11 +550,12 @@ export function analyze(from: number, to: number) {
   // Az érzékenység és a hatásidő a mért eseményekből jön (napszaktól függetlenül); a CH-arány az étkezéseket a saját
   // napszakuk beállított érzékenységével számolja, majd a mediánt veszi.
   const overallFit = corrections.length >= MIN_EVENTS ? fitAction(corrections, maxDia) : null
+  const overallRising = allIcrMeals.filter((m) => (m.endRise ?? 0) > ICR_RISING).length
   const overall = {
     counts: { cleanCorrections: corrections.length, cleanMeals: allIcr.length },
     estimate: {
       isf: overallFit ? { value: overallFit.isf, n: overallFit.n, unreliable: overallFit.unreliable } : null,
-      icr: allIcr.length >= MIN_EVENTS ? { value: r1(median(allIcr)!), n: allIcr.length, unreliable: false, rising: 0 } : null,
+      icr: allIcr.length >= MIN_EVENTS ? { value: r1(median(allIcr)!), n: allIcr.length, unreliable: overallRising * 2 >= allIcrMeals.length, rising: overallRising } : null,
       action: overallFit,
     },
   }
@@ -625,11 +636,12 @@ function mealSummary(meals: MealEvent[]) {
   // Csak addig, ameddig van adat (sima étkezésnél 4, zsírosnál 6 óra).
   const lastIdx = Math.max(...meals.map((m) => m.curve.findLastIndex((v) => v != null)))
   const minutes = meals[0].curve.slice(0, lastIdx + 1).map((_, i) => -MEAL_PRE_MIN + i * STEP)
+  // A medián egy étkezésből is látszik; a 25–75%-os sávhoz legalább MIN_EVENTS étkezés kell (kettőből a „sáv” csak a
+  // két görbe közti rés, és megbízhatóbbnak látszana, mint ami).
   const band = (q: number) =>
     minutes.map((_, i) => {
       const vals = meals.map((m) => m.curve[i]).filter((v): v is number => v != null).sort((a, b) => a - b)
-      // A medián egy étkezésből is látszik, a 25–75% sávhoz legalább kettő kell.
-      return vals.length >= (q === 0.5 ? 1 : 2) ? r2(quantile(vals, q)) : null
+      return vals.length >= (q === 0.5 ? 1 : MIN_EVENTS) ? r2(quantile(vals, q)) : null
     })
   const med = (pick: (m: MealEvent) => number | null) => {
     const v = median(meals.map(pick).filter((x): x is number => x != null))
@@ -654,12 +666,32 @@ function mealSummary(meals: MealEvent[]) {
  * Az egységnyi esési görbék mediánja 5 percenként. Ahol az események felénél kevesebbnél (de legalább
  * MIN_EVENTS-nél) van adat, ott nincs érték: a görbe vége kevés (főleg éjszakai) eseményből torzítaná az illesztést.
  */
+/**
+ * Az egységnyi esés időpontonkénti mediánja, az adag nagyságával súlyozva: egy 1 E-s korrekciónál a mérési zaj és a
+ * bázis-sodródás egységnyire vetítve négyszer akkora, mint egy 4 E-snél, ezért a kis adagok kevesebbet számítanak.
+ */
 function medianCurve(events: CorrectionEvent[]): (number | null)[] {
   const need = Math.min(events.length, Math.max(MIN_EVENTS, Math.ceil(events.length / 2)))
   return events[0].perUnit.map((_, i) => {
-    const v = events.map((e) => e.perUnit[i]).filter((x): x is number => x != null)
-    return v.length >= need ? median(v) : null
+    const v = events
+      .filter((e) => e.perUnit[i] != null)
+      .map((e) => ({ v: e.perUnit[i]!, w: e.dose }))
+    return v.length >= need ? weightedMedian(v) : null
   })
+}
+
+/** Súlyozott medián: az az érték, amelynél a kisebb értékek összsúlya eléri a teljes súly felét (két érték között félúton, ha pontosan ott van a határ). */
+function weightedMedian(items: { v: number; w: number }[]): number | null {
+  const xs = items.filter((x) => x.w > 0).sort((a, b) => a.v - b.v)
+  if (!xs.length) return null
+  const half = xs.reduce((a, x) => a + x.w, 0) / 2
+  let acc = 0
+  for (let i = 0; i < xs.length; i++) {
+    acc += xs[i].w
+    if (Math.abs(acc - half) < 1e-9 && i + 1 < xs.length) return (xs[i].v + xs[i + 1].v) / 2
+    if (acc > half) return xs[i].v
+  }
+  return xs[xs.length - 1].v
 }
 
 /**
@@ -716,15 +748,19 @@ function actionSummary(events: CorrectionEvent[], t: Therapy | null, maxDia: num
   // Viszonyítás: az illesztett teljes esés, vagy illesztés nélkül az események legnagyobb esése.
   const scale = (e: CorrectionEvent) => fit?.isf ?? e.isf
   const minutes = events[0].perUnit.map((_, i) => i * STEP)
-  const band = (q: number) =>
+  // Ugyanaz a minimum, mint az illesztésnél (medianCurve): ahol kevés esemény van (a görbe vége), ott nincs pont;
+  // a 25–75%-os sávhoz ezen felül legalább MIN_EVENTS esemény kell, különben megbízhatóbbnak látszana, mint ami.
+  const need = Math.min(events.length, Math.max(MIN_EVENTS, Math.ceil(events.length / 2)))
+  const band = (q: number, min: number) =>
     minutes.map((_, i) => {
       const v = events.map((e) => (e.perUnit[i] == null ? null : e.perUnit[i]! / scale(e)))
         .filter((x): x is number => x != null).sort((a, b) => a - b)
-      return v.length ? r2(quantile(v, q)) : null
+      return v.length && v.length >= min ? r2(quantile(v, q)) : null
     })
+  const bandMin = Math.max(MIN_EVENTS, need)
   return {
     n: events.length,
-    observed: { minutes, p25: band(0.25), p50: band(0.5), p75: band(0.75) },
+    observed: { minutes, p25: band(0.25, bandMin), p50: band(0.5, need), p75: band(0.75, bandMin) },
     fit,
     current,
   }

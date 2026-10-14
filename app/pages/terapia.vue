@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Terápiás beállítások kézi szerkesztése (az InPen „Inzulinbeállítások” képernyője alapján).
+// Terápiás beállítások kézi szerkesztése (célérték, ISF, CH-arány, hatásidő napszakonként).
 import type { Therapy, TherapySegment } from '#shared/types/therapy'
 
 const { data } = await useFetch<{ therapy: Therapy | null }>('/api/therapy', { key: 'therapy' })
@@ -108,7 +108,7 @@ async function save() {
   <main>
     <form class="card therapy-edit" @submit.prevent="save">
       <h1>Terápiás beállítások</h1>
-      <p class="muted small">Az InPen app <b>Beállítások → Inzulinbeállítások</b> képernyőjének értékei. Egyelőre kézzel adod meg, és csak tájékoztató jellegűek: az adagot továbbra is az InPen app számolja.</p>
+      <p class="muted small">A diabetológussal egyeztetett terápiás értékek. Ezekből számol a bóluskalkulátor, az aktív inzulin, az előrejelzés és az elemzés; tájékoztató jellegűek, a beadott adagról te döntesz.</p>
 
 
       <div class="therapy-fields">

@@ -1,9 +1,9 @@
 # Cukornapló
 
-Saját webes napló Guardian 4 szenzorhoz és InPen-hez: glükóz, inzulin és szénhidrát egy
-helyen, közös időtengelyen. Nuxt 4 (SPA) + Nitro szerver, SQLite (`node:sqlite`).
+Saját webes napló Guardian 4 szenzorhoz: a glükóz a CareLinkből jön, az inzulint (bólus, bázis) és a
+szénhidrátot kézzel könyveled (napló, bóluskalkulátor); minden egy helyen, közös időtengelyen. Nuxt 4 (SPA) + Nitro szerver, SQLite (`node:sqlite`).
 
-Nem orvostechnikai eszköz. Kezelési döntéshez az InPen és a Guardian app értékeit használd.
+Nem orvostechnikai eszköz. Kezelési döntéshez a Guardian app értékeit és a diabetológusod útmutatását használd.
 
 ## Funkciók
 
@@ -22,7 +22,7 @@ Nem orvostechnikai eszköz. Kezelési döntéshez az InPen és a Guardian app é
   **összekötő UI** (belépési cím, kód beillesztése, lekérés most, páciensváltás, nyers
   válasz letöltése, bontás), **kézi import**, és a **Visszaállítás** zóna:
   *mért adatok törlése* és *minden elölről (gyári visszaállítás)*.
-- **Telefonos beállító varázsló** (`/telefon`): kapcsolatteszt, InPen → Egészség app,
+- **Telefonos beállító varázsló** (`/telefon`, csak InPen / Apple Health használatához): kapcsolatteszt, InPen → Egészség app,
   küldés módja (Health Auto Export / Parancsok), próba élő figyelővel.
 - **Adatfogadó API** – `POST /api/ingest` (a régi telefonos beállítások miatt az
   `/api/ingest.php` cím is működik).

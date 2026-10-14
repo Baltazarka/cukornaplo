@@ -1,6 +1,6 @@
 # Cukornapló – útmutató Claude-nak
 
-Személyes cukorbetegség-napló. Nuxt 4 (SPA, `ssr: false`) + Nitro szerver, SQLite (`node:sqlite`), CareLink-lekérdező, InPen/Health feltöltés, Docker-telepítés. A felület és a kommentek magyarul vannak.
+Személyes cukorbetegség-napló. Nuxt 4 (SPA, `ssr: false`) + Nitro szerver, SQLite (`node:sqlite`), CareLink-lekérdező, kézi inzulin- és CH-könyvelés (régebben InPen/Health feltöltés), Docker-telepítés. A felület és a kommentek magyarul vannak.
 
 ## Munkamenet
 - A felhasználó magyarul ír; válaszolj magyarul, tömören.

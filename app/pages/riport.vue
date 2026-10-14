@@ -329,7 +329,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
       <ReportMethods :low="rep.range.low" :high="rep.range.high" />
 
       <p class="muted small report-foot">
-        Saját nyilvántartás (Cukornapló), nem orvostechnikai eszköz. Szenzoradat: Medtronic CareLink; inzulin és szénhidrát: kézi könyvelés és InPen (Apple Egészség).
+        Saját nyilvántartás (Cukornapló), nem orvostechnikai eszköz. Szenzoradat: Medtronic CareLink; inzulin és szénhidrát: kézi könyvelés (a régebbi adatok egy része InPen / Apple Egészség).
         A becslések és értékelések tájékoztató jellegűek.
       </p>
     </template>

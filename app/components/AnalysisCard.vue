@@ -219,7 +219,8 @@ const actYTicks = computed(() => {
               <small class="est-q">{{ overall.estimate.isf?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
             </td>
             <td class="num">
-              <b v-if="overall.estimate.icr">{{ fmt(overall.estimate.icr.value) }}</b><span v-else class="muted">?</span>
+              <b v-if="overall.estimate.icr" :class="{ 'est-bad': overall.estimate.icr.unreliable }">{{ fmt(overall.estimate.icr.value) }}</b><span v-else class="muted">?</span>
+              <small v-if="overall.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">még emelkedik</small>
               <small class="est-q">{{ quality(overall.counts.cleanMeals) }}</small>
             </td>
             <td class="num">
@@ -237,7 +238,7 @@ const actYTicks = computed(() => {
 
     <div class="btn-row">
       <button type="button" class="ghost" :disabled="!hasEstimate" @click="apply">Becslések beírása a szerkesztőbe</button>
-      <span class="muted small">Csak kitölti a mezőket, mentés előtt átnézheted. Ez a Cukornaplót állítja, az InPent nem; ott a változtatást a diabetológusoddal egyeztesd.</span>
+      <span class="muted small">Csak kitölti a mezőket, mentés előtt átnézheted. Ez csak a Cukornapló beállításait módosítja; a terápia változtatását a diabetológusoddal egyeztesd.</span>
     </div>
 
     <div class="analysis-action">
@@ -251,7 +252,7 @@ const actYTicks = computed(() => {
             :y-ticks="actYTicks" :y-format="pctFmt" :ref-y="[1]" :height="170"
             :caption="`${act.n} tiszta korrekció: a vércukor esése a teljes esés arányában, a bólustól számítva`"
           >
-            <template #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
+            <template v-if="act.n >= 3" #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
           </MiniBandChart>
         </ClientOnly>
         <p v-if="act.fit?.atLimit" class="alert small">
@@ -286,7 +287,7 @@ const actYTicks = computed(() => {
               :ref-y="[0]" :ref-x="[0]" :height="140"
               :caption="`Emelkedés ${signed(s.clean.rise)} mmol/L, csúcs ${fmt(s.clean.peakMin, 0)} perc után, 4 óra múlva ${signed(s.clean.d4h)}`"
             >
-              <template v-if="s.clean.n >= 2" #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
+              <template v-if="s.clean.n >= 3" #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
             </MiniBandChart>
           </ClientOnly>
           <p class="muted small">4 óra múlva {{ signed(s.clean.d4h) }} mmol/L: {{ cleanVerdict(s.clean) }}.</p>

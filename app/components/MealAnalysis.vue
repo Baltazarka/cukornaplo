@@ -75,7 +75,7 @@ const RATINGS = [
             :ref-y="[0]" :ref-x="[0]" :height="150"
             :caption="s.meals ? `Medián emelkedés ${fmt(s.meals.rise, 1, true)} mmol/L, ${fmt(s.meals.peakMin, 0)} perc után` : 'Csak zsíros / fehérjedús étkezés'"
           >
-            <template v-if="s.meals" #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
+            <template v-if="s.meals && s.meals.n >= 3" #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
           </MiniBandChart>
         </ClientOnly>
         <dl v-if="s.meals" class="meal-stats">

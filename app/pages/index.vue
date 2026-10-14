@@ -214,7 +214,7 @@ async function saveEntry(force = false) {
     if (f.date && f.date !== data.value!.day) go(f.date)
     else await refresh()
   } catch (e: any) {
-    // Hasonló bejegyzés a közelben (pl. az InPen már elküldte): rákérdezünk.
+    // Hasonló bejegyzés a közelben (pl. véletlenül kétszer beírva): rákérdezünk.
     if (e?.data?.duplicate && !force && (await askConfirm(`${e.data.error}
 
 Mégis felveszed?`, { confirmLabel: 'Felveszem' }))) return saveEntry(true)
@@ -345,7 +345,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
               <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fast'" :title="CARB_TAG_HINT.fast" @click="entryForm.sub = entryForm.sub === 'fast' ? '' : 'fast'">gyors</button>
             </div>
           </div>
-          <p v-if="entryForm.type !== 'glucose'" class="muted small">Ha az InPen később ugyanezt elküldi (azonos mennyiség, 30 percen belül), a kézi sor beolvad, nem lesz dupla.</p>
+          <p v-if="entryForm.type !== 'glucose'" class="muted small">Ha 30 percen belül már van ugyanekkora bejegyzés, rákérdez, hogy ne legyen véletlenül dupla.</p>
           <p v-else class="muted small">A kézi mérés „kézi” jelöléssel kerül a naplóba és a grafikonra. Pontos mérésként beleszámít az értékekbe (átlag, célban töltött idő, hipóesemények), de a szenzorlefedettségbe és a trendnyílba nem. A bóluskalkulátor használhatja, ha újabb a szenzor értékénél.</p>
           <div class="btn-row">
             <button type="submit" class="sm" :disabled="entrySaving">Mentés</button>
@@ -494,6 +494,6 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
       <SensorCard :device="device" />
     </aside>
 
-    <p class="muted small disclaimer">Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian és az InPen app értékeit használd.</p>
+    <p class="muted small disclaimer">Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian app értékeit és a diabetológusod útmutatását használd.</p>
   </main>
 </template>
