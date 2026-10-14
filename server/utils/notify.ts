@@ -117,7 +117,8 @@ export async function checkAlerts(nowTs = Math.floor(Date.now() / 1000)): Promis
   const gap = s.repeatMin * 60 - 30 // a percenkénti ellenőrzés időzítési ingadozására
   const wantHypo = s.hypoPush && nowTs - (st.lastHypo ?? 0) >= gap
   const wantCarbs = s.carbsPush && nowTs - (st.lastCarbs ?? 0) >= gap
-  const wantInsulin = s.insulinPush && nowTs - (st.lastInsulin ?? 0) >= gap
+  // Az inzulinjavaslat legfeljebb óránként ismétlődik (a beadott adag hatásához idő kell).
+  const wantInsulin = s.insulinPush && nowTs - (st.lastInsulin ?? 0) >= Math.max(gap, 60 * 60 - 30)
   if (!wantHypo && !wantCarbs && !wantInsulin) return
 
   const p = predictGlucose(s.hypoHorizon, nowTs)

@@ -13,6 +13,18 @@ export function setMaxBolus(n: number | null): void {
 }
 export const MGDL_PER_MMOL = 18.0182
 
+/**
+ * Típus nélküli adag, ami bázisnak tekintendő: a beállított bázisadag ±25%-án belül (és a maximális bólus fölött),
+ * vagy bázisadag nélkül a maximális bólus másfélszeresénél nagyobb. Egy nagy étkezési bólus (pl. 26 E a 25-ös
+ * maximum mellett) így nem lesz bázis, a más adaggal beadott bázis (pl. 50 E az 52 helyett) igen.
+ */
+export function looksBasal(v: number, basal: number | null, max: number | null): boolean {
+  if (basal != null && Math.abs(v - basal) < 0.05) return true
+  if (max == null) return false
+  if (basal != null) return v > max && Math.abs(v - basal) <= basal * 0.25
+  return v > max * 1.5
+}
+
 const TYPE_MAP: Record<string, Row['type']> = {
   glucose: 'glucose', bg: 'glucose', sg: 'glucose', 'blood glucose': 'glucose',
   blood_glucose: 'glucose', vercukor: 'glucose', vercukorszint: 'glucose', glukoz: 'glucose',
@@ -122,13 +134,14 @@ export function normalizeRow(
   if (t === 'insulin' && subtype !== '') {
     const st = stripAccents(subtype).toLowerCase()
     if (st.includes('bas') || st.includes('baz') || st.includes('alap') || st === '1') sub = 'basal'
+    else if (st.includes('korr') || st.includes('corr')) sub = 'correction'
+    else if (st.includes('etk') || st.includes('meal') || st.includes('food') || st.includes('etel')) sub = 'meal'
     else if (st.includes('bol') || st === '2') sub = 'bolus'
   }
 
   // A Parancsok nem küldi az adag típusát: típus nélkül a beállított bázisadaggal egyező érték = bázis, minden más bólus.
   if (t === 'insulin' && sub === null && basalDose !== null && Math.abs(v - basalDose) < 0.05) sub = 'basal'
-  // A maximális bólusnál nagyobb, típus nélküli adag bólus nem lehet: bázis (pl. a Toujeo más adaggal).
-  if (t === 'insulin' && sub === null && maxBolus !== null && v > maxBolus) sub = 'basal'
+  if (t === 'insulin' && sub === null && looksBasal(v, basalDose, maxBolus)) sub = 'basal'
 
   return { type: t, ts, value: v, subtype: sub, source: source.trim() !== '' ? source.trim().slice(0, 80) : null }
 }

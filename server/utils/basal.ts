@@ -3,6 +3,7 @@
 // bázisadaggal számol („becsült”), hogy ne tűnjön úgy, mintha aznap nem lett volna bázis.
 
 import { therapy } from './therapy'
+import { looksBasal } from './normalize'
 
 /** A főoldalon beállított bázisadag (E), vagy null. */
 export function assumedBasalDose(): number | null {
@@ -11,15 +12,11 @@ export function assumedBasalDose(): number | null {
 }
 
 /**
- * Típus nélküli adag (nincs kézzel beállított altípus), amely pontosan a beállított bázisadag, vagy nagyobb a
- * beállított maximális bólusnál: bázisnak számít.
+ * Típus nélküli adag (nincs kézzel beállított altípus), amely bázisnak számít (lásd looksBasal: a bázisadag, vagy
+ * a maximális bólus fölött a bázisadag ±25%-a).
  * Minden útvonalon (adatfogadás, import, kézi felvétel, elemzés) ugyanez a szabály érvényes.
  */
 export function isAssumedBasal(value: number, subtype: string | null): boolean {
   if (subtype != null && subtype !== '') return false
-  const b = assumedBasalDose()
-  if (b != null && Math.abs(value - b) < 0.05) return true
-  // A beállított maximális bólusnál nagyobb adag bólus nem lehet (pl. a bázis más adaggal, típus nélkül).
-  const max = therapy()?.maxBolus
-  return max != null && value > max
+  return looksBasal(value, assumedBasalDose(), therapy()?.maxBolus ?? null)
 }

@@ -24,6 +24,20 @@ function cleanup(): void {
          WHERE a.type = 'glucose' AND (a.source IS NULL OR a.source NOT IN ('CareLink', ?))
        )`,
     ).run(GLUCOSE_DUP_SEC, GLUCOSE_DUP_SEC, MANUAL_SOURCE)
+    // Javítás (egyszer): egy korábbi, túl tág szabály a maximális bólusnál nagyobb étkezési bólust is bázisnak
+    // jelölte. A bázisnak jelölt, de a bázisadagtól 25%-nál jobban eltérő és CH mellett (±30 perc) beadott adag
+    // visszakapja a típus nélküli (automatikus) besorolást.
+    let unbasal = 0
+    if (!setting('fix_basal_v1', null)) {
+      const b = Number(setting('basal_dose', null))
+      if (Number.isFinite(b) && b > 0) {
+        unbasal = Number(d.prepare(
+          `UPDATE entries SET subtype = NULL WHERE type = 'insulin' AND subtype = 'basal' AND ABS(value - ?) > ? * 0.25
+             AND EXISTS (SELECT 1 FROM entries c WHERE c.type = 'carbs' AND c.ts BETWEEN entries.ts - 1800 AND entries.ts + 1800)`,
+        ).run(b, b).changes)
+      }
+      saveSettings({ fix_basal_v1: true })
+    }
     const untyped = d.prepare("SELECT id, value FROM entries WHERE type = 'insulin' AND (subtype IS NULL OR subtype = '')").all() as { id: number; value: number }[]
     const setBasal = d.prepare("UPDATE entries SET subtype = 'basal' WHERE id = ?")
     let basal = 0
@@ -34,8 +48,8 @@ function cleanup(): void {
       }
     }
     const removed = Number(dup.changes)
-    if (removed || basal) {
-      console.log(`[adattisztítás] ${removed} dupla szenzorérték törölve, ${basal} adag bázisnak jelölve`)
+    if (removed || basal || unbasal) {
+      console.log(`[adattisztítás] ${removed} dupla szenzorérték törölve, ${basal} adag bázisnak jelölve, ${unbasal} tévesen bázisnak jelölt adag visszaállítva`)
       markDirty()
     }
   } catch (e) {

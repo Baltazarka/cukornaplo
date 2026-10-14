@@ -172,10 +172,9 @@ onBeforeUnmount(() => {
               <h3>Inzulin: besorolás, TDD, kördiagram</h3>
               <p>Az InPen csak annyit küld, hogy bólus volt; a típust így becsüljük (a naplóban kézzel bármikor felülírható, és a kézi beállítás mindig erősebb):</p>
               <ol class="guide-ol">
-                <li><b>Bázis</b>, ha a beérkező adag pontosan akkora, mint a főoldalon beállított „Bázisadagom” (±0,05 E), vagy kézzel bázisnak jelölted.</li>
+                <li><b>Bázis</b>, ha a beérkező adag pontosan akkora, mint a főoldalon beállított „Bázisadagom” (±0,05 E), vagy a maximális bólusnál nagyobb és a bázisadag ±25%-án belül van (pl. 50 E az 52 helyett), vagy kézzel bázisnak jelölted.</li>
                 <li><b>Étkezési bólus</b>, ha a beadás után 60 percen belül (előbólus) vagy előtte 30 percen belül szénhidrát van a naplóban.</li>
-                <li><b>Étkezési bólus CH nélkül</b>, ha nincs szénhidrát, de a vércukor a beadáskor (a 15 perccel előtte – 5 perccel utána mért legközelebbi érték) a napszak célértéke + 2 mmol/L alatt volt: valószínűleg evés volt, csak a CH nem lett beírva.</li>
-                <li>Egyébként <b>korrekció</b> (magas vércukor, vagy nincs mérés).</li>
+                <li>Egyébként <b>korrekció</b>: a CH nélküli adag (az InPen-ben megadott típus az Apple Health-en át nem jön át, ezért ezt a CH alapján döntjük el). Ha a telefon mégis küld típust („korrekció”, „étkezés”), azt használjuk.</li>
               </ol>
               <dl class="guide-dl">
                 <div><dt>TDD</dt><dd>Total Daily Dose: a napi összes inzulin (étkezési + korrekció + bázis). Időszakos nézetben napi átlag, de csak azokra a napokra osztva, amelyeken volt InPen-adat (a kimaradt napok nem húzzák le); a mai, még le nem zárt nap kimarad az átlagból, ha van lezárt nap adattal.</dd></div>
@@ -282,7 +281,7 @@ becslés(t) = (modell(t) · w + trend(t)) ÷ (w + 1),   w = 0,1 · 2,5^(t / 5 pe
                 <li><b>Hosszú távú érték</b> = utolsó érték − az összes aktív inzulin hatása + az összes még fel nem szívódott CH hatása.</li>
                 <li><b>Hipó-veszély</b>: a becsült mélypont (a választott módszer és a trend közül óvatosan a kisebb érték) az előrejelzési távolságon belül a céltartomány alja alá esik (vagy már alatta vagy), és nincs friss kezelés (az utolsó 20 percben legalább 10 g CH).</li>
                 <li><b>CH-javaslat</b> = (célérték − becsült mélypont) ÷ (ISF ÷ CH-arány), 5 g-ra kerekítve, 10–30 g között.</li>
-                <li><b>Inzulinjavaslat</b>: ha a vércukor és a hosszú távú érték is a céltartomány fölött van, nincs hipó-veszély, és nem esik gyorsan. Mennyisége (hosszú távú érték − célérték) ÷ ISF, 0,5 E-re kerekítve, legfeljebb a maximális bólus. Beadás után az aktív inzulin levonása miatt magától megszűnik.</li>
+                <li><b>Inzulinjavaslat</b>: ha a vércukor és a hosszú távú érték is a céltartomány fölött van, nincs hipó-veszély, nem esik, 3 E-nél kevesebb az aktív inzulin, és az utolsó bólus óta legalább 1 óra eltelt (az egymásra adott adagok halmozása ellen). Legfeljebb óránként szól. Mennyisége (hosszú távú érték − célérték) ÷ ISF, 0,5 E-re kerekítve, legfeljebb a maximális bólus. Beadás után az aktív inzulin levonása miatt magától megszűnik.</li>
                 <li><b>Értesítések</b> (push): a háttér percenként ellenőriz; amíg a helyzet fennáll, a beállított időközönként (alapból 15 percenként) ismétel. A Beállítások oldalon tesztgombokkal próbálható ki.</li>
                 <li>A Terápia oldalon az <b>előrejelzés pontossága</b> kártya a saját adataidon összeveti a módszereket a ténylegesen mért értékkel.</li>
               </ul>

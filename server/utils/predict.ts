@@ -34,6 +34,10 @@ export const CHOICE_KEY = 'predict-choice'
 const TREND_CAP_MIN = 20 // a csillapított trend legfeljebb ennyi percig folytatódik
 const ACTIVE_IOB = 0.5 // E
 const ACTIVE_COB = 10 // g
+/** Inzulinjavaslat csak ennél kevesebb aktív inzulinnál (E) … */
+const SUGGEST_MAX_IOB = 3
+/** … és ha az utolsó bólus óta legalább ennyi perc eltelt (a frissen beadott adag még nem hatott: halmozás ellen). */
+const SUGGEST_AFTER_BOLUS_MIN = 60
 
 let choiceCache: { at: number; v: PredictChoice | null } | null = null
 function choice(): PredictChoice | null {
@@ -93,6 +97,8 @@ interface Model {
   at: (h: number) => number
   /** Ugyanez egy adott módszerrel. */
   atMode: (h: number, mode: PredictMode) => number
+  /** A legutóbbi (nem bázis) bólus időpontja, 0 ha nincs. */
+  lastBolusTs: number
 }
 
 /** A becslés összetevői (adagok, szénhidrát, lendület) egyszer kiszámítva; `at(h)` bármely távolságra ad értéket. */
@@ -173,6 +179,7 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
     return Math.min(MAX_GLUCOSE, Math.max(1.5, v))
   }
   const iobNow = iobAt(doses, nowTs)
+  const lastBolusTs = doses.reduce((a, d) => (d.ts <= nowTs && d.ts > a ? d.ts : a), 0)
   const active = iobNow >= ACTIVE_IOB || cob >= ACTIVE_COB
   const at = (h: number) => {
     if (mode !== 'auto') return atMode(h, mode)
@@ -185,7 +192,7 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
   for (const d of doses) eventual -= d.v * d.model.iob((latest.ts - d.ts) / 60) * isfAt(d.ts)
   for (const c of meals) eventual += c.grams * (1 - absorbed(c, -lagMin)) * c.perG
   const range = targetRange()
-  return { latest, low: range.low, high: range.high, target: seg.target, isf: seg.isf, perG, maxBolus: t.maxBolus, eventual, iob: iobNow, cob, treated, active, at, atMode }
+  return { latest, low: range.low, high: range.high, target: seg.target, isf: seg.isf, perG, maxBolus: t.maxBolus, eventual, iob: iobNow, cob, treated, active, at, atMode, lastBolusTs }
 }
 
 const round = (x: number, k: number) => Math.round(x * k) / k
@@ -227,10 +234,13 @@ export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 100
   const lowest = Math.min(nadir, m.eventual)
   const carbsNeeded = risk ? Math.min(30, Math.max(10, roundTo((m.target - lowest) / m.perG, 5))) : null
   // Inzulin: csak ha a vércukor most is és a hosszú távú értéke is a céltartomány fölött van, nincs hipó-veszély,
-  // és nem esik gyorsan. A javaslat (hosszú távú érték − cél) ÷ ISF, 0,5 E-re kerekítve, a maximális bólusig.
-  const fallingFast = (m.latest.rate ?? 0) <= -0.11
+  // nem esik, kevés az aktív inzulin, és az utolsó bólus óta legalább egy óra eltelt (a valós adatban a frissen
+  // beadott adag melletti javaslatok halmozódtak). A javaslat (hosszú távú érték − cél) ÷ ISF, 0,5 E-re kerekítve,
+  // a maximális bólusig.
+  const falling = (m.latest.rate ?? 0) <= -0.03
+  const recentBolus = m.lastBolusTs > 0 && nowTs - m.lastBolusTs < SUGGEST_AFTER_BOLUS_MIN * 60
   let insulinNeeded: number | null = null
-  if (!risk && !fallingFast && m.latest.v > m.high && m.eventual > m.high) {
+  if (!risk && !falling && !recentBolus && m.iob < SUGGEST_MAX_IOB && m.latest.v > m.high && m.eventual > m.high) {
     const dose = Math.min(m.maxBolus, roundTo((m.eventual - m.target) / m.isf, 0.5))
     if (dose >= 0.5) insulinNeeded = dose
   }
