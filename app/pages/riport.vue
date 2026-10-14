@@ -210,7 +210,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
         <template v-else>
           <p class="small">
             <b>{{ hy.summary.n }}</b> esemény (hetente {{ fmt(hy.summary.perWeek) }}), ebből <b>{{ hy.summary.level2 }}</b> 2. szintű (&lt; {{ fmt(hy.veryLow) }}),
-            {{ hy.summary.night }} éjszakai (0–6 óra); átlagos hossz {{ hy.summary.avgMinutes }} perc, legalacsonyabb {{ fmt(hy.summary.lowest) }} mmol/L.
+            {{ hy.summary.night }} éjszakai (0–6 óra); átlagos hossz {{ hy.summary.avgMinutes }} perc, legalacsonyabb {{ sgText(hy.summary.lowest) }} mmol/L.
             Bólus utáni 4 órában: {{ hy.summary.afterBolus }}, túlkezelés (utána a céltartomány fölé): {{ hy.summary.overTreated }}.
           </p>
           <table class="table report-table">
@@ -219,12 +219,12 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
               <tr v-for="e in hy.events" :key="e.start">
                 <td>{{ e.date.slice(5).replace('-', '. ') }}. {{ e.time }}{{ e.night ? ' (éjjel)' : '' }}</td>
                 <td class="num">{{ hypoDur(e.minutes) }}</td>
-                <td class="num">{{ fmt(e.nadir) }}{{ e.level === 2 ? ' (2.)' : '' }}</td>
+                <td class="num">{{ sgText(e.nadir) }}{{ e.level === 2 ? ' (2.)' : '' }}</td>
                 <td>
                   {{ e.bolus ? `${fmt(e.bolus.v)} E, ${hypoDur(e.bolus.minutesBefore)} előtte` : '–' }}{{ e.iob != null && e.iob >= 0.1 ? ` · aktív ${fmt(e.iob)} E` : '' }}{{ e.notes.length ? ` · ${e.notes.map(noteTagLabel).join(', ')}` : '' }}
                 </td>
                 <td>{{ e.treatment ? `${fmt(e.treatment.carbs, 0)} g${e.treatment.fast ? ' (gyors)' : ''}` : '–' }}</td>
-                <td class="num">{{ e.rebound ? fmt(e.rebound.v) : '–' }}</td>
+                <td class="num">{{ e.rebound ? sgText(e.rebound.v) : '–' }}</td>
               </tr>
             </tbody>
           </table>
@@ -320,7 +320,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
                     {{ e.type === 'carbs' ? (e.fatty ? 'Szénhidrát (zsíros / fehérjedús)' : e.fast ? 'Szénhidrát (gyors)' : 'Szénhidrát') : KIND_LABEL[e.kind] }}
                   </td>
                   <td class="num">{{ e.type === 'carbs' ? `${fmt(e.v, 0)} g` : `${fmt(e.v)} E` }}</td>
-                  <td class="num">{{ e.glucose != null ? `${fmt(e.glucose)} mmol/L` : '' }}</td>
+                  <td class="num">{{ e.glucose != null ? `${sgText(e.glucose)} mmol/L` : '' }}</td>
                 </template>
               </tr>
             </tbody>

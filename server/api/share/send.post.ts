@@ -5,6 +5,7 @@ import { latestGlucose, periodDigest, fmt1, fmtPct } from '../../utils/digest'
 import { todayYmd } from '../../utils/time'
 import { hmInTz } from '../../utils/time'
 import { db } from '../../utils/db'
+import { sgText } from '#shared/utils/glucose'
 
 export default defineEventHandler(async (event) => {
   const b = (await readBody(event)) ?? {}
@@ -29,13 +30,13 @@ export default defineEventHandler(async (event) => {
     if (last || day.stats.n || week.stats.n) {
       const pct = (d: typeof day) => (d.stats.n ? d.stats.pct!.inRange : null)
       const items = [
-        ...(last ? [{ label: 'Utolsó érték', value: `${fmt1(last.v)} ${last.arrow}`, note: `${last.time}-kor, mmol/L` }] : []),
+        ...(last ? [{ label: 'Utolsó érték', value: `${sgText(last.v)} ${last.arrow}`, note: `${last.time}-kor, mmol/L` }] : []),
         ...(day.stats.n ? [{ label: 'Ma', value: fmt1(day.stats.avg), note: `átlag · célban ${fmtPct(pct(day))}` }] : []),
         ...(week.stats.n ? [{ label: '7 nap', value: fmt1(week.stats.avg), note: `átlag · célban ${fmtPct(pct(week))}` }] : []),
       ]
       summaryHtml = mailStats(items, items.length)
       summaryText = [
-        ...(last ? [`Utolsó érték: ${fmt1(last.v)} mmol/L ${last.arrow} (${last.time})`] : []),
+        ...(last ? [`Utolsó érték: ${sgText(last.v)} mmol/L ${last.arrow} (${last.time})`] : []),
         ...(day.stats.n ? [`Ma: átlag ${fmt1(day.stats.avg)}, célban ${fmtPct(pct(day))}`] : []),
         ...(week.stats.n ? [`7 nap: átlag ${fmt1(week.stats.avg)}, célban ${fmtPct(pct(week))}`] : []),
       ]

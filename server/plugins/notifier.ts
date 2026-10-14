@@ -1,5 +1,5 @@
-// Háttérciklus a push értesítésekhez (hipó-veszély, szénhidrát- és inzulinjavaslat): percenként ellenőriz.
-import { checkAlerts } from '../utils/notify'
+// Háttérciklus a push értesítésekhez (hipó-veszély, szénhidrát- és inzulinjavaslat, szenzor és transzmitter): percenként ellenőriz.
+import { checkAlerts, checkDeviceAlerts } from '../utils/notify'
 import { learnedAbsorption } from '../utils/absorption'
 
 export default defineNitroPlugin(() => {
@@ -9,6 +9,7 @@ export default defineNitroPlugin(() => {
     running = true
     try {
       await checkAlerts()
+      await checkDeviceAlerts()
     } catch (e) {
       console.error('[notifier]', e)
     } finally {

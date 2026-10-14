@@ -106,7 +106,7 @@ async function reset() {
           <div class="wg-small" :style="{ background: form.colors.bg }">
             <div class="wg-top">
               <div class="wg-glu" :style="{ color: glucoseColor }">
-                <span :style="{ fontSize: form.fontSize + 'px' }">{{ fmt(d.glucose.v) }}</span><span v-if="ALL.showTrend" :style="{ fontSize: Math.round(form.fontSize * 0.6) + 'px' }">&nbsp;{{ widgetArrow(d.trend) }}</span>
+                <span :style="{ fontSize: form.fontSize + 'px' }">{{ sgText(d.glucose.v) }}</span><span v-if="ALL.showTrend" :style="{ fontSize: Math.round(form.fontSize * 0.6) + 'px' }">&nbsp;{{ widgetArrow(d.trend) }}</span>
               </div>
               <div v-if="ALL.showCob || ALL.showIob" class="wg-side">
                 <span v-if="ALL.showCob" :style="{ color: form.colors.cob }">CH {{ d.cob }} g</span>
@@ -123,7 +123,7 @@ async function reset() {
           <div class="muted small">Zárképernyő (téglalap; a színeket az iOS adja)</div>
           <div class="wg-lock">
             <div class="wg-lock-row">
-              <span class="wg-lock-gw"><b class="wg-lock-g">{{ fmt(d.glucose.v) }}<template v-if="ALL.showTrend"> {{ widgetArrow(d.trend) }}</template></b><small>mmol/L</small></span>
+              <span class="wg-lock-gw"><b class="wg-lock-g">{{ sgText(d.glucose.v) }}<template v-if="ALL.showTrend"> {{ widgetArrow(d.trend) }}</template></b><small>mmol/L</small></span>
               <span v-if="ALL.showCob || ALL.showIob" class="wg-lock-side">
                 <b v-if="ALL.showCob">CH {{ d.cob }} g</b>
                 <b v-if="ALL.showIob">B {{ widgetIob(d.iob) }} E</b>

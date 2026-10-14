@@ -181,7 +181,7 @@ const trendText = computed(() => {
       </form>
       <div class="bc-cgm small">
         <template v-if="cgm">
-          {{ cgm.manual ? 'Kézi mérés' : 'CGM' }}: <b>{{ fmt(cgm.v) }}</b>
+          {{ cgm.manual ? 'Kézi mérés' : 'CGM' }}: <b>{{ cgm.manual ? fmt(cgm.v) : sgText(cgm.v) }}</b>
           <TrendArrows v-if="cgm.trend" :dir="cgm.trend.dir" :level="cgm.trend.level" />
           <span class="muted">{{ ago(cgm.ageMin) }}</span>
           <span v-if="cgm.manual" class="note-chip manual-chip" title="Kézzel felvitt vércukor, nem szenzoradat">kézi</span>

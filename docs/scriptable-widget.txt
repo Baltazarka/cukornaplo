@@ -28,6 +28,8 @@ function nyil(t) {
   return t.level === 1 ? (f ? '↗' : '↘') : t.level === 2 ? (f ? '↑' : '↓') : f ? '⇈' : '⇊'
 }
 const szam = (v, d) => v.toLocaleString('hu-HU', { minimumFractionDigits: d, maximumFractionDigits: d })
+// A szenzor mérési tartományának határán (2,2 / 22,2 mmol/L) a valós érték kisebb/nagyobb is lehet.
+const sg = (v) => (v <= 2.2 ? '<2,2' : v >= 22.2 ? '>22,2' : szam(v, 1))
 const iobSzoveg = (v) => (v == null ? '–' : v.toLocaleString('hu-HU', { maximumFractionDigits: 1 }))
 function szin(d) {
   const c = d.config.colors
@@ -109,7 +111,7 @@ function kicsi(d) {
   fent.centerAlignContent()
   const g = fent.addStack()
   g.bottomAlignContent()
-  szoveg(g, szam(d.glucose.v, 1), c.fontSize, szin(d), true)
+  szoveg(g, sg(d.glucose.v), c.fontSize, szin(d), true)
   if (c.showTrend) szoveg(g, ' ' + nyil(d.trend), Math.round(c.fontSize * 0.6), szin(d), true)
   fent.addSpacer(4)
   if (c.showCob || c.showIob) {
@@ -137,14 +139,14 @@ function zar(d, tipus) {
   if (c.showCob) reszek.push('CH ' + d.cob + ' g')
   if (c.showIob) reszek.push('B ' + iobSzoveg(d.iob) + ' E')
   if (tipus === 'accessoryInline') {
-    w.addText([szam(d.glucose.v, 1) + ' mmol/L' + nyilSz].concat(reszek).join(' · '))
+    w.addText([sg(d.glucose.v) + ' mmol/L' + nyilSz].concat(reszek).join(' · '))
     return w
   }
   if (tipus === 'accessoryCircular') {
     const s = w.addStack()
     s.layoutVertically()
     s.centerAlignContent()
-    const t1 = s.addText(szam(d.glucose.v, 1))
+    const t1 = s.addText(sg(d.glucose.v))
     t1.font = Font.boldSystemFont(16)
     if (c.showTrend) {
       const t2 = s.addText(nyil(d.trend))
@@ -159,7 +161,7 @@ function zar(d, tipus) {
   s.centerAlignContent()
   const bal = s.addStack()
   bal.layoutVertically()
-  const t1 = bal.addText(szam(d.glucose.v, 1) + nyilSz)
+  const t1 = bal.addText(sg(d.glucose.v) + nyilSz)
   t1.font = Font.boldSystemFont(22)
   const t0 = bal.addText('mmol/L')
   t0.font = Font.systemFont(9)

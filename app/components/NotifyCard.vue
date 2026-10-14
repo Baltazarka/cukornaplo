@@ -1,10 +1,10 @@
 <script setup lang="ts">
-// Telefonos (push) értesítések: hipó-veszély, szénhidrát-javaslat, inzulinjavaslat.
+// Telefonos (push) értesítések: hipó-veszély, szénhidrát-javaslat, inzulinjavaslat, szenzor és transzmitter.
 // Az eszköz engedélyezése itt történik; minden értesítéstípushoz van tesztgomb.
 const { data, refresh } = await useFetch<any>('/api/notify/settings', { key: 'notify-settings' })
 const { data: push, refresh: pushRefresh } = await useFetch<any>('/api/push/key', { key: 'push-key' })
 
-const form = reactive({ hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, repeatMin: 15 })
+const form = reactive({ hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, repeatMin: 15, devicePush: true })
 watchEffect(() => {
   if (data.value?.settings) Object.assign(form, data.value.settings)
 })
@@ -34,6 +34,7 @@ const TESTS = [
   { kind: 'hypo', label: 'Hipó-veszély teszt' },
   { kind: 'carbs', label: 'CH-javaslat teszt' },
   { kind: 'insulin', label: 'Inzulinjavaslat teszt' },
+  { kind: 'device', label: 'Szenzorlejárat teszt' },
 ] as const
 async function test(kind: string) {
   busy.value = `test-${kind}`
@@ -185,6 +186,11 @@ const noDevice = computed(() => !push.value?.devices?.length)
           <input v-model.number="form.insulinMin" type="number" step="0.5" min="0.5" max="10">
         </label>
         <p v-if="data?.lastInsulin" class="muted small">Utolsó: {{ new Date(data.lastInsulin * 1000).toLocaleString('hu-HU', { dateStyle: 'short', timeStyle: 'short' }) }}</p>
+      </fieldset>
+
+      <fieldset class="notify-block">
+        <label class="check"><input v-model="form.devicePush" type="checkbox"> Szenzor és transzmitter</label>
+        <p class="muted small">A CareLink adataiból: {{ SENSOR_ENDING_HOURS }} órával a szenzor lejárata előtt (szenzoronként egyszer), és ha a transzmitter töltöttsége {{ TRANSMITTER_LOW }}% alá esik (12 óránként).</p>
       </fieldset>
 
       <div class="notify-actions">

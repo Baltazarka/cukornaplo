@@ -23,11 +23,11 @@ const fmt = (v: number) => v.toLocaleString('hu-HU', { minimumFractionDigits: 1,
 <template>
   <div v-if="prediction?.risk" class="cl-alert error" role="alert">
     <div class="cl-alert-text">
-      <b v-if="prediction.currentLow">Alacsony a vércukor: {{ fmt(prediction.now.v) }} mmol/L</b>
+      <b v-if="prediction.currentLow">Alacsony a vércukor: {{ sgText(prediction.now.v) }} mmol/L</b>
       <b v-else>Hipó-veszély: {{ prediction.nadirIn || prediction.horizon }} percen belül kb. {{ fmt(prediction.nadir) }} mmol/L várható</b>
       <b v-if="prediction.carbsNeeded">🍬 Kb. {{ prediction.carbsNeeded }} g gyors szénhidrát kellene</b>
       <span>
-        Utolsó érték: {{ fmt(prediction.now.v) }} mmol/L {{ prediction.now.arrow }} ({{ prediction.now.time }}) ·
+        Utolsó érték: {{ sgText(prediction.now.v) }} mmol/L {{ prediction.now.arrow }} ({{ prediction.now.time }}) ·
         aktív inzulin {{ fmt(prediction.iob) }} E · fel nem szívódott CH {{ prediction.cob }} g.
         Becslés, nem helyettesíti a szenzor riasztását.
       </span>
@@ -37,7 +37,7 @@ const fmt = (v: number) => v.toLocaleString('hu-HU', { minimumFractionDigits: 1,
     <div class="cl-alert-text">
       <b>Magas vércukor: kb. {{ prediction.insulinNeeded.toLocaleString('hu-HU', { maximumFractionDigits: 1 }) }} E inzulin javasolt</b>
       <span>
-        Most {{ fmt(prediction.now.v) }} mmol/L {{ prediction.now.arrow }}, az aktív inzulin ({{ fmt(prediction.iob) }} E) után is kb. {{ fmt(prediction.eventual) }} mmol/L marad.
+        Most {{ sgText(prediction.now.v) }} mmol/L {{ prediction.now.arrow }}, az aktív inzulin ({{ fmt(prediction.iob) }} E) után is kb. {{ fmt(prediction.eventual) }} mmol/L marad.
         Számított javaslat a terápiás beállításaid alapján; beadás előtt ellenőrizd.
       </span>
     </div>

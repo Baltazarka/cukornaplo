@@ -4,6 +4,7 @@ import { writeFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { MGDL_PER_MMOL, zonedToTs } from './normalize'
 import { db, storeRows, type Row } from './db'
+import type { DeviceStatus } from '#shared/utils/device'
 
 const CL_DISCOVERY_URL = 'https://clcloud.minimed.eu/connect/carepartner/v13/discover/android/3.6'
 const CL_REGION = 'EU'
@@ -268,6 +269,33 @@ export function clExtractGlucose(data: any): Row[] {
   return rows
 }
 
+/** Szenzor- és transzmitterállapot a CareLink válaszból (a főoldali állapotsorhoz és az értesítésekhez). */
+export function clExtractDevice(data: any, now = Math.floor(Date.now() / 1000)): DeviceStatus | null {
+  const pd = data?.patientData && typeof data.patientData === 'object' ? data.patientData : data
+  if (!pd || typeof pd !== 'object' || !Array.isArray(pd.sgs)) return null
+  const num = (v: any) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  const hours = num(pd.sensorDurationHours)
+  const battery = num(pd.medicalDeviceBatteryLevelPercent)
+  const alarm = pd.lastAlarm && typeof pd.lastAlarm === 'object' && pd.lastAlarm.kind
+    ? { kind: String(pd.lastAlarm.kind), ts: clParseTime(pd.lastAlarm.datetime ?? null) }
+    : null
+  return {
+    at: now,
+    sensorState: typeof pd.sensorState === 'string' ? pd.sensorState : null,
+    sensorHoursLeft: hours != null && hours >= 0 ? hours : null,
+    sensorEndsAt: hours != null && hours > 0 ? now + hours * 3600 : null,
+    transmitterBattery: battery != null && battery > 0 ? battery : null,
+    sensorInRange: typeof pd.conduitSensorInRange === 'boolean' ? pd.conduitSensorInRange : null,
+    lastAlarm: alarm,
+  }
+}
+
+/** Az utolsó lekérés eszközállapota, ha még friss (2 órán belüli). */
+export function clDevice(now = Math.floor(Date.now() / 1000)): DeviceStatus | null {
+  const d = clState().device as DeviceStatus | undefined
+  return d && now - d.at < 2 * 3600 ? d : null
+}
+
 async function clFetchRecent(): Promise<any> {
   const c = await clConfig()
   const session = await clSession()
@@ -310,9 +338,11 @@ export function clPoll(): Promise<PollResult> {
       const rows = clExtractGlucose(data)
       const [inserted, duplicates] = storeRows(rows)
       const latest = rows.length ? Math.max(...rows.map((r) => r.ts)) : null
+      const device = clExtractDevice(data)
       clSave({
         last_ok_at: Math.floor(Date.now() / 1000), last_error: null,
         last_count: rows.length, last_inserted: inserted, last_sg_at: latest,
+        ...(device ? { device } : {}),
       })
       return { ok: true, received: rows.length, inserted, duplicates, latest }
     } catch (e: any) {

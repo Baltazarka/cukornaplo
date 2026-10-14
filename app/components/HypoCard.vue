@@ -48,7 +48,7 @@ const insights = computed(() => {
     <template v-else>
       <div class="hypo-facts">
         <div class="tile"><div class="tile-label">Események</div><div class="tile-value">{{ s.n }}</div><div class="tile-sub">hetente {{ fmt(s.perWeek) }}</div></div>
-        <div class="tile"><div class="tile-label">2. szint<sub>&lt; {{ fmt(data.veryLow) }}</sub></div><div class="tile-value">{{ s.level2 }}</div><div class="tile-sub">legalacsonyabb {{ fmt(s.lowest) }} mmol/L</div></div>
+        <div class="tile"><div class="tile-label">2. szint<sub>&lt; {{ fmt(data.veryLow) }}</sub></div><div class="tile-value">{{ s.level2 }}</div><div class="tile-sub">legalacsonyabb {{ sgText(s.lowest) }} mmol/L</div></div>
         <div class="tile"><div class="tile-label">Éjszakai<sub>0–6 óra</sub></div><div class="tile-value">{{ s.night }}</div></div>
         <div class="tile"><div class="tile-label">Átlagos hossz</div><div class="tile-value">{{ s.avgMinutes }} <small>perc</small></div><div class="tile-sub">összesen {{ dur(s.totalMinutes) }}</div></div>
       </div>
@@ -89,7 +89,7 @@ const insights = computed(() => {
                 <span v-if="e.ongoing" class="note-chip">most tart</span>
               </td>
               <td class="num">{{ dur(e.minutes) }}</td>
-              <td class="num"><span :class="{ 'hypo-l2': e.level === 2 }">{{ fmt(e.nadir) }}</span><span v-if="e.level === 2" class="hypo-l2-tag">2. szint</span></td>
+              <td class="num"><span :class="{ 'hypo-l2': e.level === 2 }">{{ sgText(e.nadir) }}</span><span v-if="e.level === 2" class="hypo-l2-tag">2. szint</span></td>
               <td class="small">
                 <template v-if="e.bolus">{{ fmt(e.bolus.v) }} E {{ KIND[e.bolus.kind] ?? 'bólus' }}, {{ dur(e.bolus.minutesBefore) }} előtte</template>
                 <template v-else><span class="muted">nem volt bólus 4 órán belül</span></template>
@@ -104,7 +104,7 @@ const insights = computed(() => {
               </td>
               <td class="small">
                 <template v-if="e.rebound">
-                  max. <span :class="{ 'hypo-over': e.rebound.over }">{{ fmt(e.rebound.v) }}</span>, {{ dur(e.rebound.minutesAfter) }} múlva
+                  max. <span :class="{ 'hypo-over': e.rebound.over }">{{ sgText(e.rebound.v) }}</span>, {{ dur(e.rebound.minutesAfter) }} múlva
                 </template>
                 <span v-else class="muted">–</span>
               </td>

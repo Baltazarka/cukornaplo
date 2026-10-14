@@ -308,7 +308,7 @@ function buildOption() {
     }
     if (gNear !== null && gDiff <= 10 * 60000) {
       const col = gNear < r.low ? C.low : C.primary
-      html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:6px"></span>Glükóz <b>${num(gNear, 1)}</b> mmol/L</div>`
+      html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:6px"></span>Glükóz <b>${sgText(gNear)}</b> mmol/L</div>`
     }
     const mNear = manualG.find((p) => Math.abs(p[0] - x) <= 6 * 60000)
     if (mNear) {
@@ -545,7 +545,7 @@ const actionText = computed(() => {
   <div>
     <div v-if="last" class="last-reading" :class="{ low: last.low, high: last.high }">
       <span class="lr-label">Utolsó aktív vércukor</span>
-      <span class="lr-value">{{ f1(last.v) }} <small>mmol/L</small></span>
+      <span class="lr-value">{{ sgText(last.v) }} <small>mmol/L</small></span>
       <TrendArrows v-if="day.trend" :dir="day.trend.dir" :level="day.trend.level" class="lr-trend" />
       <span class="lr-time">{{ lastHm(last.ms) }}</span>
       <span v-if="day.iobNow != null" class="lr-iob" title="A még ható gyors hatású (bólus- és korrekciós) inzulin összesen, most">

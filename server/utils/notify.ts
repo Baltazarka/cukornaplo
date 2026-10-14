@@ -4,6 +4,9 @@
 import { sendPush, listSubscriptions, type PushPayload } from './push'
 import { predictGlucose, type Prediction } from './predict'
 import { fmt1 } from './digest'
+import { clDevice } from './carelink'
+import { hoursLeftText, SENSOR_ENDING_HOURS, TRANSMITTER_LOW } from '#shared/utils/device'
+import { sgText } from '#shared/utils/glucose'
 
 export interface NotifySettings {
   /** Hipó-veszély értesítés. */
@@ -18,16 +21,21 @@ export interface NotifySettings {
   insulinMin: number
   /** Ennyi percenként ismétli az értesítést, amíg a helyzet fennáll (15 / 30 / 60). */
   repeatMin: number
+  /** Szenzor lejárata (12 órával előtte) és alacsony transzmittertöltés. */
+  devicePush: boolean
 }
 
 interface NotifyState {
   lastHypo?: number
   lastCarbs?: number
   lastInsulin?: number
+  /** A szenzor lejárata, amelyről már szóltunk (szenzoronként egyszer). */
+  sensorWarnedEnd?: number
+  lastBattery?: number
   lastError?: string
 }
 
-const DEFAULTS: NotifySettings = { hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, repeatMin: 15 }
+const DEFAULTS: NotifySettings = { hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, repeatMin: 15, devicePush: true }
 
 export function notifySettings(): NotifySettings {
   return { ...DEFAULTS, ...(setting<Partial<NotifySettings>>('notify', null) ?? {}) }
@@ -51,12 +59,13 @@ export function validateNotify(b: any): NotifySettings {
     hypoHorizon: Number.isInteger(horizon) && horizon >= 15 && horizon <= 60 ? horizon : DEFAULTS.hypoHorizon,
     insulinMin: Number.isFinite(min) && min >= 0.5 && min <= 10 ? Math.round(min * 2) / 2 : DEFAULTS.insulinMin,
     repeatMin: [15, 30, 60].includes(Number(b?.repeatMin)) ? Number(b.repeatMin) : DEFAULTS.repeatMin,
+    devicePush: b?.devicePush === true,
   }
 }
 
 // ---- az értesítések szövegei ----
 
-const trendNow = (p: Pick<Prediction, 'now'>) => `${fmt1(p.now.v)} ${p.now.arrow}`
+const trendNow = (p: Pick<Prediction, 'now'>) => `${sgText(p.now.v)} ${p.now.arrow}`
 const SAFETY = 'Számított javaslat a terápiás beállításaid alapján; beadás előtt ellenőrizd.'
 
 export function hypoPayload(p: Prediction, extraCarbs?: number | null): PushPayload {
@@ -90,6 +99,23 @@ export function insulinPayload(p: Pick<Prediction, 'now' | 'eventual' | 'iob'>, 
   }
 }
 
+export function sensorPayload(endsAt: number, hoursLeft: number): PushPayload {
+  const at = new Date(endsAt * 1000).toLocaleString('hu-HU', { timeZone: process.env.APP_TZ || 'Europe/Budapest', weekday: 'long', hour: '2-digit', minute: '2-digit' })
+  return {
+    title: `🩹 A szenzor ${hoursLeftText(hoursLeft)} múlva lejár`,
+    body: `Várható lejárat: ${at}. Készítsd elő az új szenzort, és töltsd fel a transzmittert.`,
+    url: '/', tag: 'sensor',
+  }
+}
+
+export function batteryPayload(pct: number): PushPayload {
+  return {
+    title: `🔋 A transzmitter töltöttsége ${pct}%`,
+    body: 'Töltsd fel a transzmittert (legkésőbb a következő szenzorcserénél).',
+    url: '/', tag: 'battery',
+  }
+}
+
 /** Mintaadatok a tesztgombokhoz (nem függnek az aktuális vércukortól). */
 const sampleNow = (v: number, arrow: string): Prediction['now'] => ({ ts: 0, v, time: 'most', ageMin: 0, arrow, rate: null })
 
@@ -104,10 +130,31 @@ export function testPayload(kind: string): PushPayload | null {
   }
   if (kind === 'carbs') return tagged(carbsPayload({ ...low, now: sampleNow(4.4, '↘') }, 15))
   if (kind === 'insulin') return tagged(insulinPayload({ now: sampleNow(13.2, '↗'), eventual: 11.8, iob: 1.8 }, 3))
+  if (kind === 'device') return tagged(sensorPayload(Math.floor(Date.now() / 1000) + 11 * 3600, 11))
   return null
 }
 
 // ---- ellenőrzés (percenként) ----
+
+/** Szenzor lejárata (szenzoronként egyszer, 12 órával előtte) és alacsony transzmittertöltés (12 óránként). */
+export async function checkDeviceAlerts(nowTs = Math.floor(Date.now() / 1000)): Promise<void> {
+  const s = notifySettings()
+  if (!s.devicePush || !listSubscriptions().length) return
+  const d = clDevice(nowTs)
+  if (!d) return
+  const st = notifyState()
+  const send = (payload: PushPayload) => sendPush(payload, { urgency: 'normal', ttl: 6 * 3600 }).catch(() => null)
+  if (d.sensorEndsAt && d.sensorEndsAt > nowTs && d.sensorEndsAt - nowTs <= SENSOR_ENDING_HOURS * 3600
+    // A lejárat lekérésenként pár órát ingadozhat; új szenzornál napokkal később van.
+    && Math.abs(d.sensorEndsAt - (st.sensorWarnedEnd ?? 0)) > 24 * 3600) {
+    saveState({ sensorWarnedEnd: d.sensorEndsAt })
+    await send(sensorPayload(d.sensorEndsAt, (d.sensorEndsAt - nowTs) / 3600))
+  }
+  if (d.transmitterBattery != null && d.transmitterBattery <= TRANSMITTER_LOW && nowTs - (st.lastBattery ?? 0) >= 12 * 3600) {
+    saveState({ lastBattery: nowTs })
+    await send(batteryPayload(d.transmitterBattery))
+  }
+}
 
 export async function checkAlerts(nowTs = Math.floor(Date.now() / 1000)): Promise<void> {
   const s = notifySettings()

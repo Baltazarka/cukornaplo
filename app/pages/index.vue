@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { DeviceStatus } from '#shared/utils/device'
 const route = useRoute()
 const router = useRouter()
 
@@ -23,14 +24,16 @@ const { data: agp, refresh: refreshAgp } = await useAsyncData(
 // lévő lapon szünetel, visszatéréskor azonnal ellenőriz.
 let stamp = ''
 const clAlert = ref<{ level: string; message: string; detail?: string } | null>(null)
+const device = ref<DeviceStatus | null>(null)
 async function checkFresh(force = false) {
-  const v = await $fetch<{ stamp: string; alert: any }>('/api/version').catch((e) => {
+  const v = await $fetch<{ stamp: string; alert: any; device: DeviceStatus | null }>('/api/version').catch((e) => {
     // Lejárt munkamenet (pl. a megosztási link ideje letelt): vissza a belépéshez.
     if (e?.statusCode === 401 || e?.response?.status === 401) navigateTo(readOnly.value ? '/login?lejart=1' : '/login')
     return null
   })
   if (!v) return
   clAlert.value = v.alert
+  device.value = v.device ?? null
   const changed = stamp !== '' && v.stamp !== stamp
   stamp = v.stamp
   if (changed || force) {
@@ -243,7 +246,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
 </script>
 
 <template>
-  <main v-if="data" class="home">
+  <main v-if="data" class="home" :class="{ 'has-right': device }">
     <div class="home-main">
     <div v-if="clAlert" class="cl-alert" :class="clAlert.level" role="alert">
       <div class="cl-alert-text">
@@ -414,7 +417,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                     </template>
                   </td>
                   <td class="num"><span v-if="e.manual" class="note-chip manual-chip" title="Kézzel felvett bejegyzés">kézi</span>{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : e.type === 'glucose' ? fmt(e.v) + ' mmol/L' : fmt(e.v) + ' E' }}</td>
-                  <td class="num">{{ e.glucose != null ? fmt(e.glucose) : '–' }}</td>
+                  <td class="num">{{ e.glucose != null ? sgText(e.glucose) : '–' }}</td>
                 </template>
                 <td v-if="!readOnly" class="act">
                   <button
@@ -484,6 +487,11 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
     <aside class="home-side">
       <BolusCalc v-if="!readOnly" @logged="refresh" />
       <TherapyCard />
+    </aside>
+
+    <!-- Asztali nézetben jobb oldali sáv (szenzorállapot), keskeny kijelzőn a bóluskalkulátor után. -->
+    <aside v-if="device" class="home-right">
+      <SensorCard :device="device" />
     </aside>
 
     <p class="muted small disclaimer">Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian és az InPen app értékeit használd.</p>
