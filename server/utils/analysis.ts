@@ -194,7 +194,32 @@ export function analyze(from: number, to: number) {
     if (k.kind !== 'basal') boluses.push({ ts: i.ts, v: i.v, kind: k.kind, noCarbs: k.noCarbs })
   }
   const sample = sampler(sensorGlucose)
-  const diaAt = (ts: number) => (t ? actionMinutesAt(t, ts) : 240)
+  // A beadás napszakának hatásideje bólusonként egyszer számolódik: az időzóna-számítás drága, és a ciklusok
+  // (étkezésenként, pontonként, bólusonként) különben milliószor hívnák 90 napnál.
+  const diaCache = new Map<number, number>()
+  const diaAt = (ts: number) => {
+    let v = diaCache.get(ts)
+    if (v === undefined) {
+      v = t ? actionMinutesAt(t, ts) : 240
+      diaCache.set(ts, v)
+    }
+    return v
+  }
+  /** A `[t0, t1)` időablakban beadott bólusok (a bólusok időrendben vannak; bináris kereséssel). */
+  const bolusesBetween = (t0: number, t1: number): Bolus[] => {
+    let lo = 0
+    let hi = boluses.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (boluses[mid].ts < t0) lo = mid + 1
+      else hi = mid
+    }
+    const out: Bolus[] = []
+    for (let i = lo; i < boluses.length && boluses[i].ts < t1; i++) out.push(boluses[i])
+    return out
+  }
+  /** Ennyi ideig hathat vissza legfeljebb egy korábbi bólus: a beállítható leghosszabb hatásidő (8 óra). */
+  const LOOKBACK_SEC = 8 * 3600
   // A mért hatásgörbe illesztésének felső határa: a terápiában kiválasztott bólusinzulin alkalmazási
   // előírás szerinti leghosszabb hatásideje (ha nincs megadva inzulin vagy adat, 5 óra).
   const maxDia = insulinById(t?.bolusInsulin)?.maxDurationMinutes ?? 300
@@ -289,8 +314,8 @@ export function analyze(from: number, to: number) {
     const before = sample(g.ts - 900)
     const steep = before != null && Math.abs(startBG - before) / 15 >= STEEP_RATE
     // Az ablakban ténylegesen hatott inzulin: a saját bólus(ok) és a korábbi bólusok még ható része.
-    const acted = boluses
-      .filter((b) => b.ts <= tEnd && b.ts > g.ts - diaAt(b.ts) * 60)
+    const acted = bolusesBetween(g.ts - LOOKBACK_SEC, tEnd + 1)
+      .filter((b) => b.ts > g.ts - diaAt(b.ts) * 60)
       .reduce((a, b) => a + actedIn(b, g.ts, tEnd), 0)
     const vEnd = values[(MEAL_PRE_MIN + endMin) / STEP] ?? null
     // Emelkedik-e még a végpontban (a CH nem szívódott fel teljesen): változás az utolsó 30 percben.
@@ -321,11 +346,12 @@ export function analyze(from: number, to: number) {
     // (a gyors CH-t gyakran inzulin nélkül, hipó kezelésére viszik be, ezért ott nem kell saját bólus)
     if (t && isClean && !truncated && g.carbs && (g.boluses.length || (g.fast && !g.fatty))) {
       const isf = segmentAt(t, g.ts).isf
+      const near = bolusesBetween(g.ts - LOOKBACK_SEC, g.ts + endMin * 60).filter((b) => b.ts > g.ts - diaAt(b.ts) * 60)
       const effectAt = (m: number): number | null => {
         const v = values[(MEAL_PRE_MIN + m) / STEP]
         if (v == null) return null
         let acted = 0
-        for (const b of boluses) if (b.ts > g.ts - diaAt(b.ts) * 60 && b.ts < g.ts + m * 60) acted += actedIn(b, g.ts, g.ts + m * 60)
+        for (const b of near) if (b.ts < g.ts + m * 60) acted += actedIn(b, g.ts, g.ts + m * 60)
         return v - startBG + isf * acted
       }
       const tail = [endMin - 10, endMin - 5, endMin].map(effectAt).filter((x): x is number => x != null)
@@ -388,8 +414,8 @@ export function analyze(from: number, to: number) {
     // maradéka sem torzíthat: a 60 perces előzmény kevés (egy 1–3 órával korábbi étkezési bólus maradéka több E
     // lehet, mint maga a korrekció).
     if (carbsAbsorbingAt(b.ts)) continue
-    const leftover = boluses.reduce((a, x) => {
-      if (x === b || x.ts >= b.ts) return a
+    const leftover = bolusesBetween(b.ts - LOOKBACK_SEC, b.ts).reduce((a, x) => {
+      if (x === b) return a
       const m = modelOf(x.ts)
       return a + x.v * m.iob((b.ts - x.ts) / 60)
     }, 0)

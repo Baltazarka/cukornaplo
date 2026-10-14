@@ -9,9 +9,19 @@ const DTF = new Intl.DateTimeFormat('en-CA', {
   year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short',
 })
 
+// Percenkénti gyorsítótár: a számolások (elemzés, előrejelzés-teszt) ugyanarra a percre sokszor kérdeznek rá,
+// a formázás pedig drága. Méretkorláttal (betelve ürül).
+const PARTS_CACHE_MAX = 200_000
+const partsCache = new Map<number, Record<string, string>>()
+
 function parts(ts: number): Record<string, string> {
-  const p: Record<string, string> = {}
-  for (const part of DTF.formatToParts(new Date(ts * 1000))) p[part.type] = part.value
+  const minute = Math.floor(ts / 60)
+  let p = partsCache.get(minute)
+  if (p) return p
+  p = {}
+  for (const part of DTF.formatToParts(new Date(minute * 60_000))) p[part.type] = part.value
+  if (partsCache.size >= PARTS_CACHE_MAX) partsCache.clear()
+  partsCache.set(minute, p)
   return p
 }
 
