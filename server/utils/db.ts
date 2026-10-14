@@ -144,6 +144,8 @@ export interface Row {
 export const MANUAL_SOURCE = 'manual'
 /** Ennyi időn belül azonos típusú és mennyiségű beérkező adat a kézi bejegyzés „párja”. */
 export const MANUAL_MATCH_SEC = 30 * 60
+/** Ennyi másodpercen belüli, szinte azonos szenzorérték ugyanaz a mérés (más úton érkezett). */
+export const GLUCOSE_DUP_SEC = 150
 
 /**
  * Mentés; a már meglévő (azonos típus + időpont + érték) és a kézzel törölt sorokat kihagyja.
@@ -166,11 +168,17 @@ export function storeRows(rows: Row[]): [number, number] {
   const fill = d.prepare(
     'UPDATE entries SET subtype = ? WHERE type = ? AND ts = ? AND value = ? AND subtype IS NULL',
   )
+  // Ugyanaz a szenzormérés két úton is beérkezhet (CareLink és Apple Health), a percre kerekített és a pontos
+  // időponttal: 2,5 percen belüli, szinte azonos szenzorértéket nem veszünk fel még egyszer.
+  const nearGlucose = d.prepare(
+    "SELECT 1 FROM entries WHERE type = 'glucose' AND ts BETWEEN ? AND ? AND ABS(value - ?) <= 0.2 AND (source IS NULL OR source != ?) LIMIT 1",
+  )
   const now = Math.floor(Date.now() / 1000)
   let inserted = 0
   d.exec('BEGIN')
   try {
     for (const r of rows) {
+      if (r.type === 'glucose' && r.source !== MANUAL_SOURCE && nearGlucose.get(r.ts - GLUCOSE_DUP_SEC, r.ts + GLUCOSE_DUP_SEC, r.value, MANUAL_SOURCE)) continue
       const manual = r.type !== 'glucose' && r.source !== MANUAL_SOURCE
         ? manualMatch.get(MANUAL_SOURCE, r.type, r.value, r.ts - MANUAL_MATCH_SEC, r.ts + MANUAL_MATCH_SEC, r.ts) as { id: number; subtype: string | null } | undefined
         : undefined

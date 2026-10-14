@@ -6,6 +6,11 @@ let basalDose: number | null = null
 export function setBasalDose(n: number | null): void {
   basalDose = n !== null && Number.isFinite(n) && n > 0 ? n : null
 }
+/** A terápiában beállított maximális bólus (E): a típus nélkül ennél nagyobb adagként érkező inzulin bázis. */
+let maxBolus: number | null = null
+export function setMaxBolus(n: number | null): void {
+  maxBolus = n !== null && Number.isFinite(n) && n > 0 ? n : null
+}
 export const MGDL_PER_MMOL = 18.0182
 
 const TYPE_MAP: Record<string, Row['type']> = {
@@ -122,6 +127,8 @@ export function normalizeRow(
 
   // A Parancsok nem küldi az adag típusát: típus nélkül a beállított bázisadaggal egyező érték = bázis, minden más bólus.
   if (t === 'insulin' && sub === null && basalDose !== null && Math.abs(v - basalDose) < 0.05) sub = 'basal'
+  // A maximális bólusnál nagyobb, típus nélküli adag bólus nem lehet: bázis (pl. a Toujeo más adaggal).
+  if (t === 'insulin' && sub === null && maxBolus !== null && v > maxBolus) sub = 'basal'
 
   return { type: t, ts, value: v, subtype: sub, source: source.trim() !== '' ? source.trim().slice(0, 80) : null }
 }
