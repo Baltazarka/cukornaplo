@@ -314,7 +314,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
                 <template v-else>
                   <td>
                     <i class="dot" :class="e.type === 'carbs' ? 'dot-carbs' : e.kind === 'basal' ? 'dot-basal' : e.kind === 'correction' ? 'dot-correction' : 'dot-insulin'" />
-                    {{ e.type === 'carbs' ? (e.fatty ? 'Szénhidrát (zsíros / fehérjedús)' : e.fast ? 'Szénhidrát (gyors)' : 'Szénhidrát') : KIND_LABEL[e.kind] }}
+                    {{ e.type === 'carbs' ? (e.fatty ? `Szénhidrát ${CARB_TAG_ICON.fatty} (zsíros / fehérjedús)` : e.fast ? `Szénhidrát ${CARB_TAG_ICON.fast} (gyors)` : 'Szénhidrát') : KIND_LABEL[e.kind] }}
                   </td>
                   <td class="num">{{ e.type === 'carbs' ? `${fmt(e.v, 0)} g` : `${fmt(e.v)} E` }}</td>
                   <td class="num">{{ e.glucose != null ? `${sgText(e.glucose)} mmol/L` : '' }}</td>

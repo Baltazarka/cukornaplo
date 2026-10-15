@@ -3,7 +3,7 @@
 // inzulinadagok (típus szerinti színnel) és a szénhidrátok felirattal, közös 0–24 órás tengelyen.
 const props = defineProps<{
   glucose: [number, number][]
-  events: { minute: number; type: string; kind: string | null; v: number; fatty: boolean }[]
+  events: { minute: number; type: string; kind: string | null; v: number; fatty: boolean; fast?: boolean }[]
   low: number
   high: number
 }>()
@@ -47,7 +47,9 @@ const num = (v: number, dec: number) => v.toLocaleString('hu-HU', { maximumFract
  * széthúzza; a felirat a jelölő fölé kerül, ha ott van hely, különben alá, végső esetben jobbra tolva.
  */
 const GAP = 22
-function placed(list: typeof props.events) {
+/** A CH-feliratoknál nagyobb köz kell, mert a zsíros / gyors ikon (🧀 / ⚡) is a szám mellé kerül. */
+const CARB_GAP = 30
+function placed(list: typeof props.events, gap = GAP) {
   let lastMark = -Infinity
   let lastAbove = -Infinity
   let lastBelow = -Infinity
@@ -56,14 +58,14 @@ function placed(list: typeof props.events) {
     lastMark = x
     let lx = x
     let above = true
-    if (x - lastAbove >= GAP) lastAbove = x
-    else if (x - lastBelow >= GAP) { above = false; lastBelow = x }
-    else { lx = lastAbove + GAP; lastAbove = lx }
+    if (x - lastAbove >= gap) lastAbove = x
+    else if (x - lastBelow >= gap) { above = false; lastBelow = x }
+    else { lx = lastAbove + gap; lastAbove = lx }
     return { ...e, x, lx, above }
   })
 }
 const insulin = computed(() => placed(props.events.filter((e) => e.type === 'insulin')))
-const carbs = computed(() => placed(props.events.filter((e) => e.type === 'carbs')))
+const carbs = computed(() => placed(props.events.filter((e) => e.type === 'carbs'), CARB_GAP))
 </script>
 
 <template>
@@ -88,7 +90,7 @@ const carbs = computed(() => placed(props.events.filter((e) => e.type === 'carbs
     </g>
     <g v-for="(e, i) in carbs" :key="'c' + i">
       <rect :x="e.x - 2" :y="CH_Y - 6" width="4" height="10" rx="1" class="rd-carb" :class="{ fatty: e.fatty }" />
-      <text :x="e.lx" :y="e.above ? CH_Y - 9 : CH_Y + 14" text-anchor="middle" class="rd-label">{{ num(e.v, 0) }}{{ e.fatty ? '*' : '' }}</text>
+      <text :x="e.lx" :y="e.above ? CH_Y - 9 : CH_Y + 14" text-anchor="middle" class="rd-label">{{ num(e.v, 0) }}{{ e.fatty ? ` ${CARB_TAG_ICON.fatty}` : e.fast ? ` ${CARB_TAG_ICON.fast}` : '' }}</text>
     </g>
   </svg>
 </template>

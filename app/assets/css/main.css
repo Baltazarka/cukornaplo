@@ -608,6 +608,22 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .report-events td { padding: 2px 6px; }
 .report-events .dot { width: 8px; height: 8px; margin-right: 5px; }
 .report-foot { border-top: 1px solid var(--grid); padding-top: 6px; }
+/* Képernyőn (pl. az orvosnál a monitoron) szélesebb riport és nagyobb betűk; a nyomtatás a lenti @media print szerint. */
+@media screen and (min-width: 900px) {
+  main.report { max-width: 1180px; }
+  .report-head h1 { font-size: 26px; }
+  .report-section h2 { font-size: 18px; }
+  .report-kpis span { font-size: 12.5px; }
+  .report-kpis b { font-size: 21px; }
+  .report-kpis .kpi-split { font-size: 17px; }
+  .report-table { font-size: 14px; }
+  .report-table th, .report-table td { padding: 5px 8px; }
+  .report-day { padding: 10px 14px; gap: 6px; }
+  .report-day header { font-size: 15px; }
+  .report-events { font-size: 13.5px; }
+  .report-events td { padding: 3px 8px; }
+  .report-events .dot { width: 9px; height: 9px; }
+}
 @media (max-width: 640px) { .report-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 @page { size: A4; margin: 12mm; }

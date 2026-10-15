@@ -361,8 +361,8 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
               <option value="basal">Bázis</option>
             </select>
             <div v-else-if="entryForm.type === 'carbs'" class="note-tags" role="group" aria-label="Jelölés" :title="CARB_TAG_HINT.normal">
-              <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fatty'" :title="CARB_TAG_HINT.fatty" @click="entryForm.sub = entryForm.sub === 'fatty' ? '' : 'fatty'">zsíros</button>
-              <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fast'" :title="CARB_TAG_HINT.fast" @click="entryForm.sub = entryForm.sub === 'fast' ? '' : 'fast'">gyors</button>
+              <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fatty'" :title="CARB_TAG_HINT.fatty" @click="entryForm.sub = entryForm.sub === 'fatty' ? '' : 'fatty'">{{ CARB_TAG_ICON.fatty }} zsíros</button>
+              <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fast'" :title="CARB_TAG_HINT.fast" @click="entryForm.sub = entryForm.sub === 'fast' ? '' : 'fast'">{{ CARB_TAG_ICON.fast }} gyors</button>
             </div>
             <template v-if="entryForm.type === 'carbs' && entryForm.sub === 'fatty'">
               <label class="note-time">Zsír <input v-model="entryForm.fat" type="text" inputmode="decimal" class="entry-amount" placeholder="g"> <span class="muted">g</span></label>
@@ -429,15 +429,15 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                           type="button" class="tag-toggle" :aria-pressed="e.sub === 'fatty'"
                           :title="CARB_TAG_HINT.fatty"
                           @click="toggleCarbTag(e, 'fatty')"
-                        >zsíros</button>
+                        >{{ CARB_TAG_ICON.fatty }} zsíros</button>
                         <button
                           type="button" class="tag-toggle" :aria-pressed="e.sub === 'fast'"
                           :title="CARB_TAG_HINT.fast"
                           @click="toggleCarbTag(e, 'fast')"
-                        >gyors</button>
+                        >{{ CARB_TAG_ICON.fast }} gyors</button>
                       </template>
-                      <span v-else-if="e.type === 'carbs' && e.sub === 'fatty'" class="note-chip">zsíros</span>
-                      <span v-else-if="e.type === 'carbs' && e.sub === 'fast'" class="note-chip">gyors</span>
+                      <span v-else-if="e.type === 'carbs' && e.sub === 'fatty'" class="note-chip">{{ CARB_TAG_ICON.fatty }} zsíros</span>
+                      <span v-else-if="e.type === 'carbs' && e.sub === 'fast'" class="note-chip">{{ CARB_TAG_ICON.fast }} gyors</span>
                       <!-- Zsíros CH: zsír / fehérje (megjelenítés, és utólagos beírás / javítás). -->
                       <div v-if="e.type === 'carbs' && e.sub === 'fatty'" class="macro-line small">
                         <template v-if="macroEdit?.id === e.id">

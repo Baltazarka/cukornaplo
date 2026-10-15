@@ -1,4 +1,7 @@
-// A szénhidrát-jelölések magyarázata (tooltip a jelölőkön): mikor zsíros, mikor normál, mikor gyors.
+// A szénhidrát-jelölések ikonja (napló, grafikonok, riport) és magyarázata (tooltip a jelölőkön).
+export const CARB_TAG_ICON = { fatty: '🧀', fast: '⚡' } as const
+
+// A szénhidrát-jelölések magyarázata: mikor zsíros, mikor normál, mikor gyors.
 export const CARB_TAG_HINT = {
   normal:
     'Normál: a szénhidrát a szokásos ütemben szívódik fel. Ide tartozik a kevés CH-s, de zsíros / fehérjés étel is '
