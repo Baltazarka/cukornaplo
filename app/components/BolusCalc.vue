@@ -133,8 +133,10 @@ async function logToDiary() {
       logged.carbs = carbsV.value
     }
     if (logInsulin.value && doseV.value && !doseInvalid.value) {
-      await addEntry({ type: 'insulin', value: doseV.value })
-      done.push(`${fmt(doseV.value)} E bólus`)
+      // Típussal: a CH-val együtt (vagy a kalkulátorba írt CH mellett) étkezési bólus, CH nélkül korrekció.
+      const kind = carbsV.value ? 'meal' : 'correction'
+      await addEntry({ type: 'insulin', value: doseV.value, sub: kind })
+      done.push(`${fmt(doseV.value)} E ${kind === 'meal' ? 'étkezési bólus' : 'korrekció'}`)
       logged.dose = doseV.value
     }
     lastLogged.value = done.length ? logged : null
