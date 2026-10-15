@@ -1,7 +1,8 @@
 // Kézi bejegyzés a naplóba: inzulin (E), szénhidrát (g) vagy vércukor (mmol/L, kézi mérés, nem szenzoradat),
 // időponttal (az app időzónájában).
 // { date: 'YYYY-MM-DD', time: 'HH:MM', type: 'insulin' | 'carbs' | 'glucose', value, sub?: meal | correction | basal
-//   (inzulin) vagy fatty | fast (CH), force?: true }
+//   (inzulin) vagy fatty | fast (CH), fat?, protein? (g, CH-hoz), force?: true }
+// Friss (30 percen belüli) zsíros étkezésnél zsír / fehérje megadásával a zsír-fehérje emlékeztető is beáll.
 // Ha 30 percen belül már van ugyanilyen típusú bejegyzés, 409-cel visszaszól (force: true-val mégis
 // felveszi). Ha a telefon (Apple Health) később ugyanezt az adagot küldi, a kézi sor beolvad (db.ts storeRows).
 import { markDirty } from '../utils/computed'
@@ -9,6 +10,9 @@ import { isAssumedBasal } from '../utils/basal'
 import { db, MANUAL_SOURCE, MANUAL_MATCH_SEC } from '../utils/db'
 import { zonedToTs } from '../utils/normalize'
 import { hmInTz, ymdInTz } from '../utils/time'
+import { therapy, segmentAt, DEFAULT_FPU_PERCENT } from '../utils/therapy'
+import { addFpuReminder } from '../utils/notify'
+import { fpuSuggestion, MACRO_MAX_G } from '#shared/utils/fpu'
 
 const LIMITS = {
   insulin: { min: 0.1, max: 100, unit: 'E' },
@@ -41,6 +45,18 @@ export default defineEventHandler(async (event) => {
     return { ok: false, error: `A mennyiség ${lim.min}–${lim.max} ${lim.unit} lehet.` }
   }
   let sub = (SUBS[type] as readonly string[]).includes(body.sub) ? String(body.sub) : null
+  // Zsír / fehérje (g), csak CH-hoz; üresen nincs megadva.
+  const macro = (v: unknown): number | null | 'bad' => {
+    if (v == null || v === '') return null
+    const n = Number(String(v).replace(',', '.'))
+    return Number.isFinite(n) && n >= 0 && n <= MACRO_MAX_G ? Math.round(n * 10) / 10 : 'bad'
+  }
+  const fat = type === 'carbs' ? macro(body.fat) : null
+  const protein = type === 'carbs' ? macro(body.protein) : null
+  if (fat === 'bad' || protein === 'bad') {
+    setResponseStatus(event, 400)
+    return { ok: false, error: `A zsír és a fehérje 0–${MACRO_MAX_G} g lehet.` }
+  }
   // Típus nélküli, a beállított bázisadaggal egyező inzulin bázis (mint az adatfogadásnál).
   if (type === 'insulin' && sub === null && isAssumedBasal(value, null)) sub = 'basal'
 
@@ -73,12 +89,19 @@ export default defineEventHandler(async (event) => {
   // Ha korábban pont ezt töröltük, a kézi felvétel visszaállítja.
   db().prepare('DELETE FROM deleted_entries WHERE type = ? AND ts = ? AND value = ?').run(type, ts, value)
   const info = db()
-    .prepare('INSERT OR IGNORE INTO entries (type, ts, value, subtype, source, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(type, ts, value, sub, MANUAL_SOURCE, now)
+    .prepare('INSERT OR IGNORE INTO entries (type, ts, value, subtype, source, created_at, fat, protein) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(type, ts, value, sub, MANUAL_SOURCE, now, fat, protein)
   if (Number(info.changes) === 0) {
     setResponseStatus(event, 409)
     return { ok: false, error: 'Pontosan ilyen bejegyzés (időpont és mennyiség) már van.' }
   }
   markDirty()
-  return { ok: true, id: Number(info.lastInsertRowid) }
+  // Friss zsíros étkezés zsír / fehérje adattal: emlékeztető 1,5 óra múlva (a napszak CH-arányával és a beállított %-kal).
+  let fpu = null
+  const t = therapy()
+  if (type === 'carbs' && sub === 'fatty' && t && now - ts <= 30 * 60) {
+    fpu = fpuSuggestion(fat, protein, segmentAt(t, ts).icr, t.fpuPercent ?? DEFAULT_FPU_PERCENT)
+    if (fpu && fpu.extra >= 0.5) addFpuReminder({ mealTs: ts, extra: fpu.extra, units: fpu.units, hours: fpu.hours, pct: fpu.pct })
+  }
+  return { ok: true, id: Number(info.lastInsertRowid), fpu }
 })

@@ -71,5 +71,30 @@ export async function sendPush(payload: PushPayload, opts: { urgency?: 'very-low
       else lastError = `${e?.statusCode ?? ''} ${e?.body ?? e?.message ?? e}`.trim()
     }
   }))
+  logPush(payload, sent, failed)
   return { sent, failed, lastError }
+}
+
+/** A push napló ennyi napig őrzi az értesítéseket. */
+const PUSH_LOG_DAYS = 60
+
+/** A kiküldött értesítés a naplóba (a főoldalon visszanézhető); a régieket közben törli. */
+function logPush(payload: PushPayload, sent: number, failed: number): void {
+  try {
+    const now = Math.floor(Date.now() / 1000)
+    const d = db()
+    d.prepare('INSERT INTO push_log (ts, tag, title, body, url, sent, failed) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(now, payload.tag ?? '', payload.title, payload.body, payload.url ?? '', sent, failed)
+    d.prepare('DELETE FROM push_log WHERE ts < ?').run(now - PUSH_LOG_DAYS * 86400)
+  } catch (e) {
+    console.error('[push napló]', e)
+  }
+}
+
+export interface PushLogItem { id: number; ts: number; tag: string; title: string; body: string; url: string; sent: number; failed: number }
+
+/** A legutóbbi értesítések, a legújabb elöl. */
+export function pushLog(limit = 50): PushLogItem[] {
+  return (db().prepare('SELECT id, ts, tag, title, body, url, sent, failed FROM push_log ORDER BY ts DESC, id DESC LIMIT ?').all(limit) as any[])
+    .map((r) => ({ id: Number(r.id), ts: Number(r.ts), tag: String(r.tag), title: String(r.title), body: String(r.body), url: String(r.url), sent: Number(r.sent), failed: Number(r.failed) }))
 }

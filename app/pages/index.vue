@@ -125,6 +125,24 @@ async function toggleCarbTag(e: any, tag: 'fatty' | 'fast') {
   await $fetch('/api/entry-tag', { method: 'POST', body: { id: e.id, tag: e.sub === tag ? null : tag } })
   await refresh()
 }
+// Zsír / fehérje utólag (zsíros CH-sornál): a zsír-fehérje javaslat kiértékeléséhez.
+const macroEdit = ref<{ id: number; fat: string; protein: string } | null>(null)
+const macroError = ref('')
+useToastFrom(macroError, 'error')
+function openMacroEdit(e: any) {
+  macroEdit.value = { id: e.id, fat: e.fat == null ? '' : String(e.fat).replace('.', ','), protein: e.protein == null ? '' : String(e.protein).replace('.', ',') }
+}
+async function saveMacros() {
+  const m = macroEdit.value!
+  try {
+    await $fetch('/api/entry-macros', { method: 'POST', body: { id: m.id, fat: m.fat, protein: m.protein } })
+    macroEdit.value = null
+    await refresh()
+  } catch (err: any) {
+    macroError.value = err?.data?.error ?? 'A mentés nem sikerült.'
+  }
+}
+const macroText = (e: any) => [e.fat != null ? `${fmt(e.fat, 0)} g zsír` : '', e.protein != null ? `${fmt(e.protein, 0)} g fehérje` : ''].filter(Boolean).join(', ')
 async function setSub(e: any, v: string) {
   await $fetch('/api/entry-subtype', { method: 'POST', body: { id: e.id, subtype: v } })
   await refresh()
@@ -183,7 +201,7 @@ async function saveNote() {
   }
 }
 // Kézi inzulin / CH: időpont (mai napon most, különben 12:00), mennyiség, típus vagy jelölés.
-const entryForm = ref<{ type: 'insulin' | 'carbs' | 'glucose'; date: string; time: string; value: string; sub: string } | null>(null)
+const entryForm = ref<{ type: 'insulin' | 'carbs' | 'glucose'; date: string; time: string; value: string; sub: string; fat: string; protein: string } | null>(null)
 const entryError = ref('')
 useToastFrom(entryError, 'error')
 const entrySaving = ref(false)
@@ -194,7 +212,7 @@ function openEntryForm(type: 'insulin' | 'carbs' | 'glucose') {
   lastGuardian.value = null
   // Alapból a megnézett nap, de átírható (pl. tegnapi adag utólagos felvétele).
   const date = data.value?.day ?? ''
-  entryForm.value = { type, date, time: date === data.value?.today ? defaultTime() : '12:00', value: '', sub: '' }
+  entryForm.value = { type, date, time: date === data.value?.today ? defaultTime() : '12:00', value: '', sub: '', fat: '', protein: '' }
   entryError.value = ''
 }
 async function saveEntry(force = false) {
@@ -202,7 +220,9 @@ async function saveEntry(force = false) {
   entrySaving.value = true
   entryError.value = ''
   try {
-    await $fetch('/api/entry-add', { method: 'POST', body: { ...f, force } })
+    // Zsír / fehérje csak zsíros CH-nál megy (friss étkezésnél a szerver a zsír-fehérje emlékeztetőt is beállítja).
+    const macros = f.type === 'carbs' && f.sub === 'fatty' ? { fat: f.fat, protein: f.protein } : { fat: '', protein: '' }
+    await $fetch('/api/entry-add', { method: 'POST', body: { ...f, ...macros, force } })
     entryForm.value = null
     if (f.type !== 'glucose') {
       const v = Number(f.value.replace(',', '.'))
@@ -246,7 +266,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
 </script>
 
 <template>
-  <main v-if="data" class="home" :class="{ 'has-right': device }">
+  <main v-if="data" class="home" :class="{ 'has-right': !readOnly }">
     <div class="home-main">
     <div v-if="clAlert" class="cl-alert" :class="clAlert.level" role="alert">
       <div class="cl-alert-text">
@@ -344,6 +364,10 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
               <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fatty'" :title="CARB_TAG_HINT.fatty" @click="entryForm.sub = entryForm.sub === 'fatty' ? '' : 'fatty'">zsíros</button>
               <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fast'" :title="CARB_TAG_HINT.fast" @click="entryForm.sub = entryForm.sub === 'fast' ? '' : 'fast'">gyors</button>
             </div>
+            <template v-if="entryForm.type === 'carbs' && entryForm.sub === 'fatty'">
+              <label class="note-time">Zsír <input v-model="entryForm.fat" type="text" inputmode="decimal" class="entry-amount" placeholder="g"> <span class="muted">g</span></label>
+              <label class="note-time">Fehérje <input v-model="entryForm.protein" type="text" inputmode="decimal" class="entry-amount" placeholder="g"> <span class="muted">g</span></label>
+            </template>
           </div>
           <p v-if="entryForm.type !== 'glucose'" class="muted small">Ha 30 percen belül már van ugyanekkora bejegyzés, rákérdez, hogy ne legyen véletlenül dupla.</p>
           <p v-else class="muted small">A kézi mérés „kézi” jelöléssel kerül a naplóba és a grafikonra. Pontos mérésként beleszámít az értékekbe (átlag, célban töltött idő, hipóesemények), de a szenzorlefedettségbe és a trendnyílba nem. A bóluskalkulátor használhatja, ha újabb a szenzor értékénél.</p>
@@ -414,6 +438,19 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                       </template>
                       <span v-else-if="e.type === 'carbs' && e.sub === 'fatty'" class="note-chip">zsíros</span>
                       <span v-else-if="e.type === 'carbs' && e.sub === 'fast'" class="note-chip">gyors</span>
+                      <!-- Zsíros CH: zsír / fehérje (megjelenítés, és utólagos beírás / javítás). -->
+                      <div v-if="e.type === 'carbs' && e.sub === 'fatty'" class="macro-line small">
+                        <template v-if="macroEdit?.id === e.id">
+                          <input v-model="macroEdit.fat" type="text" inputmode="decimal" placeholder="zsír" aria-label="Zsír, gramm"> g zsír,
+                          <input v-model="macroEdit.protein" type="text" inputmode="decimal" placeholder="fehérje" aria-label="Fehérje, gramm"> g fehérje
+                          <button type="button" class="sm" @click="saveMacros">Mentés</button>
+                          <button type="button" class="link-btn" @click="macroEdit = null">Mégse</button>
+                        </template>
+                        <template v-else>
+                          <span class="muted">{{ macroText(e) || 'zsír / fehérje nincs megadva' }}</span>
+                          <button v-if="!readOnly" type="button" class="link-btn" @click="openMacroEdit(e)">{{ macroText(e) ? 'javítás' : 'megadás' }}</button>
+                        </template>
+                      </div>
                     </template>
                   </td>
                   <td class="num"><span v-if="e.manual" class="note-chip manual-chip" title="Kézzel felvett bejegyzés">kézi</span>{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : e.type === 'glucose' ? fmt(e.v) + ' mmol/L' : fmt(e.v) + ' E' }}</td>
@@ -489,9 +526,10 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
       <TherapyCard />
     </aside>
 
-    <!-- Asztali nézetben jobb oldali sáv (szenzorállapot), keskeny kijelzőn a bóluskalkulátor után. -->
-    <aside v-if="device" class="home-right">
-      <SensorCard :device="device" />
+    <!-- Asztali nézetben jobb oldali sáv (szenzorállapot, értesítésnapló), keskeny kijelzőn a bóluskalkulátor után. -->
+    <aside v-if="!readOnly" class="home-right">
+      <SensorCard v-if="device" :device="device" />
+      <NotifyLogCard />
     </aside>
 
     <p class="muted small disclaimer">Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian app értékeit és a diabetológusod útmutatását használd.</p>

@@ -623,6 +623,8 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 
 /* ---- Jegyzetek ---- */
 .dot-note { background: transparent; border: 1.5px solid var(--text-muted); box-sizing: border-box; }
+.macro-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 3px; }
+.macro-line input { width: 52px; padding: 2px 6px; }
 .note-chip {
   display: inline-block; margin-right: 6px; padding: 0 8px; border-radius: 999px; font-size: 12px;
   border: 1px solid var(--axis); color: var(--text-secondary); background: var(--page);
@@ -819,7 +821,7 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
   .home-main > .cl-alert { order: 0; }
   .home-main > .filters { order: 1; }
   .home-side > .bolus-calc { order: 2; }
-  .home-right > .sensor-card { order: 2; }
+  .home-right > .sensor-card, .home-right > .notify-log { order: 2; }
   .home-main > .day-chart-card { order: 3; }
   .home-side > .therapy-card { order: 9; }
 

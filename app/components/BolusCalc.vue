@@ -81,21 +81,16 @@ const logInsulin = ref(true)
 const logCarbSub = ref('')
 // --- Zsíros étel: tájékoztató plusz-javaslat a varsói módszerrel (a számolt adag nem változik) ---
 // 1 zsír-fehérje egység (FPU) = 100 kcal zsírból és fehérjéből, ennyi inzulin kell hozzá, mint 10 g CH-hoz;
-// a hatása kb. 1–1,5 óra múlva kezdődik és a mennyiségtől függően 3–8 óráig tart. A beállított %-kal (Terápia).
+// a hatása kb. 1–1,5 óra múlva kezdődik és a mennyiségtől függően 3–8 óráig tart. A beállított %-kal (Terápia),
+// a napszak CH-arányával (ugyanígy számol a szerver az emlékeztetőnél; shared/utils/fpu.ts).
 const fatG = ref('')
 const proteinG = ref('')
+const fatV = computed(() => num(fatG.value))
+const proteinV = computed(() => num(proteinG.value))
+const macroInvalid = computed(() => [fatV.value, proteinV.value].some((v) => v != null && (v < 0 || v > MACRO_MAX_G)))
 const fpu = computed(() => {
-  if (logCarbSub.value !== 'fatty' || !result.value) return null
-  const fat = num(fatG.value) ?? 0
-  const protein = num(proteinG.value) ?? 0
-  if (fat < 0 || protein < 0 || fat > 300 || protein > 300) return null
-  const units = Math.round(((fat * 9 + protein * 4) / 100) * 10) / 10
-  const pct = Number(data.value?.fpuPercent ?? 50)
-  if (units < 0.5 || !pct) return null
-  const carbEq = units * 10
-  const extra = Math.floor(((carbEq / ratios.value.icr) * pct) / 100 * 2) / 2
-  const hours = units < 1.5 ? 3 : units < 2.5 ? 4 : units < 4 ? 5 : 8
-  return { units, carbEq, extra, hours, pct }
+  if (logCarbSub.value !== 'fatty' || !result.value || macroInvalid.value) return null
+  return fpuSuggestion(fatV.value, proteinV.value, seg.value.icr, Number(data.value?.fpuPercent ?? 50))
 })
 const logDose = ref('')
 const doseTouched = ref(false)
@@ -148,13 +143,9 @@ async function logToDiary() {
   const logged: { carbs: number | null; dose: number | null } = { carbs: null, dose: null }
   try {
     if (logCarbs.value && carbsV.value) {
-      const mealTs = Math.floor(Date.now() / 1000)
-      await addEntry({ type: 'carbs', value: carbsV.value, sub: logCarbSub.value })
-      // Zsíros étel plusz-javaslattal: emlékeztető 1,5 óra múlva (push, ha be van kapcsolva és a cukor nincs a cél alatt).
-      const f = fpu.value
-      if (f && f.extra >= 0.5) {
-        await $fetch('/api/notify/fpu', { method: 'POST', body: { mealTs, extra: f.extra, units: f.units, hours: f.hours, pct: f.pct } }).catch(() => null)
-      }
+      // Zsíros ételnél a zsír / fehérje is elmentődik; plusz-javaslatnál a szerver 1,5 óra múlvára emlékeztetőt állít be.
+      const macros = logCarbSub.value === 'fatty' && !macroInvalid.value ? { fat: fatV.value, protein: proteinV.value } : {}
+      await addEntry({ type: 'carbs', value: carbsV.value, sub: logCarbSub.value, ...macros })
       done.push(`${fmt(carbsV.value, 0)} g CH`)
       logged.carbs = carbsV.value
     }

@@ -24,7 +24,7 @@ export default defineEventHandler((event) => {
   const rangeStart = startOfDayTs(addDaysYmd(day, -13))
 
   const rows = db()
-    .prepare('SELECT id, type, ts, value, subtype, source FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
+    .prepare('SELECT id, type, ts, value, subtype, source, fat, protein FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
     .all(rangeStart, dayEnd) as any[]
 
   const dayRows = { glucose: [] as any[], insulin: [] as any[], carbs: [] as any[] }
@@ -43,7 +43,12 @@ export default defineEventHandler((event) => {
       continue
     }
     if (r.type === 'glucose') allGlucose.push(v)
-    if (ts >= dayStart) dayRows[r.type as 'glucose' | 'insulin' | 'carbs'].push({ id: Number(r.id), ts, v, sub: r.subtype, src: r.source })
+    if (ts >= dayStart) {
+      dayRows[r.type as 'glucose' | 'insulin' | 'carbs'].push({
+        id: Number(r.id), ts, v, sub: r.subtype, src: r.source,
+        ...(r.type === 'carbs' ? { fat: r.fat == null ? null : Number(r.fat), protein: r.protein == null ? null : Number(r.protein) } : {}),
+      })
+    }
   }
 
   // Bólusok besorolása (étkezési / korrekció / bázis): a nap széleinél a szomszédos napok CH-ja is számít.
@@ -111,6 +116,7 @@ export default defineEventHandler((event) => {
       id: e.id, ts: e.ts * 1000, time: hmInTz(e.ts), type: e.type, sub: e.sub ?? null, v: e.v, glucose: nearestGlucose(e.ts),
       kind: (e as any).kind ?? null, auto: (e as any).auto ?? false, noCarbs: (e as any).noCarbs ?? false,
       manual: e.src === MANUAL_SOURCE,
+      ...(e.type === 'carbs' ? { fat: (e as any).fat ?? null, protein: (e as any).protein ?? null } : {}),
     })),
     stats: { day: dayStats, range14: rangeStats },
     totals: {

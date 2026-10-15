@@ -9,10 +9,13 @@ import { notesBetween } from './notes'
 import { targetRange } from './range'
 import { minuteOfDayInTz, ymdInTz } from './time'
 import { defaultFraction, defaultTotalMin } from './absorption'
+import { fpuUnits, fpuHours, FPU_CARB_G } from '#shared/utils/fpu'
 
 /** Ennyi tiszta esemény kell egy napszakban a becsléshez, illetve a megbízható becsléshez. */
 export const MIN_EVENTS = 3
 export const GOOD_EVENTS = 5
+/** A saját zsír-fehérje % becsléséhez ennyi kiértékelhető zsíros étkezés kell a megbízhatóhoz. */
+export const FPU_GOOD_EVENTS = 6
 
 const STEP = 5 // perc
 const MEAL_WINDOW_MIN = 240 // az étkezés utáni 4 óra
@@ -55,7 +58,7 @@ export type AbsorbCategory = 'normal' | 'fatty' | 'fast'
 const MIN_CARB_EFFECT = 1.0
 
 interface G { ts: number; v: number }
-interface Carb extends G { fatty: boolean; fast: boolean }
+interface Carb extends G { fatty: boolean; fast: boolean; fat: number | null; protein: number | null }
 interface Bolus { ts: number; v: number; kind: 'meal' | 'correction'; noCarbs: boolean }
 
 const r1 = (v: number) => Math.round(v * 10) / 10
@@ -147,6 +150,35 @@ export interface MealEvent {
   curve: (number | null)[]
 }
 
+/** Zsíros étkezés zsír / fehérje adattal: a zsír-fehérje hatásának mérése. */
+export interface FpuEvent {
+  ts: number
+  seg: number
+  carbs: number
+  fat: number | null
+  protein: number | null
+  /** Zsír-fehérje egység. */
+  units: number
+  /** A hatás várt hossza, óra, és a mérés végpontja az étkezéstől, perc. */
+  hours: number
+  endMin: number
+  startBG: number
+  /** A legnagyobb emelkedés a kezdő értékhez képest 2 óra után a végpontig. */
+  peakRise: number | null
+  /** Eltérés a végpontban a kezdő értékhez képest. */
+  endDelta: number | null
+  /** Az étkezés saját bólusán felül 45 perc és 5 óra között beadott inzulin (plusz adag / korrekció), E. */
+  extraGiven: number
+  /** 8 órán belül a céltartomány alá ment. */
+  hypoAfter: boolean
+  /** Kiértékelhető: nincs más étel a végpontig, nincs hipó az ablakban, elég szenzoradat, nem gyorsan változó kezdés. */
+  clean: boolean
+  /** A CH és az inzulin hatásán felüli emelés a végpontban, mmol/L (a zsír-fehérje hatása). */
+  effect: number | null
+  /** Ebből: a varsói érték hány %-ának felelt meg (100 = 1 egység pont annyit emelt, mint 10 g CH). */
+  pct: number | null
+}
+
 export interface CorrectionEvent {
   ts: number
   seg: number
@@ -168,8 +200,8 @@ export function analyze(from: number, to: number) {
   const loadFrom = from - 8 * 3600
   const loadTo = to + 7 * 3600
   const rows = db()
-    .prepare('SELECT type, ts, value, subtype, source FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
-    .all(loadFrom, loadTo) as { type: string; ts: number; value: number; subtype: string | null; source: string | null }[]
+    .prepare('SELECT type, ts, value, subtype, source, fat, protein FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
+    .all(loadFrom, loadTo) as { type: string; ts: number; value: number; subtype: string | null; source: string | null; fat: number | null; protein: number | null }[]
 
   const glucose: G[] = []
   // A görbéhez (kezdő- és végérték, esés, lefedettség) csak a szenzor mérései; a kézi (ujjbegyes) mérés más
@@ -184,7 +216,12 @@ export function analyze(from: number, to: number) {
       glucose.push({ ts, v })
       if (r.source !== 'manual') sensorGlucose.push({ ts, v })
     }
-    else if (r.type === 'carbs') carbs.push({ ts, v, fatty: r.subtype === 'fatty', fast: r.subtype === 'fast' })
+    else if (r.type === 'carbs') {
+      carbs.push({
+        ts, v, fatty: r.subtype === 'fatty', fast: r.subtype === 'fast',
+        fat: r.fat == null ? null : Number(r.fat), protein: r.protein == null ? null : Number(r.protein),
+      })
+    }
     else insulinRows.push({ ts, v, subtype: r.subtype })
   }
   const carbTs = carbs.map((c) => c.ts)
@@ -244,7 +281,12 @@ export function analyze(from: number, to: number) {
   // --- Étkezések: a 30 percen belüli CH-bejegyzések egy étkezés; a CH nélküli étkezési bólusok is.
   // Egy étkezés legfeljebb 1 órán át fűzhető (utána új étkezés, amelyet az előző még felszívódó CH-ja zavar).
   // Zsíros, ha bármelyik része az; gyors, ha a CH többsége gyors (egy kis gyors CH nem teszi gyorssá az egész étkezést).
-  const groups: { ts: number; last: number; carbs: number | null; fastG: number; fatty: boolean; fast: boolean; boluses: Bolus[] }[] = []
+  // A zsír / fehérje az étkezés részeinek összege (null, ha egyiknél sincs megadva).
+  const addMacro = (a: number | null, b: number | null) => (a == null && b == null ? null : (a ?? 0) + (b ?? 0))
+  const groups: {
+    ts: number; last: number; carbs: number | null; fastG: number; fatty: boolean; fast: boolean; boluses: Bolus[]
+    fat: number | null; protein: number | null
+  }[] = []
   for (const c of carbs) {
     const g = groups.at(-1)
     if (g && g.carbs != null && c.ts - g.last <= MEAL_WINDOW_SEC && c.ts - g.ts <= MEAL_SPAN_MAX_SEC) {
@@ -253,13 +295,17 @@ export function analyze(from: number, to: number) {
       g.fastG += c.fast ? c.v : 0
       g.fatty ||= c.fatty
       g.fast = g.fastG * 2 > g.carbs
-    } else groups.push({ ts: c.ts, last: c.ts, carbs: c.v, fastG: c.fast ? c.v : 0, fatty: c.fatty, fast: c.fast, boluses: [] })
+      g.fat = addMacro(g.fat, c.fat)
+      g.protein = addMacro(g.protein, c.protein)
+    } else {
+      groups.push({ ts: c.ts, last: c.ts, carbs: c.v, fastG: c.fast ? c.v : 0, fatty: c.fatty, fast: c.fast, boluses: [], fat: c.fat, protein: c.protein })
+    }
   }
   for (const b of boluses.filter((x) => x.kind === 'meal')) {
     // Előbólus: legfeljebb 60 perccel az étkezés előtt, vagy legfeljebb 30 perccel az utolsó CH után.
     const g = groups.find((x) => x.carbs != null && b.ts >= x.ts - PREBOLUS_SEC && b.ts <= x.last + MEAL_WINDOW_SEC)
     if (g) g.boluses.push(b)
-    else if (b.noCarbs) groups.push({ ts: b.ts, last: b.ts, carbs: null, fastG: 0, fatty: false, fast: false, boluses: [b] })
+    else if (b.noCarbs) groups.push({ ts: b.ts, last: b.ts, carbs: null, fastG: 0, fatty: false, fast: false, boluses: [b], fat: null, protein: null })
   }
   /**
    * Egy korábbi étkezés CH-ja még felszívódik-e `ts`-kor: a felszívódási idő a beállított ütemből és az étkezés
@@ -450,6 +496,71 @@ export function analyze(from: number, to: number) {
     })
   }
 
+  // --- Zsíros étkezések zsír / fehérje adattal: mennyit emelt a zsír-fehérje a CH és az inzulin hatásán felül.
+  // A végpontban (a várt hatásidő végén, 4–8 óra) a megfigyelt változásból levonjuk a CH teljes hatását
+  // (CH × ISF ÷ CH-arány, a napszak beállított értékeivel) és hozzáadjuk a ténylegesen hatott inzulinét (minden bólus,
+  // a plusz adag és a korrekció is). Ami marad, az a zsír-fehérje hatása; CH-egyenértékre váltva, egységenként
+  // 10 g-hoz (varsói érték) viszonyítva adja a saját %-ot. Kiértékelhető, ha a végpontig nincs más étel, nincs hipó,
+  // elég a szenzoradat, és nem gyorsan változó vércukorról indul. A beállított ISF / CH-arányra épül.
+  const fpuEvents: FpuEvent[] = []
+  for (const g of groups) {
+    if (g.ts < from || g.ts >= to || !g.fatty || g.carbs == null || (g.fat == null && g.protein == null)) continue
+    const units = fpuUnits(g.fat, g.protein)
+    if (units < 0.5) continue
+    const startBG = sample(g.ts)
+    if (startBG == null) continue
+    const hours = fpuHours(units)
+    const endMin = Math.min(480, Math.max(MEAL_WINDOW_MIN, 60 + hours * 60))
+    const end = g.ts + endMin * 60
+    const own = new Set(g.boluses)
+    const extraGiven = bolusesBetween(g.ts + 45 * 60, g.ts + 5 * 3600).filter((b) => !own.has(b)).reduce((a, b) => a + b.v, 0)
+    const lowIn = (t0: number, t1: number) => glucose.some((x) => x.ts > t0 && x.ts <= t1 && x.v < low)
+    let peak = -Infinity
+    for (let m = 120; m <= endMin; m += STEP) {
+      const v = sample(g.ts + m * 60)
+      if (v != null && v > peak) peak = v
+    }
+    const tail = [endMin - 10, endMin - 5, endMin].map((m) => sample(g.ts + m * 60)).filter((x): x is number => x != null)
+    const vEnd = tail.length >= 2 ? tail.reduce((a, b) => a + b, 0) / tail.length : null
+    const before = sample(g.ts - 900)
+    const steep = before != null && Math.abs(startBG - before) / 15 >= STEEP_RATE
+    const clean = vEnd != null && !steep && startBG >= low
+      && curveAround(sample, g.ts, 0, endMin).covered >= MIN_COVERAGE
+      && !carbs.some((c) => c.ts > g.last && c.ts <= end)
+      && !carbsAbsorbingAt(g.ts, g)
+      && !lowIn(g.ts, end)
+      && !disturbed(g.ts - 2 * 3600, end)
+    let effect: number | null = null
+    let pct: number | null = null
+    if (clean && t) {
+      const s = segmentAt(t, g.ts)
+      const acted = bolusesBetween(g.ts - LOOKBACK_SEC, end)
+        .filter((b) => b.ts > g.ts - diaAt(b.ts) * 60)
+        .reduce((a, b) => a + actedIn(b, g.ts, end), 0)
+      effect = vEnd! - startBG - (g.carbs * s.isf) / s.icr + acted * s.isf
+      pct = Math.round(((effect * s.icr) / s.isf / (units * FPU_CARB_G)) * 100)
+    }
+    fpuEvents.push({
+      ts: g.ts, seg: segIndexAt(t, g.ts), carbs: g.carbs, fat: g.fat, protein: g.protein, units, hours, endMin,
+      startBG: r1(startBG),
+      peakRise: Number.isFinite(peak) ? r1(peak - startBG) : null,
+      endDelta: vEnd != null ? r1(vEnd - startBG) : null,
+      extraGiven: r2(extraGiven),
+      hypoAfter: lowIn(g.ts, g.ts + 8 * 3600),
+      clean,
+      effect: effect != null ? r1(effect) : null,
+      pct,
+    })
+  }
+  const fpuPcts = fpuEvents.filter((e) => e.pct != null).map((e) => e.pct!)
+  const fpu = {
+    events: [...fpuEvents].reverse(),
+    estimate: fpuPcts.length >= MIN_EVENTS
+      ? { pct: Math.round(median(fpuPcts)!), n: fpuPcts.length, reliable: fpuPcts.length >= FPU_GOOD_EVENTS }
+      : null,
+    current: t?.fpuPercent ?? null,
+  }
+
   // --- Napszakonkénti összesítés és becslés.
   const allIcr: number[] = [] // az összes napszak CH-arány értékei az „egész nap” becsléshez
   const allIcrMeals: MealEvent[] = []
@@ -574,6 +685,7 @@ export function analyze(from: number, to: number) {
     },
     maxDia,
     basal,
+    fpu,
   }
 }
 

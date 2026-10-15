@@ -77,6 +77,13 @@ function applyEstimates(values: { start: string; isf?: number; icr?: number; act
   if (changed.length) document.querySelector('.therapy-edit-table')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
+// A saját zsír-fehérje % átvétele a szerkesztőbe (menteni külön kell).
+function applyFpu(pct: number) {
+  fpuPercent.value = pct
+  applied.value = `A zsír-fehérje javaslatot ${pct}%-ra állítottam. Nézd át, és ha jó, mentsd.`
+  document.querySelector('.fpu-select')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
 const errors = ref<string[]>([])
 useToastFrom(applied, 'info')
 useToastFrom(errors, 'error')
@@ -153,7 +160,7 @@ async function save() {
         </div>
         <label class="tf-row">
           <span class="tf-label">Zsír-fehérje javaslat</span>
-          <select v-model.number="fpuPercent">
+          <select v-model.number="fpuPercent" class="fpu-select">
             <option v-for="p in fpuOptions" :key="p" :value="p">{{ p === 0 ? 'nincs' : `a varsói érték ${p}%-a` }}</option>
           </select>
         </label>
@@ -222,6 +229,7 @@ async function save() {
       </div>
     </form>
     <AnalysisCard @apply="applyEstimates" />
+    <FpuCard @apply="applyFpu" />
     <AbsorptionCard />
     <PredictAccuracyCard />
   </main>

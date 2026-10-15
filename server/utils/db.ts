@@ -44,6 +44,11 @@ export function db(): DatabaseSync {
     UNIQUE (type, ts, value)
   )`)
   d.exec('CREATE INDEX IF NOT EXISTS entries_type_ts ON entries (type, ts)')
+  // Zsíros / fehérjedús étkezésnél a CH-bejegyzéshez megadott zsír és fehérje, g (a zsír-fehérje javaslathoz és a
+  // saját % becsléséhez). Régi adatbázisban hiányzik: hozzáadjuk.
+  const cols = new Set((d.prepare('PRAGMA table_info(entries)').all() as { name: string }[]).map((c) => c.name))
+  if (!cols.has('fat')) d.exec('ALTER TABLE entries ADD COLUMN fat REAL')
+  if (!cols.has('protein')) d.exec('ALTER TABLE entries ADD COLUMN protein REAL')
   d.exec('CREATE TABLE IF NOT EXISTS login_failures (ip TEXT NOT NULL, ts INTEGER NOT NULL)')
   // Kézzel törölt bejegyzések. A telefon a következő küldésnél újra elküldené őket
   // (mindig az utolsó napokat küldi), ezért a beírás ezeket kihagyja.
@@ -91,6 +96,18 @@ export function db(): DatabaseSync {
     name TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL
   )`)
+  // Kiküldött push értesítések naplója (a főoldalon visszanézhető, ha egy értesítés elsikkadt).
+  d.exec(`CREATE TABLE IF NOT EXISTS push_log (
+    id INTEGER PRIMARY KEY,
+    ts INTEGER NOT NULL,
+    tag TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    sent INTEGER NOT NULL DEFAULT 0,
+    failed INTEGER NOT NULL DEFAULT 0
+  )`)
+  d.exec('CREATE INDEX IF NOT EXISTS push_log_ts ON push_log (ts)')
   // Laboreredmények: HbA1c (%), a GMI-vel összevetéshez.
   d.exec(`CREATE TABLE IF NOT EXISTS lab_results (
     id INTEGER PRIMARY KEY,
@@ -156,8 +173,10 @@ export function storeRows(rows: Row[]): [number, number] {
   // Kézi bejegyzés párja: ha az InPen / Health később ugyanazt az adagot küldi, a beérkező sor
   // megmarad (pontosabb időpont), a kézi törlődik; a kézzel beállított típust / jelölést átvesszük.
   const manualMatch = d.prepare(
-    'SELECT id, subtype FROM entries WHERE source = ? AND type = ? AND value = ? AND ts BETWEEN ? AND ? ORDER BY ABS(ts - ?) LIMIT 1',
+    'SELECT id, subtype, fat, protein FROM entries WHERE source = ? AND type = ? AND value = ? AND ts BETWEEN ? AND ? ORDER BY ABS(ts - ?) LIMIT 1',
   )
+  // A kézi sor zsír / fehérje adata is átkerül a beérkező sorra.
+  const copyMacros = d.prepare('UPDATE entries SET fat = ?, protein = ? WHERE type = ? AND ts = ? AND value = ?')
   const dropManual = d.prepare('DELETE FROM entries WHERE id = ?')
   const stmt = d.prepare(
     `INSERT OR IGNORE INTO entries (type, ts, value, subtype, source, created_at)
@@ -180,13 +199,16 @@ export function storeRows(rows: Row[]): [number, number] {
     for (const r of rows) {
       if (r.type === 'glucose' && r.source !== MANUAL_SOURCE && nearGlucose.get(r.ts - GLUCOSE_DUP_SEC, r.ts + GLUCOSE_DUP_SEC, r.value, MANUAL_SOURCE)) continue
       const manual = r.type !== 'glucose' && r.source !== MANUAL_SOURCE
-        ? manualMatch.get(MANUAL_SOURCE, r.type, r.value, r.ts - MANUAL_MATCH_SEC, r.ts + MANUAL_MATCH_SEC, r.ts) as { id: number; subtype: string | null } | undefined
+        ? manualMatch.get(MANUAL_SOURCE, r.type, r.value, r.ts - MANUAL_MATCH_SEC, r.ts + MANUAL_MATCH_SEC, r.ts) as { id: number; subtype: string | null; fat: number | null; protein: number | null } | undefined
         : undefined
       // A beérkező általános „bolus” jelölésnél a kézi (étkezési / korrekció / bázis / zsíros / gyors) a pontosabb.
       const sub = manual?.subtype && (r.subtype == null || r.subtype === 'bolus') ? manual.subtype : r.subtype
       const info = stmt.run(r.type, r.ts, r.value, sub, r.source, now, r.type, r.ts, r.value)
       inserted += Number(info.changes)
-      if (manual && Number(info.changes) > 0) dropManual.run(manual.id)
+      if (manual && Number(info.changes) > 0) {
+        if (manual.fat != null || manual.protein != null) copyMacros.run(manual.fat, manual.protein, r.type, r.ts, r.value)
+        dropManual.run(manual.id)
+      }
       if (Number(info.changes) === 0 && r.subtype !== null) fill.run(r.subtype, r.type, r.ts, r.value)
     }
     d.exec('COMMIT')
