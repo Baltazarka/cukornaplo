@@ -363,6 +363,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
             <div v-else-if="entryForm.type === 'carbs'" class="note-tags" role="group" aria-label="Jelölés" :title="CARB_TAG_HINT.normal">
               <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fatty'" :title="CARB_TAG_HINT.fatty" @click="entryForm.sub = entryForm.sub === 'fatty' ? '' : 'fatty'">{{ CARB_TAG_ICON.fatty }} zsíros</button>
               <button type="button" class="tag-toggle" :aria-pressed="entryForm.sub === 'fast'" :title="CARB_TAG_HINT.fast" @click="entryForm.sub = entryForm.sub === 'fast' ? '' : 'fast'">{{ CARB_TAG_ICON.fast }} gyors</button>
+              <GuideLink section="zsiros" text="Zsíros ételek" label="Mit jelölj zsírosnak? Példák táblázattal" />
             </div>
             <template v-if="entryForm.type === 'carbs' && entryForm.sub === 'fatty'">
               <label class="note-time">Zsír <input v-model="entryForm.fat" type="text" inputmode="decimal" class="entry-amount" placeholder="g"> <span class="muted">g</span></label>

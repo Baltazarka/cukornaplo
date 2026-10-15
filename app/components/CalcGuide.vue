@@ -17,6 +17,7 @@ const SECTIONS = [
   { id: 'hatas', title: 'Inzulinhatás, aktív inzulin' },
   { id: 'felszivodas', title: 'CH-felszívódás, aktív CH' },
   { id: 'bolus', title: 'Bóluskalkulátor' },
+  { id: 'zsiros', title: 'Zsíros ételek' },
   { id: 'hipo', title: 'Hipók' },
   { id: 'elorejelzes', title: 'Előrejelzés és értesítések' },
   { id: 'etkezes', title: 'Étkezéselemzés' },
@@ -244,7 +245,7 @@ korrekció     = (vércukor − célérték) ÷ érzékenység (mmol/L/E)</pre>
                 <li><b>Célérték alatt</b>: a korrekció negatív, és csökkenti az étkezési adagot; óvatosságból az aktív inzulin is levonódik belőle (ez szigorúbb a Medtronicnál), mert az tovább csökkenti a vércukrot. A levonás a célértéknél nulláról indul, és 1 mmol/L-rel a célérték alatt éri el a teljeset, így a javaslat a célérték körül nem ugrik.</li>
                 <li><b>Javasolt adag</b> = max(0, étkezési + korrekció − levont aktív inzulin), <b>0,5 E-re lefelé kerekítve</b>, és legfeljebb a beállított maximális dózis.</li>
                 <li><b>Vércukor</b>: a legutóbbi CGM-érték, ha 15 percnél frissebb; különben be kell írni.</li>
-                <li><b>Átmenet a napszakok között</b> (kikapcsolható): a CH-arány és az érzékenység a napszak kezdetén a beállított érték, és a következő napszak kezdetéig egyenletesen halad annak értékéig. Pl. 06:00-kor 2 g/E, 12:00-kor 4 g/E → 09:00-kor 3 g/E. A célérték mindig a napszaké. Az InPen lépcsősen számol, ezért a napszakok vége felé eltérhet.</li>
+                <li><b>Átmenet a napszakok között</b> (kikapcsolható): a CH-arány és az érzékenység a napszak kezdetén a beállított érték, és a következő napszak kezdetéig egyenletesen halad annak értékéig. Pl. 06:00-kor 2 g/E, 12:00-kor 4 g/E → 09:00-kor 3 g/E. A célérték mindig a napszaké. Átmenet nélkül az érték a napszakhatáron lépcsősen vált.</li>
                 <li><b>Figyelmeztetések</b>: alacsony vércukor (a céltartomány alja alatt), a maximális dózis elérése, 14 mmol/L fölött ketonvizsgálat, gyors emelkedés / esés (2–3 nyíl) – a trendet a számítás nem veszi figyelembe.</li>
                 <li>A számolt szénhidrát és adag kérésre <b>beírható a naplóba</b> (a mostani időponttal; az adag átírható a ténylegesen beadottra).</li>
                 <li><b>Zsíros / fehérjedús étel</b> (tájékoztató, a számolt adag nem változik): ha megadod a zsír és a fehérje grammját, kiírja a varsói módszer szerinti plusz-javaslatot: <code class="guide-f">zsír-fehérje egység = (zsír × 9 + fehérje × 4) ÷ 100</code>, egységenként annyi inzulin, mint 10 g CH-hoz, a Terápia oldalon beállított %-kal (alapból 50%), 0,5 E-re lefelé kerekítve. A hatása kb. 1–1,5 óra múlva kezdődik, és 1 egységnél 3, 2-nél 4, 3-nál 5, 4 vagy több egységnél 8 óráig tart. Beírás után 1,5 óra múlva push-emlékeztető jöhet a mostani cukorral (ha be van kapcsolva, és a cukor nincs a célérték alatt).</li>
@@ -253,6 +254,40 @@ korrekció     = (vércukor − célérték) ÷ érzékenység (mmol/L/E)</pre>
                 <li><b>Értesítésnapló</b>: a kiküldött push értesítések a főoldal jobb sávjában visszanézhetők (60 napig), rákattintva nagyban, a teljes szöveggel.</li>
                 <li><b>Gyors CH</b>: grammonként ugyanannyi inzulin kell hozzá, csak gyorsabban emel; a kalkulátor az időzítésre figyelmeztet (10–15 perccel evés előtt beadott adag).</li>
                 <li>Ha újabb a kézzel felvitt vércukor a szenzor értékénél, azt használja („kézi” jelzéssel).</li>
+              </ul>
+            </section>
+
+            <!-- Zsíros ételek: mit jelölj zsírosnak -->
+            <section id="guide-zsiros">
+              <h3>Zsíros ételek: mit jelölj zsírosnak?</h3>
+              <p>
+                A zsír és a fehérje is emeli a vércukrot, csak később (1–1,5 óra múlva kezdődően, órákig), és a zsír az inzulin
+                hatását is rontja. Ökölszabály <b>zsír-fehérje egységben</b> (1 egység = 100 kcal zsírból és fehérjéből, kb. 11 g zsír
+                vagy 25 g fehérje):
+              </p>
+              <ul class="guide-ul">
+                <li><b>2 egységtől</b> (kb. 200 kcal zsírból és fehérjéből, pl. 15 g zsír + 15 g fehérje, vagy 20 g zsír): jelöld <b>zsíros</b>nak, és add meg a zsír és a fehérje grammját.</li>
+                <li><b>1–2 egység</b>: határeset. Jelöld, ha nálad ilyenkor 2–4 óra múlva rendszeresen emelkedik a cukor (a Terápia oldal „Zsíros ételek” kártyája meg fogja mutatni).</li>
+                <li><b>1 egység alatt</b> (pl. kevés vaj a kenyéren): ne jelöld.</li>
+              </ul>
+              <table class="table guide-table">
+                <thead><tr><th>Étel (tájékoztató)</th><th class="num">Zsír / fehérje</th><th class="num">Egység</th><th>Zsíros?</th></tr></thead>
+                <tbody>
+                  <tr><td>2 szelet kenyér kevés vajjal, lekvárral</td><td class="num">5 / 6 g</td><td class="num">0,7</td><td>nem</td></tr>
+                  <tr><td>sovány csirkemell rizzsel</td><td class="num">3 / 25 g</td><td class="num">1,3</td><td>nem (a fehérje lassan hat)</td></tr>
+                  <tr><td>2 tojás (rántotta)</td><td class="num">11 / 12 g</td><td class="num">1,5</td><td>határeset</td></tr>
+                  <tr><td>50 g sajt (pl. sajtos kenyér)</td><td class="num">14 / 12 g</td><td class="num">1,8</td><td>határeset, inkább igen</td></tr>
+                  <tr><td>100 g párizsi</td><td class="num">25 / 12 g</td><td class="num">2,7</td><td>igen</td></tr>
+                  <tr><td>fél pizza (kb. 250 g)</td><td class="num">25 / 25 g</td><td class="num">3,3</td><td>igen</td></tr>
+                  <tr><td>hamburger</td><td class="num">25 / 25 g</td><td class="num">3,3</td><td>igen</td></tr>
+                  <tr><td>tejszínes-sajtos tészta</td><td class="num">30 / 20 g</td><td class="num">3,5</td><td>igen</td></tr>
+                  <tr><td>rántott hús krumplival</td><td class="num">30 / 35 g</td><td class="num">4,1</td><td>igen</td></tr>
+                </tbody>
+              </table>
+              <ul class="guide-ul">
+                <li>A pontos értéket a csomagolás tápérték-táblázatából (zsír, fehérje 100 g-ra) vagy egy kalóriaszámláló appból kapod; a táblázat csak tájékoztató.</li>
+                <li><b>Mit csinál a jelölés</b>: a CH felszívódását lassabbnak veszi (aktív CH, előrejelzés), kihagyja az étkezést a CH-arány becsléséből, és a zsír / fehérje grammjából tájékoztató plusz-javaslatot és 1,5 órás emlékeztetőt ad (lásd: Bóluskalkulátor). Ezért ne jelölj mindent zsírosnak: ha minden étkezés zsíros, nem marad mihez mérni a CH-arányt.</li>
+                <li>A plusz adag mennyiségéről (a varsói érték hány %-a) a diabetológussal egyeztess.</li>
               </ul>
             </section>
 

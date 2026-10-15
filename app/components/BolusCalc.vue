@@ -258,6 +258,7 @@ const trendText = computed(() => {
             <option value="fatty" :title="CARB_TAG_HINT.fatty">{{ CARB_TAG_ICON.fatty }} zsíros / fehérjedús</option>
             <option value="fast" :title="CARB_TAG_HINT.fast">{{ CARB_TAG_ICON.fast }} gyors CH</option>
           </select>
+          <GuideLink section="zsiros" text="Zsíros ételek" label="Mit jelölj zsírosnak? Példák táblázattal" />
         </label>
         <div v-if="carbsV && logCarbSub === 'fatty'" class="bc-log-row">
           <span class="muted">Ha tudod:</span>

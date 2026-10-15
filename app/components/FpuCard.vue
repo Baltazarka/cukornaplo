@@ -23,7 +23,7 @@ const evaluable = computed(() => (fpu.value?.events ?? []).filter((e: any) => e.
 
 <template>
   <section v-if="fpu" class="card analysis-card">
-    <h2>Zsíros ételek (zsír-fehérje)</h2>
+    <h2>Zsíros ételek (zsír-fehérje) <GuideLink section="zsiros" label="Mit jelölj zsírosnak? Példák táblázattal" /></h2>
     <p class="muted small">
       A „zsíros” jelölésű étkezések, ahol megadtad a zsír és a fehérje grammját (utolsó {{ DAYS }} nap). A program
       megnézi, mennyit emelt a cukor a végpontig (a zsír-fehérje várt hatásidejének végéig, 4–8 óra) a szénhidrát és a

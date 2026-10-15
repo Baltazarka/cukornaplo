@@ -791,6 +791,13 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
   background: transparent; color: var(--text-muted); border: 1px solid var(--axis);
 }
 .guide-link:hover { color: var(--text-primary); border-color: var(--text-muted); background: var(--page); }
+/* Feliratos változat („Zsíros ételek ?”): szöveges link a kérdőjellel. */
+.guide-text-link {
+  display: inline-flex; align-items: center; gap: 0; padding: 0; border: 0; background: none;
+  color: var(--accent); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.guide-text-link:hover { background: none; text-decoration: underline; }
+.guide-text-link .guide-link { vertical-align: 0; }
 .guide-enter-active, .guide-leave-active { transition: opacity 0.2s ease; }
 .guide-enter-active .guide-panel, .guide-leave-active .guide-panel { transition: transform 0.25s ease; }
 .guide-enter-from, .guide-leave-to { opacity: 0; }
@@ -798,7 +805,7 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .guide-enter-active, .guide-leave-active, .guide-enter-active .guide-panel, .guide-leave-active .guide-panel { transition: none; }
 }
-@media print { .guide-backdrop, .guide-link { display: none !important; } }
+@media print { .guide-backdrop, .guide-link, .guide-text-link { display: none !important; } }
 
 /* ---- Telefon beállítása: képernyőképek a parancsról ---- */
 .shot-row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x mandatory; }

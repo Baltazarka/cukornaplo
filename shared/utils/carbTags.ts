@@ -8,11 +8,10 @@ export const CARB_TAG_HINT = {
     + '(pl. virsli kenyérrel): a kevés CH normálisan szívódik fel. A zsír / fehérje késői (3–5 órás) emelésére '
     + 'a „zsíros” jelölésnél a bóluskalkulátor tájékoztató plusz-javaslatot ír ki a zsír- és fehérjegrammból.',
   fatty:
-    'Zsíros / fehérjedús: a szénhidrát lassabban szívódik fel. Akkor jelöld, ha kb. 40 g-nál több zsír (vagy 30–40 g-nál '
-    + 'több fehérje) van az ételben ÉS számottevő a CH is (kb. 30 g fölött), pl. pizza, rántott étel körettel, tejszínes '
-    + 'tészta. 20 g zsír alatt általában nem számít, 20–40 g között enyhén lassíthat. A határ egyéni: ha egy étel után '
-    + '3–5 óra múlva rendszeresen emelkedik, nálad zsírosnak számít. A CH-arány becslése kihagyja. A bóluskalkulátorban '
-    + 'megadhatod a zsír és a fehérje grammját is: tájékoztatásul kiírja, mennyi plusz inzulin jönne ki rá (varsói módszer).',
+    'Zsíros / fehérjedús: a zsír és a fehérje később (1–1,5 óra múlva, órákig) emel. Akkor jelöld, ha kb. 2 zsír-fehérje '
+    + 'egység van benne (kb. 15 g zsír + 15 g fehérje, vagy 20 g zsír), pl. pizza, hamburger, rántott hús, párizsi, '
+    + 'tejszínes tészta; 1–2 egység határeset, 1 alatt ne jelöld. Add meg a zsír és a fehérje grammját is: a kalkulátor '
+    + 'tájékoztató plusz-javaslatot és emlékeztetőt ad. A CH-arány becslése kihagyja. Példák: Számítások → Zsíros ételek.',
   fast:
     'Gyors CH (pl. hipó kezelése, gyümölcslé, szőlőcukor): hamar emel és hamar lecseng. A hipó kezelésére bevitt CH-t '
     + 'is így írd be: ettől tudja a hipó-értesítés, hogy kezelted.',
