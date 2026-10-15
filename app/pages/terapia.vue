@@ -19,6 +19,8 @@ const bolusInfo = computed(() => insulinById(bolusInsulin.value))
 const basalInfo = computed(() => insulinById(basalInsulin.value))
 const maxBolus = ref<number | ''>(t?.maxBolus ?? '')
 const actionMinutes = ref<number>(t?.actionMinutes ?? 240)
+const fpuPercent = ref<number>(t?.fpuPercent ?? 50)
+const fpuOptions = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 const byTimeOfDay = ref<boolean>(t?.byTimeOfDay ?? true)
 const segments = ref<EditSegment[]>(t ? t.segments.map(toEdit) : [toEdit({ start: '06:00' })])
 
@@ -90,6 +92,7 @@ async function save() {
         basalInsulin: basalInsulin.value || null,
         maxBolus: maxBolus.value,
         actionMinutes: actionMinutes.value,
+        fpuPercent: fpuPercent.value,
         byTimeOfDay: byTimeOfDay.value,
         segments: segments.value.map(({ start, target, isf, icr, actionMinutes }) => ({ start, target, isf, icr, actionMinutes: actionMinutes || null })),
       },
@@ -148,6 +151,17 @@ async function save() {
             <template v-if="bolusInfo.facts">Alkalmazási előírás: hatáskezdet {{ bolusInfo.facts.onset }}, legerősebb hatás {{ bolusInfo.facts.peak }}, hatástartam {{ bolusInfo.facts.duration }}.</template>
           </p>
         </div>
+        <label class="tf-row">
+          <span class="tf-label">Zsír-fehérje javaslat</span>
+          <select v-model.number="fpuPercent">
+            <option v-for="p in fpuOptions" :key="p" :value="p">{{ p === 0 ? 'nincs' : `a varsói érték ${p}%-a` }}</option>
+          </select>
+        </label>
+        <p class="muted small tf-note">
+          Zsíros / fehérjedús étkezésnél a bóluskalkulátor a számolt adag alatt tájékoztatásul kiírja, mennyi plusz inzulin
+          jönne ki a zsír és a fehérje grammjából (1 zsír-fehérje egység = 100 kcal zsírból és fehérjéből ≈ 10 g CH), és
+          mikorra. A teljes érték sokaknál későbbi hipót okoz; a szorzót a diabetológussal egyeztesd.
+        </p>
         <p v-if="basalInfo?.facts" class="muted small tf-note">
           <b>{{ basalInfo.name }}</b> (alkalmazási előírás): {{ [basalInfo.facts.peak, basalInfo.facts.duration, basalInfo.facts.note].filter(Boolean).join(', ') }}.
         </p>

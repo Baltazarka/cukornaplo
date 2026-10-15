@@ -1,7 +1,7 @@
 // A bóluskalkulátor kiinduló adatai most: a legutóbbi CGM-érték és trendje, a most érvényes
 // napszak beállításai, a még aktív gyors hatású inzulin és a maximális dózis.
 import { db } from '../utils/db'
-import { therapy, activeSegments, segmentAt } from '../utils/therapy'
+import { therapy, activeSegments, segmentAt, DEFAULT_FPU_PERCENT } from '../utils/therapy'
 import { targetRange } from '../utils/range'
 import { lastTrend } from '../utils/trend'
 import { rapidDoses, iobAt } from '../utils/iob'
@@ -68,6 +68,7 @@ export default defineEventHandler(() => {
     iob: Math.round(iobAt(doses, now) * 100) / 100,
     lastBolus: lastDose ? { v: lastDose.v, minutesAgo: Math.round((now - lastDose.ts) / 60) } : null,
     maxBolus: t.maxBolus,
+    fpuPercent: t.fpuPercent ?? DEFAULT_FPU_PERCENT,
     insulin: insulinById(t.bolusInsulin)?.name ?? null,
   }
 })

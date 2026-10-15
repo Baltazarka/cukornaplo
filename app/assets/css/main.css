@@ -806,6 +806,9 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
 .bc-log-check { display: inline-flex; align-items: center; gap: 6px; }
 .bc-log-row .bc-input input { width: 64px; }
 .bc-log p { margin: 0; }
+.bc-fpu-in { display: inline-flex; align-items: center; gap: 4px; }
+.bc-fpu-in .bc-input input { width: 52px; }
+.bc-log .bc-hint { font-size: 12px; line-height: 1.45; }
 .bc-guardian { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 14px; }
 .bc-guardian > span { flex: 1; }
 

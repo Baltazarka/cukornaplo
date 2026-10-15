@@ -79,6 +79,24 @@ const result = computed(() => {
 const logCarbs = ref(true)
 const logInsulin = ref(true)
 const logCarbSub = ref('')
+// --- Zsíros étel: tájékoztató plusz-javaslat a varsói módszerrel (a számolt adag nem változik) ---
+// 1 zsír-fehérje egység (FPU) = 100 kcal zsírból és fehérjéből, ennyi inzulin kell hozzá, mint 10 g CH-hoz;
+// a hatása kb. 1–1,5 óra múlva kezdődik és a mennyiségtől függően 3–8 óráig tart. A beállított %-kal (Terápia).
+const fatG = ref('')
+const proteinG = ref('')
+const fpu = computed(() => {
+  if (logCarbSub.value !== 'fatty' || !result.value) return null
+  const fat = num(fatG.value) ?? 0
+  const protein = num(proteinG.value) ?? 0
+  if (fat < 0 || protein < 0 || fat > 300 || protein > 300) return null
+  const units = Math.round(((fat * 9 + protein * 4) / 100) * 10) / 10
+  const pct = Number(data.value?.fpuPercent ?? 50)
+  if (units < 0.5 || !pct) return null
+  const carbEq = units * 10
+  const extra = Math.floor(((carbEq / ratios.value.icr) * pct) / 100 * 2) / 2
+  const hours = units < 1.5 ? 3 : units < 2.5 ? 4 : units < 4 ? 5 : 8
+  return { units, carbEq, extra, hours, pct }
+})
 const logDose = ref('')
 const doseTouched = ref(false)
 watch(() => result.value?.dose, (d) => {
@@ -109,6 +127,8 @@ function clearInputs() {
   carbs.value = ''
   bgTouched.value = false
   logCarbSub.value = ''
+  fatG.value = ''
+  proteinG.value = ''
   logDose.value = ''
   doseTouched.value = false
 }
@@ -128,7 +148,13 @@ async function logToDiary() {
   const logged: { carbs: number | null; dose: number | null } = { carbs: null, dose: null }
   try {
     if (logCarbs.value && carbsV.value) {
+      const mealTs = Math.floor(Date.now() / 1000)
       await addEntry({ type: 'carbs', value: carbsV.value, sub: logCarbSub.value })
+      // Zsíros étel plusz-javaslattal: emlékeztető 1,5 óra múlva (push, ha be van kapcsolva és a cukor nincs a cél alatt).
+      const f = fpu.value
+      if (f && f.extra >= 0.5) {
+        await $fetch('/api/notify/fpu', { method: 'POST', body: { mealTs, extra: f.extra, units: f.units, hours: f.hours, pct: f.pct } }).catch(() => null)
+      }
       done.push(`${fmt(carbsV.value, 0)} g CH`)
       logged.carbs = carbsV.value
     }
@@ -240,6 +266,23 @@ const trendText = computed(() => {
             <option value="fast" :title="CARB_TAG_HINT.fast">gyors CH</option>
           </select>
         </label>
+        <div v-if="carbsV && logCarbSub === 'fatty'" class="bc-log-row">
+          <span class="muted">Ha tudod:</span>
+          <label class="bc-fpu-in">zsír <span class="bc-input"><input v-model="fatG" type="text" inputmode="decimal" placeholder="0" aria-label="Zsír, gramm"><small>g</small></span></label>
+          <label class="bc-fpu-in">fehérje <span class="bc-input"><input v-model="proteinG" type="text" inputmode="decimal" placeholder="0" aria-label="Fehérje, gramm"><small>g</small></span></label>
+        </div>
+        <p v-if="carbsV && logCarbSub === 'fatty' && fpu" class="muted bc-hint">
+          Zsír-fehérje: kb. {{ fmt(fpu.units) }} egység (≈ {{ fmt(fpu.carbEq, 0) }} g CH) →
+          <template v-if="fpu.extra >= 0.5">kb. <b>+{{ fmt(fpu.extra) }} E</b></template><template v-else>0,5 E alatt</template>
+          (a varsói érték {{ fpu.pct }}%-a). Ez nincs benne a számolt adagban: a hatása kb. 1–1,5 óra múlva kezdődik és kb. {{ fpu.hours }} óráig tart,
+          ezért a plusz adag később, vagy csak akkor jöhet szóba, ha a cukor emelkedik.<template v-if="fpu.extra >= 0.5"> Beírás után 1,5 óra múlva emlékeztető jön (ha be van kapcsolva).</template>
+        </p>
+        <p v-else-if="carbsV && logCarbSub === 'fatty'" class="muted bc-hint">
+          A zsír és a fehérje később (1–1,5 óra múlva, órákig) emel. Ha megadod a grammjukat, kiírom, mennyi plusz inzulin jönne ki rá (tájékoztató, a számolt adag nem változik).
+        </p>
+        <p v-if="carbsV && logCarbSub === 'fast'" class="muted bc-hint">
+          Gyors CH: grammonként ugyanannyi inzulin kell hozzá, csak gyorsabban emel, mint ahogy az inzulin hatni kezd. Ha lehet, az adagot 10–15 perccel evés előtt add be. Hipó kezelésére bevitt gyors CH-hoz nem kell inzulin.
+        </p>
         <label class="bc-log-row">
           <span class="bc-log-check"><input v-model="logInsulin" type="checkbox"> Bólus</span>
           <span class="bc-input"><input v-model="logDose" type="text" inputmode="decimal" aria-label="A beadott adag" @input="doseTouched = true"><small>E</small></span>

@@ -27,6 +27,11 @@ export interface Therapy {
   maxBolus: number
   /** Inzulinhatás időtartama, perc. */
   actionMinutes: number
+  /**
+   * Zsíros / fehérjedús étkezésnél a kalkulátor tájékoztató plusz-javaslata a varsói módszer (zsír-fehérje egység)
+   * értékének hány százaléka (0 = nincs javaslat). Hiányzó érték: 50.
+   */
+  fpuPercent?: number
   /** Napszakbeállítások: ki kapcsolva csak az első napszak értékei érvényesek, egész nap. */
   byTimeOfDay: boolean
   segments: TherapySegment[]

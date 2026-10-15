@@ -4,7 +4,7 @@
 const { data, refresh } = await useFetch<any>('/api/notify/settings', { key: 'notify-settings' })
 const { data: push, refresh: pushRefresh } = await useFetch<any>('/api/push/key', { key: 'push-key' })
 
-const form = reactive({ hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, repeatMin: 15, devicePush: true })
+const form = reactive({ hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, repeatMin: 15, devicePush: true, fpuPush: true })
 watchEffect(() => {
   if (data.value?.settings) Object.assign(form, data.value.settings)
 })
@@ -35,6 +35,7 @@ const TESTS = [
   { kind: 'carbs', label: 'CH-javaslat teszt' },
   { kind: 'insulin', label: 'Inzulinjavaslat teszt' },
   { kind: 'device', label: 'Szenzorlejárat teszt' },
+  { kind: 'fpu', label: 'Zsíros étel teszt' },
 ] as const
 async function test(kind: string) {
   busy.value = `test-${kind}`
@@ -186,6 +187,11 @@ const noDevice = computed(() => !push.value?.devices?.length)
           <input v-model.number="form.insulinMin" type="number" step="0.5" min="0.5" max="10">
         </label>
         <p v-if="data?.lastInsulin" class="muted small">Utolsó: {{ new Date(data.lastInsulin * 1000).toLocaleString('hu-HU', { dateStyle: 'short', timeStyle: 'short' }) }}</p>
+      </fieldset>
+
+      <fieldset class="notify-block">
+        <label class="check"><input v-model="form.fpuPush" type="checkbox"> Zsíros étel emlékeztető</label>
+        <p class="muted small">Ha a bóluskalkulátorból zsíros / fehérjedús étkezést írsz be zsír- és fehérjegrammal, és jön ki plusz-javaslat, 1,5 óra múlva szól a mostani cukorral és a javasolt plusz adaggal. Nem szól, ha a cukor a célérték alatt van, vagy ha közben törölted az étkezést.</p>
       </fieldset>
 
       <fieldset class="notify-block">

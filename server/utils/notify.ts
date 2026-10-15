@@ -7,6 +7,10 @@ import { fmt1 } from './digest'
 import { clDevice } from './carelink'
 import { hoursLeftText, SENSOR_ENDING_HOURS, TRANSMITTER_LOW } from '#shared/utils/device'
 import { sgText } from '#shared/utils/glucose'
+import { latestGlucose } from './digest'
+import { therapy, segmentAt } from './therapy'
+import { db } from './db'
+import { hmInTz } from './time'
 
 export interface NotifySettings {
   /** Hipó-veszély értesítés. */
@@ -23,6 +27,8 @@ export interface NotifySettings {
   repeatMin: number
   /** Szenzor lejárata (12 órával előtte) és alacsony transzmittertöltés. */
   devicePush: boolean
+  /** Zsíros étel után emlékeztető a zsír-fehérje plusz-javaslatra (a bóluskalkulátorból). */
+  fpuPush: boolean
 }
 
 interface NotifyState {
@@ -35,7 +41,7 @@ interface NotifyState {
   lastError?: string
 }
 
-const DEFAULTS: NotifySettings = { hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, repeatMin: 15, devicePush: true }
+const DEFAULTS: NotifySettings = { hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, repeatMin: 15, devicePush: true, fpuPush: true }
 
 export function notifySettings(): NotifySettings {
   return { ...DEFAULTS, ...(setting<Partial<NotifySettings>>('notify', null) ?? {}) }
@@ -60,6 +66,7 @@ export function validateNotify(b: any): NotifySettings {
     insulinMin: Number.isFinite(min) && min >= 0.5 && min <= 10 ? Math.round(min * 2) / 2 : DEFAULTS.insulinMin,
     repeatMin: [15, 30, 60].includes(Number(b?.repeatMin)) ? Number(b.repeatMin) : DEFAULTS.repeatMin,
     devicePush: b?.devicePush === true,
+    fpuPush: b?.fpuPush === true,
   }
 }
 
@@ -131,10 +138,69 @@ export function testPayload(kind: string): PushPayload | null {
   if (kind === 'carbs') return tagged(carbsPayload({ ...low, now: sampleNow(4.4, '↘') }, 15))
   if (kind === 'insulin') return tagged(insulinPayload({ now: sampleNow(13.2, '↗'), eventual: 11.8, iob: 1.8 }, 3))
   if (kind === 'device') return tagged(sensorPayload(Math.floor(Date.now() / 1000) + 11 * 3600, 11))
+  if (kind === 'fpu') return tagged(fpuPayload({ mealTs: Math.floor(Date.now() / 1000) - 90 * 60, extra: 4.5, units: 1.8, hours: 4, pct: 50 }, sampleNow(9.4, '↗')))
   return null
 }
 
 // ---- ellenőrzés (percenként) ----
+
+// ---- zsíros étel: emlékeztető a plusz-javaslatra ----
+
+/** Egy függő emlékeztető: a bóluskalkulátorból beírt zsíros étkezés után FPU_REMIND_MIN perccel. */
+export interface FpuReminder {
+  mealTs: number
+  /** Javasolt plusz adag, E (a beállított %-kal, 0,5 E-re lefelé kerekítve). */
+  extra: number
+  /** Zsír-fehérje egység. */
+  units: number
+  /** A zsír-fehérje hatásának hossza, óra. */
+  hours: number
+  /** A varsói érték hány %-a. */
+  pct: number
+}
+/** Ennyi perccel az étkezés után jön az emlékeztető (a zsír-fehérje hatása kb. ekkor kezd látszani). */
+export const FPU_REMIND_MIN = 90
+const FPU_KEY = 'fpu_reminders'
+
+export function fpuPayload(r: FpuReminder, now: { v: number; arrow: string }): PushPayload {
+  const e = r.extra.toLocaleString('hu-HU', { maximumFractionDigits: 1 })
+  return {
+    title: `🧀 Zsíros étel ${hmInTz(r.mealTs)}-kor: most ${sgText(now.v)} ${now.arrow}`,
+    body: `A zsír-fehérje (kb. ${r.units.toLocaleString('hu-HU', { maximumFractionDigits: 1 })} egység) miatt kb. +${e} E jöhet szóba (a varsói érték ${r.pct}%-a), ha a cukor emelkedik; a hatása kb. ${r.hours} óráig tart. ${SAFETY}`,
+    url: '/', tag: 'fpu',
+  }
+}
+
+/** Új emlékeztető felvétele (a régieket, egy napnál idősebbeket eldobjuk; ugyanarra az étkezésre csak egy). */
+export function addFpuReminder(r: FpuReminder): void {
+  const now = Math.floor(Date.now() / 1000)
+  const list = (setting<FpuReminder[]>(FPU_KEY, null) ?? []).filter((x) => now - x.mealTs < 86400 && x.mealTs !== r.mealTs)
+  saveSettings({ [FPU_KEY]: [...list, r] })
+}
+
+/**
+ * Esedékes emlékeztetők: az étkezés után FPU_REMIND_MIN perccel, ha az étkezés még a naplóban van (zsírosként), és a
+ * vércukor nincs a célérték alatt (alacsony cukornál nem javaslunk plusz inzulint). Mindegyik legfeljebb egyszer megy ki.
+ */
+export async function checkFpuReminders(nowTs = Math.floor(Date.now() / 1000)): Promise<void> {
+  const list = setting<FpuReminder[]>(FPU_KEY, null) ?? []
+  if (!list.length) return
+  const due = list.filter((r) => nowTs >= r.mealTs + FPU_REMIND_MIN * 60)
+  if (!due.length) return
+  saveSettings({ [FPU_KEY]: list.filter((r) => !due.includes(r)) })
+  const s = notifySettings()
+  const t = therapy()
+  if (!s.fpuPush || !t || !listSubscriptions().length) return
+  for (const r of due) {
+    // Túl régi (pl. a szerver állt): már nem aktuális.
+    if (nowTs - r.mealTs > (FPU_REMIND_MIN + 60) * 60) continue
+    const still = db().prepare("SELECT 1 FROM entries WHERE type = 'carbs' AND subtype = 'fatty' AND ts BETWEEN ? AND ? LIMIT 1").get(r.mealTs - 120, r.mealTs + 120)
+    if (!still) continue
+    const now = latestGlucose(nowTs)
+    if (!now || now.ageMin > 20 || now.v < segmentAt(t, nowTs).target) continue
+    await sendPush(fpuPayload(r, now), { urgency: 'normal', ttl: 60 * 60 }).catch(() => null)
+  }
+}
 
 /** Szenzor lejárata (szenzoronként egyszer, 12 órával előtte) és alacsony transzmittertöltés (12 óránként). */
 export async function checkDeviceAlerts(nowTs = Math.floor(Date.now() / 1000)): Promise<void> {

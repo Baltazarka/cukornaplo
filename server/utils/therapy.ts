@@ -12,8 +12,12 @@ export const THERAPY_LIMITS = {
   target: { min: 3.9, max: 13.9 },
   isf: { min: 0.1, max: 20 },
   icr: { min: 0.5, max: 150 },
+  fpuPercent: { min: 0, max: 100, step: 10 },
   segments: 12,
 } as const
+
+/** A zsír-fehérje javaslat alapértelmezése: a varsói érték fele (a teljes érték sokaknál későbbi hipót okoz). */
+export const DEFAULT_FPU_PERCENT = 50
 
 export function therapy(): Therapy | null {
   const t = setting<Therapy>('therapy', null)
@@ -47,6 +51,13 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
     errors.push('Az inzulinhatás időtartama 2 és 8 óra között lehet, negyedórás lépésekben.')
   }
   const byTimeOfDay = body?.byTimeOfDay === true
+  // Zsír-fehérje javaslat (varsói érték %-a): üresen az alapértelmezett 50%.
+  let fpuPercent = DEFAULT_FPU_PERCENT
+  if (body?.fpuPercent != null && body.fpuPercent !== '') {
+    const f = inRange(body.fpuPercent, L.fpuPercent)
+    if (f == null || f % L.fpuPercent.step !== 0) errors.push('A zsír-fehérje javaslat 0 és 100% között lehet, 10%-os lépésekben.')
+    else fpuPercent = f
+  }
   const insulin = (v: unknown, kind: 'bolus' | 'basal') => {
     if (v == null || v === '') return null
     const info = insulinById(String(v))
@@ -103,6 +114,7 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
       basalInsulin,
       maxBolus: round(maxBolus!, 1),
       actionMinutes: actionMinutes!,
+      fpuPercent,
       byTimeOfDay,
       segments,
       source: 'manual',
