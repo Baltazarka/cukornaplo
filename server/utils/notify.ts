@@ -11,6 +11,9 @@ import { latestGlucose } from './digest'
 import { therapy, segmentAt } from './therapy'
 import { db } from './db'
 import { hmInTz } from './time'
+import { recentFpu } from './fpuRecent'
+import { rapidDoses, iobAt } from './iob'
+import { calcBolus } from '#shared/utils/bolus'
 
 export interface NotifySettings {
   /** Hipó-veszély értesítés. */
@@ -138,7 +141,7 @@ export function testPayload(kind: string): PushPayload | null {
   if (kind === 'carbs') return tagged(carbsPayload({ ...low, now: sampleNow(4.4, '↘') }, 15))
   if (kind === 'insulin') return tagged(insulinPayload({ now: sampleNow(13.2, '↗'), eventual: 11.8, iob: 1.8 }, 3))
   if (kind === 'device') return tagged(sensorPayload(Math.floor(Date.now() / 1000) + 11 * 3600, 11))
-  if (kind === 'fpu') return tagged(fpuPayload({ mealTs: Math.floor(Date.now() / 1000) - 90 * 60, extra: 4.5, units: 1.8, hours: 4, pct: 50 }, sampleNow(9.4, '↗')))
+  if (kind === 'fpu') return tagged(fpuPayload({ mealTs: Math.floor(Date.now() / 1000) - 90 * 60, extra: 4.5, units: 1.8, hours: 4, pct: 50 }, sampleNow(9.4, '↗'), 2))
   return null
 }
 
@@ -162,13 +165,31 @@ export interface FpuReminder {
 export const FPU_REMIND_MIN = 90
 const FPU_KEY = 'fpu_reminders'
 
-export function fpuPayload(r: FpuReminder, now: { v: number; arrow: string }): PushPayload {
-  const e = r.extra.toLocaleString('hu-HU', { maximumFractionDigits: 1 })
+/**
+ * `correction`: a bóluskalkulátor szerinti korrekció most (aktív inzulin levonva, 0,5 E-re lefelé), ha ismert. A kettő
+ * átfed (a mostani emelkedés egy része már a zsír-fehérje hatása), ezért nem összeadandó.
+ */
+export function fpuPayload(r: FpuReminder, now: { v: number; arrow: string }, correction: number | null = null): PushPayload {
+  const n = (v: number) => v.toLocaleString('hu-HU', { maximumFractionDigits: 1 })
+  const corr = correction == null ? ''
+    : correction >= 0.5
+      ? ` Korrekció a kalkulátor szerint kb. ${n(correction)} E: a kettő átfed, ne add össze, a nagyobbat vedd figyelembe.`
+      : ' Korrekció most nem kell (az aktív inzulin levonva).'
   return {
     title: `🧀 Zsíros étel ${hmInTz(r.mealTs)}-kor: most ${sgText(now.v)} ${now.arrow}`,
-    body: `A zsír-fehérje (kb. ${r.units.toLocaleString('hu-HU', { maximumFractionDigits: 1 })} egység) miatt kb. +${e} E jöhet szóba (a varsói érték ${r.pct}%-a), ha a cukor emelkedik; a hatása kb. ${r.hours} óráig tart. ${SAFETY}`,
+    body: `A zsír-fehérje (kb. ${n(r.units)} egység) miatt kb. +${n(r.extra)} E jöhet szóba (a varsói érték ${r.pct}%-a), ha a cukor emelkedik; a hatása kb. ${r.hours} óráig tart.${corr} ${SAFETY}`,
     url: '/', tag: 'fpu',
   }
+}
+
+/** A bóluskalkulátor szerinti korrekció most (CH nélkül, aktív inzulin levonva), a push szövegéhez. */
+function correctionNow(nowTs: number, bg: number): number | null {
+  const t = therapy()
+  if (!t) return null
+  const seg = segmentAt(t, nowTs)
+  const carbTs = (db().prepare("SELECT ts FROM entries WHERE type = 'carbs' AND ts >= ?").all(nowTs - 12 * 3600) as any[]).map((r) => Number(r.ts))
+  const iob = iobAt(rapidDoses(t, nowTs, nowTs + 1, carbTs), nowTs)
+  return calcBolus({ carbs: 0, bg, target: seg.target, isf: seg.isf, icr: seg.icr, iob, maxBolus: t.maxBolus }).dose
 }
 
 /** Új emlékeztető felvétele (a régieket, egy napnál idősebbeket eldobjuk; ugyanarra az étkezésre csak egy). */
@@ -198,7 +219,10 @@ export async function checkFpuReminders(nowTs = Math.floor(Date.now() / 1000)): 
     if (!still) continue
     const now = latestGlucose(nowTs)
     if (!now || now.ageMin > 20 || now.v < segmentAt(t, nowTs).target) continue
-    await sendPush(fpuPayload(r, now), { urgency: 'normal', ttl: 60 * 60 }).catch(() => null)
+    // Ha az étkezés után (30 perc múlva vagy később) már beadtál inzulint (a pluszt vagy korrekciót), nem emlékeztetünk.
+    const recent = recentFpu(nowTs)
+    if (recent && recent.mealTs === r.mealTs && recent.givenSince >= 0.5) continue
+    await sendPush(fpuPayload(r, now, correctionNow(nowTs, now.v)), { urgency: 'normal', ttl: 60 * 60 }).catch(() => null)
   }
 }
 

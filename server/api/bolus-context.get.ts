@@ -6,6 +6,7 @@ import { targetRange } from '../utils/range'
 import { lastTrend } from '../utils/trend'
 import { rapidDoses, iobAt } from '../utils/iob'
 import { minuteOfDayInTz } from '../utils/time'
+import { recentFpu } from '../utils/fpuRecent'
 
 export default defineEventHandler(() => {
   const now = Math.floor(Date.now() / 1000)
@@ -69,6 +70,8 @@ export default defineEventHandler(() => {
     lastBolus: lastDose ? { v: lastDose.v, minutesAgo: Math.round((now - lastDose.ts) / 60) } : null,
     maxBolus: t.maxBolus,
     fpuPercent: t.fpuPercent ?? DEFAULT_FPU_PERCENT,
+    // 5 órán belüli zsíros étkezés zsír-fehérje javaslattal: a korrekció ezzel átfed (figyelmeztetés a kalkulátorban).
+    recentFpu: recentFpu(now),
     insulin: insulinById(t.bolusInsulin)?.name ?? null,
   }
 })

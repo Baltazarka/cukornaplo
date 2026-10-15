@@ -88,6 +88,8 @@ const proteinG = ref('')
 const fatV = computed(() => num(fatG.value))
 const proteinV = computed(() => num(proteinG.value))
 const macroInvalid = computed(() => [fatV.value, proteinV.value].some((v) => v != null && (v < 0 || v > MACRO_MAX_G)))
+/** 5 órán belüli zsíros étkezés zsír-fehérje javaslattal (a szerver adja; a korrekció ezzel átfed). */
+const fpuRecent = computed(() => data.value?.recentFpu ?? null)
 const fpu = computed(() => {
   if (logCarbSub.value !== 'fatty' || !result.value || macroInvalid.value) return null
   return fpuSuggestion(fatV.value, proteinV.value, seg.value.icr, Number(data.value?.fpuPercent ?? 50))
@@ -289,6 +291,12 @@ const trendText = computed(() => {
       <div v-if="result" class="bc-warn small">
         <p v-if="low" class="alert">Alacsony a vércukor: előbb kezeld gyors szénhidráttal. Étkezési bólust csak rendeződés után adj.</p>
         <p v-if="result.capped" class="alert">A számított adag több a beállított maximális dózisnál ({{ fmt(data.maxBolus) }} E), ezért arra korlátoztuk.</p>
+        <!-- 5 órán belüli zsíros étel zsír-fehérje javaslattal: a korrekció ezzel átfed (a mostani emelkedés egy része már a zsír-fehérje hatása). -->
+        <p v-if="fpuRecent && result.correction > 0" class="notice">
+          {{ fpuRecent.time }}-kor zsíros étel volt (zsír-fehérje javaslat: +{{ fmt(fpuRecent.extra) }} E, a hatása kb. {{ fpuRecent.hours }} óráig tart).
+          <template v-if="fpuRecent.givenSince >= 0.5">Azóta {{ fmt(fpuRecent.givenSince) }} E inzulint adtál be: ezt a korrekció már levonja, a pluszt ne add rá még egyszer.</template>
+          <template v-else>Ez a korrekció a zsír-fehérje további hatását nem ismeri: a kettő átfed, ne add össze, a nagyobbat vedd figyelembe.</template>
+        </p>
         <p v-if="bgV != null && bgV >= KETONE_BG" class="notice">{{ fmt(KETONE_BG, 0) }} mmol/L fölött ketonvizsgálat javasolt.</p>
         <p v-if="trendText && bgV != null" class="notice">{{ trendText }} A kalkulátor a trendet nem veszi figyelembe.</p>
         <p v-if="result.correction > 0 && data.iob > 0 && !useIob" class="notice">Az aktív inzulin levonása ki van kapcsolva: az egymásra adott korrekciók összeadódnak.</p>

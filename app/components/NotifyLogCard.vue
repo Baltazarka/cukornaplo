@@ -83,10 +83,15 @@ const isTest = (i: Item) => i.tag.startsWith('test-')
 </template>
 
 <style scoped>
-.nl-list { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 6px; padding: 0; border: 0; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
-.nl-item { display: flex; gap: 8px; font-size: 13px; line-height: 1.35; }
-.nl-time { flex: none; min-width: 74px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.nl-title { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* A lista gomb (kattintva nagyban nyílik), de az általános gombstílust (középre igazítás, sortörés tiltása) felülírjuk. */
+.nl-list {
+  display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 8px;
+  width: 100%; margin-top: 6px; padding: 0; border: 0; border-radius: 0; background: none;
+  text-align: left; color: inherit; font: inherit; font-weight: 400; white-space: normal; cursor: pointer;
+}
+.nl-item { display: flex; gap: 8px; min-width: 0; font-size: 13px; line-height: 1.35; }
+.nl-time { flex: none; width: 4.6em; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.nl-title { flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .nl-dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 64px); padding: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-1); color: var(--text-primary); }
 .nl-dialog::backdrop { background: rgb(0 0 0 / 45%); }
 .nl-dlg-inner { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
