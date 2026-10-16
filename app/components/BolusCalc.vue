@@ -96,10 +96,19 @@ const fpu = computed(() => {
   if (logCarbSub.value !== 'fatty' || !result.value || macroInvalid.value) return null
   return fpuSuggestion(fatV.value, proteinV.value, seg.value.icr, Number(data.value?.fpuPercent ?? 50))
 })
+/** Egyben adásnál a zsír-fehérje plusz adag (a beírási mezőbe az összeg kerül); különben 0. */
+const fpuTogetherExtra = computed(() => (fpuTogether.value && fpu.value && fpu.value.extra >= 0.5 ? fpu.value.extra : 0))
+/** Az összeg (étkezési + egyben adott zsír-fehérje) a beállított maximális dózisig; e fölött a különbség. */
+const togetherSum = computed(() => (result.value ? result.value.dose + fpuTogetherExtra.value : 0))
+const togetherOverMax = computed(() => (fpuTogetherExtra.value && data.value?.maxBolus ? Math.max(0, togetherSum.value - data.value.maxBolus) : 0))
 const logDose = ref('')
 const doseTouched = ref(false)
-watch(() => result.value?.dose, (d) => {
-  if (!doseTouched.value && d != null) logDose.value = String(d).replace('.', ',')
+// A beírási mezőbe a javasolt adag kerül (egyben adásnál a zsír-fehérje plusszal együtt, legfeljebb a maximális
+// dózisig), amíg kézzel át nem írod.
+watch(() => [result.value?.dose, fpuTogetherExtra.value, data.value?.maxBolus] as const, ([d, extra, max]) => {
+  if (doseTouched.value || d == null) return
+  const v = extra ? Math.min(d + extra, max ?? Infinity) : d
+  logDose.value = String(v).replace('.', ',')
 }, { immediate: true })
 const doseV = computed(() => num(logDose.value))
 const doseInvalid = computed(() => logInsulin.value && (doseV.value == null || doseV.value < 0.1 || doseV.value > 100))
@@ -287,8 +296,9 @@ const trendText = computed(() => {
         <label class="bc-log-row">
           <span class="bc-log-check"><input v-model="logInsulin" type="checkbox"> Bólus</span>
           <span class="bc-input"><input v-model="logDose" type="text" inputmode="decimal" aria-label="A beadott adag" @input="doseTouched = true"><small>E</small></span>
-          <span class="muted">a javasolt: {{ fmt(result.dose) }} E</span>
+          <span class="muted">a javasolt: {{ fmt(result.dose) }} E<template v-if="fpuTogetherExtra"> + {{ fmt(fpuTogetherExtra) }} E zsír-fehérje</template></span>
         </label>
+        <p v-if="togetherOverMax" class="alert">Az összeg ({{ fmt(togetherSum) }} E) több a beállított maximális dózisnál ({{ fmt(data.maxBolus) }} E): a mezőbe a maximum került. A különbséget ({{ fmt(togetherOverMax) }} E) később add be, ha a cukor emelkedik, vagy egyeztesd a diabetológussal.</p>
         <p v-if="doseInvalid" class="alert">Az adag 0,1–100 E között lehet.</p>
         <button type="button" :disabled="logBusy || !canLog" @click="logToDiary">Beírás a naplóba (most)</button>
         <p class="muted">Az adag a mostani időponttal kerül be. Írd át a tényleg beadott mennyiségre, ha eltér a javasolttól.</p>
