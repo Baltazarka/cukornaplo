@@ -32,6 +32,11 @@ export interface Therapy {
    * értékének hány százaléka (0 = nincs javaslat). Hiányzó érték: 50.
    */
   fpuPercent?: number
+  /**
+   * A zsír-fehérje plusz adag időzítése: 'later' = később, ha a cukor emelkedik (1,5 órás emlékeztető a plusz adagra),
+   * 'together' = egyben, evéskor az étkezési bólussal (75 perces ellenőrző emlékeztető a korai hipó miatt). Hiányzó: 'later'.
+   */
+  fpuTiming?: 'later' | 'together'
   /** Napszakbeállítások: ki kapcsolva csak az első napszak értékei érvényesek, egész nap. */
   byTimeOfDay: boolean
   segments: TherapySegment[]

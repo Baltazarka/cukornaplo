@@ -70,6 +70,7 @@ export default defineEventHandler(() => {
     lastBolus: lastDose ? { v: lastDose.v, minutesAgo: Math.round((now - lastDose.ts) / 60) } : null,
     maxBolus: t.maxBolus,
     fpuPercent: t.fpuPercent ?? DEFAULT_FPU_PERCENT,
+    fpuTiming: t.fpuTiming ?? 'later',
     // 5 órán belüli zsíros étkezés zsír-fehérje javaslattal: a korrekció ezzel átfed (figyelmeztetés a kalkulátorban).
     recentFpu: recentFpu(now),
     insulin: insulinById(t.bolusInsulin)?.name ?? null,

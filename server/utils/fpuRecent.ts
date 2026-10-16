@@ -15,6 +15,8 @@ export interface RecentFpu {
   pct: number
   /** Az étkezés után 30 perccel kezdődően azóta beadott (nem bázis) inzulin, E: a plusz adag vagy korrekció. */
   givenSince: number
+  /** A plusz adag időzítése a beállítás szerint ('together': evéskor egyben). */
+  timing: 'later' | 'together'
 }
 
 /** Ennyi ideig számít „friss”-nek a zsíros étkezés (a zsír-fehérje hatása eddig tart a legtöbbször). */
@@ -35,7 +37,10 @@ export function recentFpu(nowTs = Math.floor(Date.now() / 1000)): RecentFpu | nu
     const given = db()
       .prepare("SELECT COALESCE(SUM(value), 0) s FROM entries WHERE type = 'insulin' AND (subtype IS NULL OR subtype != 'basal') AND ts > ? AND ts <= ?")
       .get(ts + AFTER_MEAL_SEC, nowTs) as { s: number }
-    return { mealTs: ts, time: hmInTz(ts), extra: f.extra, units: f.units, hours: f.hours, pct: f.pct, givenSince: Math.round(Number(given.s) * 10) / 10 }
+    return {
+      mealTs: ts, time: hmInTz(ts), extra: f.extra, units: f.units, hours: f.hours, pct: f.pct,
+      givenSince: Math.round(Number(given.s) * 10) / 10, timing: t.fpuTiming ?? 'later',
+    }
   }
   return null
 }

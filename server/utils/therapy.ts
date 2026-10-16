@@ -115,6 +115,7 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
       maxBolus: round(maxBolus!, 1),
       actionMinutes: actionMinutes!,
       fpuPercent,
+      fpuTiming: body?.fpuTiming === 'together' ? 'together' : 'later',
       byTimeOfDay,
       segments,
       source: 'manual',

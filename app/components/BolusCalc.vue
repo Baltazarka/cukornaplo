@@ -88,6 +88,8 @@ const proteinG = ref('')
 const fatV = computed(() => num(fatG.value))
 const proteinV = computed(() => num(proteinG.value))
 const macroInvalid = computed(() => [fatV.value, proteinV.value].some((v) => v != null && (v < 0 || v > MACRO_MAX_G)))
+/** A Terápia oldalon beállított időzítés: egyben, evéskor (különben később, emlékeztetővel). */
+const fpuTogether = computed(() => data.value?.fpuTiming === 'together')
 /** 5 órán belüli zsíros étkezés zsír-fehérje javaslattal (a szerver adja; a korrekció ezzel átfed). */
 const fpuRecent = computed(() => data.value?.recentFpu ?? null)
 const fpu = computed(() => {
@@ -268,8 +270,13 @@ const trendText = computed(() => {
         <p v-if="carbsV && logCarbSub === 'fatty' && fpu" class="muted bc-hint">
           Zsír-fehérje: kb. {{ fmt(fpu.units) }} egység (≈ {{ fmt(fpu.carbEq, 0) }} g CH) →
           <template v-if="fpu.extra >= 0.5">kb. <b>+{{ fmt(fpu.extra) }} E</b></template><template v-else>0,5 E alatt</template>
-          (a varsói érték {{ fpu.pct }}%-a). Ez nincs benne a számolt adagban: a hatása kb. 1–1,5 óra múlva kezdődik és kb. {{ fpu.hours }} óráig tart,
-          ezért a plusz adag később, vagy csak akkor jöhet szóba, ha a cukor emelkedik.<template v-if="fpu.extra >= 0.5"> Beírás után 1,5 óra múlva emlékeztető jön (ha be van kapcsolva).</template>
+          (a varsói érték {{ fpu.pct }}%-a). Ez nincs benne a számolt adagban; a hatása kb. 1–1,5 óra múlva kezdődik és kb. {{ fpu.hours }} óráig tart.
+          <template v-if="fpuTogether && fpu.extra >= 0.5">
+            Egyben adva: <b>{{ fmt(result.dose) }} + {{ fmt(fpu.extra) }} = {{ fmt(result.dose + fpu.extra) }} E</b>.
+            Az első 1–1,5 órában ilyenkor több inzulin hat, mint amennyi CH felszívódik: korai hipó lehet, nézd meg a cukrot 60–90 perc múlva.
+            Beírás után 75 perc múlva ellenőrző emlékeztető jön (ha be van kapcsolva).
+          </template>
+          <template v-else-if="fpu.extra >= 0.5">A plusz adag később, vagy csak akkor jöhet szóba, ha a cukor emelkedik. Beírás után 1,5 óra múlva emlékeztető jön (ha be van kapcsolva).</template>
         </p>
         <p v-else-if="carbsV && logCarbSub === 'fatty'" class="muted bc-hint">
           A zsír és a fehérje később (1–1,5 óra múlva, órákig) emel. Ha megadod a grammjukat, kiírom, mennyi plusz inzulin jönne ki rá (tájékoztató, a számolt adag nem változik).
@@ -295,7 +302,8 @@ const trendText = computed(() => {
         <!-- 5 órán belüli zsíros étel zsír-fehérje javaslattal: a korrekció ezzel átfed (a mostani emelkedés egy része már a zsír-fehérje hatása). -->
         <p v-if="fpuRecent && result.correction > 0" class="notice">
           {{ fpuRecent.time }}-kor zsíros étel volt (zsír-fehérje javaslat: +{{ fmt(fpuRecent.extra) }} E, a hatása kb. {{ fpuRecent.hours }} óráig tart).
-          <template v-if="fpuRecent.givenSince >= 0.5">Azóta {{ fmt(fpuRecent.givenSince) }} E inzulint adtál be: ezt a korrekció már levonja, a pluszt ne add rá még egyszer.</template>
+          <template v-if="fpuRecent.timing === 'together'">A plusz adagot a beállítás szerint evéskor egyben adtad: ezt a korrekció aktív inzulinként már levonja, ne pótold még egyszer.</template>
+          <template v-else-if="fpuRecent.givenSince >= 0.5">Azóta {{ fmt(fpuRecent.givenSince) }} E inzulint adtál be: ezt a korrekció már levonja, a pluszt ne add rá még egyszer.</template>
           <template v-else>Ez a korrekció a zsír-fehérje további hatását nem ismeri: a kettő átfed, ne add össze, a nagyobbat vedd figyelembe.</template>
         </p>
         <p v-if="bgV != null && bgV >= KETONE_BG" class="notice">{{ fmt(KETONE_BG, 0) }} mmol/L fölött ketonvizsgálat javasolt.</p>

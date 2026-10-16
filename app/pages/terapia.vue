@@ -20,6 +20,7 @@ const basalInfo = computed(() => insulinById(basalInsulin.value))
 const maxBolus = ref<number | ''>(t?.maxBolus ?? '')
 const actionMinutes = ref<number>(t?.actionMinutes ?? 240)
 const fpuPercent = ref<number>(t?.fpuPercent ?? 50)
+const fpuTiming = ref<'later' | 'together'>(t?.fpuTiming ?? 'later')
 const fpuOptions = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 const byTimeOfDay = ref<boolean>(t?.byTimeOfDay ?? true)
 const segments = ref<EditSegment[]>(t ? t.segments.map(toEdit) : [toEdit({ start: '06:00' })])
@@ -100,6 +101,7 @@ async function save() {
         maxBolus: maxBolus.value,
         actionMinutes: actionMinutes.value,
         fpuPercent: fpuPercent.value,
+        fpuTiming: fpuTiming.value,
         byTimeOfDay: byTimeOfDay.value,
         segments: segments.value.map(({ start, target, isf, icr, actionMinutes }) => ({ start, target, isf, icr, actionMinutes: actionMinutes || null })),
       },
@@ -164,10 +166,19 @@ async function save() {
             <option v-for="p in fpuOptions" :key="p" :value="p">{{ p === 0 ? 'nincs' : `a varsói érték ${p}%-a` }}</option>
           </select>
         </label>
+        <label class="tf-row">
+          <span class="tf-label">A plusz adag ideje</span>
+          <select v-model="fpuTiming" :disabled="!fpuPercent">
+            <option value="later">később, ha emelkedik (emlékeztető 1,5 óra múlva)</option>
+            <option value="together">egyben, evéskor az étkezési bólussal</option>
+          </select>
+        </label>
         <p class="muted small tf-note">
           Zsíros / fehérjedús étkezésnél a bóluskalkulátor a számolt adag alatt tájékoztatásul kiírja, mennyi plusz inzulin
           jönne ki a zsír és a fehérje grammjából (1 zsír-fehérje egység = 100 kcal zsírból és fehérjéből ≈ 10 g CH), és
           mikorra. A teljes érték sokaknál későbbi hipót okoz; a szorzót a diabetológussal egyeztesd.
+          <b>Egyben</b> adva a zsír hatása még nem kezdődött el, amikor az inzulin a legerősebb (1–1,5 óra): korai hipó lehet,
+          ezért ilyenkor 75 perc múlva ellenőrző emlékeztető jön. <b>Később</b> adva 1,5 óra múlva emlékeztet a plusz adagra.
         </p>
         <p v-if="basalInfo?.facts" class="muted small tf-note">
           <b>{{ basalInfo.name }}</b> (alkalmazási előírás): {{ [basalInfo.facts.peak, basalInfo.facts.duration, basalInfo.facts.note].filter(Boolean).join(', ') }}.

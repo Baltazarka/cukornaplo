@@ -101,7 +101,10 @@ export default defineEventHandler(async (event) => {
   const t = therapy()
   if (type === 'carbs' && sub === 'fatty' && t && now - ts <= 30 * 60) {
     fpu = fpuSuggestion(fat, protein, segmentAt(t, ts).icr, t.fpuPercent ?? DEFAULT_FPU_PERCENT)
-    if (fpu && fpu.extra >= 0.5) addFpuReminder({ mealTs: ts, extra: fpu.extra, units: fpu.units, hours: fpu.hours, pct: fpu.pct })
+    // Egyben adásnál (a plusz adag az étkezési bólussal együtt) ellenőrző emlékeztető jön, különben a plusz adagra.
+    if (fpu && fpu.extra >= 0.5) {
+      addFpuReminder({ mealTs: ts, extra: fpu.extra, units: fpu.units, hours: fpu.hours, pct: fpu.pct, mode: t.fpuTiming === 'together' ? 'check' : 'extra' })
+    }
   }
   return { ok: true, id: Number(info.lastInsertRowid), fpu }
 })

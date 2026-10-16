@@ -12,6 +12,7 @@ import { therapy, segmentAt } from './therapy'
 import { db } from './db'
 import { hmInTz } from './time'
 import { recentFpu } from './fpuRecent'
+import { targetRange } from './range'
 import { rapidDoses, iobAt } from './iob'
 import { calcBolus } from '#shared/utils/bolus'
 
@@ -160,9 +161,14 @@ export interface FpuReminder {
   hours: number
   /** A varsói érték hány %-a. */
   pct: number
+  /** 'extra': emlékeztető a később beadandó plusz adagra; 'check': egyben adás után ellenőrzés (korai hipó). */
+  mode?: 'extra' | 'check'
 }
-/** Ennyi perccel az étkezés után jön az emlékeztető (a zsír-fehérje hatása kb. ekkor kezd látszani). */
+/** Ennyi perccel az étkezés után jön a plusz adag emlékeztetője (a zsír-fehérje hatása kb. ekkor kezd látszani). */
 export const FPU_REMIND_MIN = 90
+/** Egyben adásnál ennyi perc múlva jön az ellenőrzés (ekkor hat legerősebben az inzulin, a zsír még alig). */
+export const FPU_CHECK_MIN = 75
+const remindMin = (r: FpuReminder) => (r.mode === 'check' ? FPU_CHECK_MIN : FPU_REMIND_MIN)
 const FPU_KEY = 'fpu_reminders'
 
 /**
@@ -178,6 +184,20 @@ export function fpuPayload(r: FpuReminder, now: { v: number; arrow: string }, co
   return {
     title: `🧀 Zsíros étel ${hmInTz(r.mealTs)}-kor: most ${sgText(now.v)} ${now.arrow}`,
     body: `A zsír-fehérje (kb. ${n(r.units)} egység) miatt kb. +${n(r.extra)} E jöhet szóba (a varsói érték ${r.pct}%-a), ha a cukor emelkedik; a hatása kb. ${r.hours} óráig tart.${corr} ${SAFETY}`,
+    url: '/', tag: 'fpu',
+  }
+}
+
+/** Egyben adott zsír-fehérje adag után: ellenőrzés a korai hipó miatt (az inzulin már erősen hat, a zsír még alig). */
+export function fpuCheckPayload(r: FpuReminder, now: { v: number; arrow: string; rate: number | null }, low: number): PushPayload {
+  const falling = (now.rate ?? 0) <= -0.03
+  const warn = now.v < low ? ' Alacsony: kezeld gyors szénhidráttal.'
+    : falling && now.v < low + 2 ? ' Esik, és közel a céltartomány aljához: figyelj, legyen kéznél gyors CH.'
+      : falling ? ' Esik: nézd meg újra 20–30 perc múlva.'
+        : ''
+  return {
+    title: `🧀 Zsíros étel ${hmInTz(r.mealTs)}-kor: most ${sgText(now.v)} ${now.arrow}`,
+    body: `Az evéskor egyben beadott plusz adag (kb. ${r.extra.toLocaleString('hu-HU', { maximumFractionDigits: 1 })} E) most hat a legerősebben, a zsír-fehérje hatása még csak most kezdődik.${warn} A zsír hatása kb. ${r.hours} óráig tart.`,
     url: '/', tag: 'fpu',
   }
 }
@@ -206,7 +226,7 @@ export function addFpuReminder(r: FpuReminder): void {
 export async function checkFpuReminders(nowTs = Math.floor(Date.now() / 1000)): Promise<void> {
   const list = setting<FpuReminder[]>(FPU_KEY, null) ?? []
   if (!list.length) return
-  const due = list.filter((r) => nowTs >= r.mealTs + FPU_REMIND_MIN * 60)
+  const due = list.filter((r) => nowTs >= r.mealTs + remindMin(r) * 60)
   if (!due.length) return
   saveSettings({ [FPU_KEY]: list.filter((r) => !due.includes(r)) })
   const s = notifySettings()
@@ -214,10 +234,15 @@ export async function checkFpuReminders(nowTs = Math.floor(Date.now() / 1000)): 
   if (!s.fpuPush || !t || !listSubscriptions().length) return
   for (const r of due) {
     // Túl régi (pl. a szerver állt): már nem aktuális.
-    if (nowTs - r.mealTs > (FPU_REMIND_MIN + 60) * 60) continue
+    if (nowTs - r.mealTs > (remindMin(r) + 60) * 60) continue
     const still = db().prepare("SELECT 1 FROM entries WHERE type = 'carbs' AND subtype = 'fatty' AND ts BETWEEN ? AND ? LIMIT 1").get(r.mealTs - 120, r.mealTs + 120)
     if (!still) continue
     const now = latestGlucose(nowTs)
+    // Egyben adás után: ellenőrzés mindenképp (alacsony cukornál is), a mostani értékkel és trenddel.
+    if (r.mode === 'check') {
+      if (now && now.ageMin <= 20) await sendPush(fpuCheckPayload(r, now, targetRange().low), { urgency: now.v < targetRange().low ? 'high' : 'normal', ttl: 60 * 60 }).catch(() => null)
+      continue
+    }
     if (!now || now.ageMin > 20 || now.v < segmentAt(t, nowTs).target) continue
     // Ha az étkezés után (30 perc múlva vagy később) már beadtál inzulint (a pluszt vagy korrekciót), nem emlékeztetünk.
     const recent = recentFpu(nowTs)
