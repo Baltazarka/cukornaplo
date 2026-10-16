@@ -230,6 +230,8 @@ async function save() {
     </form>
     <AnalysisCard @apply="applyEstimates" />
     <FpuCard @apply="applyFpu" />
+    <!-- Üres végdátum: a szerver a mai napig számol. -->
+    <BasalCheck class="analysis-card" end="" :days="30" selectable />
     <AbsorptionCard />
     <PredictAccuracyCard />
   </main>

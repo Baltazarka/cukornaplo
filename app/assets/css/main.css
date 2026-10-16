@@ -539,6 +539,7 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 /* ---- Bázisellenőrzés ---- */
 .basal-check { display: flex; flex-direction: column; gap: 12px; }
 .basal-check p { margin: 0; }
+.basal-check .card-head { margin-bottom: 0; }
 .basal-blocks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 900px) { .basal-blocks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .basal-block { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); }

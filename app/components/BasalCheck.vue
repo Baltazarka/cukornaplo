@@ -2,25 +2,36 @@
 // Bázisellenőrzés: étel és bólus nélküli időszakokban mennyit változik a vércukor óránként.
 // Ha a bázisinzulin jól fedi az alapigényt, a sodródás közel nulla; tartós emelkedés vagy esés
 // egy napszakban (pl. hajnalban) a bázis vagy a napszak beállításának jele lehet.
-const props = defineProps<{ end: string; days: number }>()
+// `selectable`: saját időszakválasztó (Terápia oldal); különben a megadott időszak (főoldali időszakos nézet).
+const props = defineProps<{ end: string; days: number; selectable?: boolean }>()
+const PERIODS = [14, 30, 60, 90]
+const days = ref(props.days)
+watch(() => props.days, (v) => { days.value = v })
 const { data } = await useFetch<any>('/api/analysis', {
-  query: computed(() => ({ end: props.end, days: props.days })),
-  key: computed(() => `analysis-${props.end}-${props.days}`),
+  query: computed(() => ({ end: props.end, days: days.value })),
+  key: computed(() => `analysis-${props.end}-${days.value}`),
 })
 const b = computed(() => data.value?.basal)
 
 /** Ennél kisebb óránkénti változás stabilnak számít (6 óra alatt kb. ±1,7 mmol/L). */
 const STABLE = 0.3
-/** Legalább ennyi óra adat kell egy órához / napszakhoz, hogy értékeljük. */
+/** Legalább ennyi óra adat kell egy órához (a sávhoz), hogy ne legyen halvány. */
 const MIN_HOURS = 1
+/**
+ * A napszak ítéletéhez (stabil / emelkedik / csökken) legalább ennyi óra adat kell, legalább ennyi különböző napról:
+ * ugyanaz a küszöb, mint az elemzés bázis-sodródás jelzésénél (server/utils/analysis.ts MIN_DRIFT_HOURS / DAYS).
+ */
+const BLOCK_MIN_HOURS = 3
+const BLOCK_MIN_DAYS = 3
 
 function fmt(v: number | null | undefined, dec = 1, sign = false): string {
   if (v == null) return '–'
   const s = v.toLocaleString('hu-HU', { minimumFractionDigits: dec, maximumFractionDigits: dec })
   return sign && v > 0 ? `+${s}` : s
 }
-const state = (slope: number | null, hours: number) =>
-  slope == null || hours < MIN_HOURS ? 'none' : slope > STABLE ? 'up' : slope < -STABLE ? 'down' : 'ok'
+const state = (slope: number | null, hours: number, minHours = MIN_HOURS) =>
+  slope == null || hours < minHours ? 'none' : slope > STABLE ? 'up' : slope < -STABLE ? 'down' : 'ok'
+const blockState = (bl: any) => (bl.days < BLOCK_MIN_DAYS ? 'none' : state(bl.slope, bl.hours, BLOCK_MIN_HOURS))
 const STATE_LABEL: Record<string, string> = { ok: 'stabil', up: 'emelkedik', down: 'csökken', none: 'kevés adat' }
 
 // Oszlopdiagram: 24 óra, nulla körül fel-le.
@@ -34,15 +45,19 @@ const hover = ref<number | null>(null)
   <section v-if="b" class="card basal-check">
     <div class="card-head">
       <h2>Bázisellenőrzés <GuideLink section="bazis" /></h2>
-      <span class="muted small">a vércukor változása étel és bólus nélküli időszakokban</span>
+      <div v-if="selectable" class="segmented" role="group" aria-label="Időszak">
+        <button v-for="d in PERIODS" :key="d" type="button" :aria-pressed="days === d" @click="days = d">{{ d }} nap</button>
+      </div>
     </div>
+    <p v-if="selectable" class="muted small basal-sub">A vércukor változása 24 órára bontva azokban az időszakokban, amikor se étel, se ható bólus nincs (az utolsó {{ days }} nap).</p>
+    <p v-else class="muted small basal-sub">a vércukor változása étel és bólus nélküli időszakokban</p>
 
     <div class="basal-blocks">
-      <div v-for="bl in b.blocks" :key="bl.label" class="basal-block" :class="'st-' + state(bl.slope, bl.hours)">
+      <div v-for="bl in b.blocks" :key="bl.label" class="basal-block" :class="'st-' + blockState(bl)">
         <div class="tile-label">{{ bl.label }} <span class="muted">{{ String(bl.from).padStart(2, '0') }}–{{ String(bl.to % 24).padStart(2, '0') }}</span></div>
         <div class="tile-value">{{ fmt(bl.hours >= MIN_HOURS ? bl.slope : null, 1, true) }} <small>mmol/L / óra</small></div>
         <div class="tile-sub">
-          <i class="st-dot" />{{ STATE_LABEL[state(bl.slope, bl.hours)] }} · {{ fmt(bl.hours, 0) }} óra adat, {{ bl.days }} napról
+          <i class="st-dot" />{{ STATE_LABEL[blockState(bl)] }} · {{ fmt(bl.hours, 0) }} óra adat, {{ bl.days }} napról
         </div>
       </div>
     </div>
@@ -79,6 +94,7 @@ const hover = ref<number | null>(null)
     <p class="muted small">
       Csak azok az időszakok számítanak, amikor legalább 4 órája (zsíros étkezés után 6) nem ettél, nincs ható bólus, és 2 órán belül nem volt hipó.
       Stabilnak a ±{{ fmt(STABLE, 1) }} mmol/L óránkénti változáson belüli érték számít (6 óra alatt kb. ±1,7 mmol/L).
+      Egy napszakról legalább {{ BLOCK_MIN_HOURS }} óra adatból, {{ BLOCK_MIN_DAYS }} különböző napról mond ítéletet (kevesebbnél „kevés adat”, a szám tájékoztató).
       Tartós emelkedés vagy esés egy napszakban a bázis vagy a napszak beállításának jele lehet: ezt a diabetológusoddal érdemes átnézni.
     </p>
   </section>
