@@ -1,5 +1,7 @@
 <script setup lang="ts">
 const auth = useAuthState()
+// A böngészőfül címe: a widget adatai lapozva („8,0 → · Cukornapló”).
+useTabTitle()
 const viewerUntil = computed(() =>
   auth.value.viewer ? new Date(auth.value.viewer.expiresAt * 1000).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }) : '')
 const route = useRoute()
