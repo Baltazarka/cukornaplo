@@ -94,8 +94,9 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
       A tiszta étkezésekből (étkezés és inzulin, korrekció vagy ráétkezés nélkül) kiszámolja, milyen ütemben szívódik fel a szénhidrát nálad.
       Az inzulin hatását levonja a vércukor-változásból, és ami marad, az a szénhidrát hatása. Az előrejelzés és az aktív CH ezt használja.
       Kategóriánként legalább {{ MIN }} tiszta étkezés kell a használathoz, {{ GOOD }} a megbízhatóhoz; addig az alapértelmezett érvényes. Az utolsó 60 napot nézi.
-      Tiszta az étkezés, ha szénhidrát és inzulin volt, és utána a felszívódási idő végéig nem volt korrekció, ráétkezés vagy más bólus, sport / betegség / alkohol jegyzet, és a vércukor nem változott gyorsan az étkezés előtt.
-      A gyors CH-hoz nem kell inzulin.
+      Tiszta az étkezés, ha szénhidrát és inzulin volt, és utána a felszívódás végéig (a várható felszívódási idő másfélszerese, de legalább
+      1,5 óra gyorsnál, 2 óra normálnál, 4 óra zsírosnál) nem volt korrekció, ráétkezés vagy más bólus, sport / betegség / alkohol jegyzet,
+      és a vércukor nem változott gyorsan az étkezés előtt. A gyors CH-hoz nem kell inzulin, és a hipó kezelésére bevitt (alacsony vércukorról induló) gyors CH is számít.
     </p>
     <div class="absorb-grid">
       <div v-for="c in CATS" :key="c.key" class="absorb-item">

@@ -14,7 +14,7 @@ export interface Computed<T> {
  * A számolás (algoritmus) változata: ha a kód változik, és a tárolt eredmény régebbi változatú, nem használjuk
  * (újraszámolódik). Az elemzéseket / előrejelzés-tesztet érintő kódváltoztatásnál növeld.
  */
-export const COMPUTE_VERSION = 8
+export const COMPUTE_VERSION = 9
 
 const inflight = new Set<string>()
 const DIRTY_KEY = 'meta:dirty'

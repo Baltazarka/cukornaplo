@@ -327,12 +327,59 @@ export function analyze(from: number, to: number) {
     // A görbe 6 óráig tart; a lefedettséget és a fő számokat sima étkezésnél az első 4 órára nézzük,
     // zsírosnál a teljes 6 órára (a késői emelkedés miatt).
     const { values } = curveAround(sample, g.ts, -MEAL_PRE_MIN, FATTY_WINDOW_MIN)
+    const own = new Set(g.boluses)
+    const firstBolusTs = g.boluses.length ? Math.min(...g.boluses.map((b) => b.ts)) : g.ts
+    // Előzmény: 1 órával előtte más bólus, vagy egy korábbi étkezés még felszívódó CH-ja → nem tiszta.
+    const preBolus = boluses.some((b) => !own.has(b) && b.ts >= Math.min(g.ts, firstBolusTs) - CLEAN_PRE_MIN * 60 && b.ts <= g.ts)
+    const preCarbs = carbsAbsorbingAt(g.ts, g)
+    const before = sample(g.ts - 900)
+    const steep = before != null && Math.abs(startBG - before) / 15 >= STEEP_RATE
+
+    // --- Felszívódási görbe tanulása: a vércukor-változásból levonva az inzulin hatását marad a szénhidrát hatása;
+    // ennek az ablak végi értékéhez viszonyított hányada a felszívódott CH aránya. Az ablak a CH-arány 4 órás
+    // végpontjánál rövidebb lehet: a várható felszívódási idő (a beállított ütemből és az étkezés méretéből) másfélszerese,
+    // de legalább 1,5 (gyors), 2 (normál) vagy 4 óra (zsíros), legfeljebb 6 óra; az ablakban nem lehet más étel, bólus
+    // vagy zavaró jegyzet. A gyors CH-t gyakran inzulin nélkül, hipó kezelésére viszik be: ott nem kell saját bólus, és
+    // a hipóból / gyorsan változó vércukorról induló étkezés is számít.
+    const cat: AbsorbCategory = g.fatty ? 'fatty' : g.fast ? 'fast' : 'normal'
+    if (t && g.carbs && !preBolus && !preCarbs && !disturbed(g.ts - 2 * 3600, g.ts)
+      && (g.boluses.length || cat === 'fast') && (cat === 'fast' || (!steep && startBG >= low))) {
+      const minLearn = cat === 'fast' ? 90 : cat === 'fatty' ? MEAL_WINDOW_MIN : 120
+      const learnMin = Math.min(FATTY_WINDOW_MIN, Math.max(minLearn, Math.ceil((defaultTotalMin(cat, g.carbs) * 1.5) / ABSORB_STEP) * ABSORB_STEP))
+      const learnEnd = g.ts + learnMin * 60
+      const learnDisturbed = boluses.some((b) => !own.has(b) && b.ts > g.ts && b.ts <= learnEnd)
+        || carbs.some((c) => c.ts > g.last && c.ts <= learnEnd)
+        || disturbTs.some((ts) => ts > g.ts && ts <= learnEnd)
+      const win = values.slice(MEAL_PRE_MIN / STEP, (MEAL_PRE_MIN + learnMin) / STEP + 1)
+      if (!learnDisturbed && win.filter((v) => v != null).length / win.length >= MIN_COVERAGE) {
+        const isf = segmentAt(t, g.ts).isf
+        const near = bolusesBetween(g.ts - LOOKBACK_SEC, learnEnd).filter((b) => b.ts > g.ts - diaAt(b.ts) * 60)
+        const effectAt = (m: number): number | null => {
+          const v = values[(MEAL_PRE_MIN + m) / STEP]
+          if (v == null) return null
+          let acted = 0
+          for (const b of near) if (b.ts < g.ts + m * 60) acted += actedIn(b, g.ts, g.ts + m * 60)
+          return v - startBG + isf * acted
+        }
+        const tail = [learnMin - 10, learnMin - 5, learnMin].map(effectAt).filter((x): x is number => x != null)
+        const cEnd = tail.length >= 2 ? tail.reduce((a, b) => a + b, 0) / tail.length : null
+        if (cEnd != null && cEnd >= MIN_CARB_EFFECT) {
+          const frac: (number | null)[] = []
+          for (let i = 0; i < ABSORB_POINTS; i++) {
+            const m = i * ABSORB_STEP
+            const e = m <= learnMin ? effectAt(m) : null
+            frac.push(e == null ? null : Math.min(1.5, Math.max(-0.3, e / cEnd)))
+          }
+          absorbSamples.push({ cat, frac, grams: g.carbs })
+        }
+      }
+    }
+
     const winMin = g.fatty ? FATTY_WINDOW_MIN : MEAL_WINDOW_MIN
     const after = values.slice(MEAL_PRE_MIN / STEP, (MEAL_PRE_MIN + winMin) / STEP + 1)
     const head = values.slice(0, (MEAL_PRE_MIN + MEAL_WINDOW_MIN) / STEP + 1)
     if (after.filter((v) => v != null).length / after.length < MIN_COVERAGE) continue
     if (head.filter((v) => v != null).length / head.length < MIN_COVERAGE) continue
-    const own = new Set(g.boluses)
     const end = g.ts + MEAL_WINDOW_MIN * 60
     const firstBolus = g.boluses.length ? Math.min(...g.boluses.map((b) => b.ts)) : null
     // A CH-arány végpontja: a napszak hatásideje, de legalább 4 (és legfeljebb 6) óra, hogy a bólus
@@ -341,10 +388,6 @@ export function analyze(from: number, to: number) {
     // A zsíros / fehérjedús étkezésnél a késői emelkedés miatt a teljes 6 órás ablak a végpont.
     const fullEndMin = g.fatty ? FATTY_WINDOW_MIN : Math.min(FATTY_WINDOW_MIN, Math.max(MEAL_WINDOW_MIN, diaAt(g.ts)))
     const fullEnd = g.ts + fullEndMin * 60
-    const startTs = Math.min(g.ts, firstBolus ?? g.ts)
-    // Előzmény: 1 órával előtte más bólus, vagy egy korábbi étkezés még felszívódó CH-ja → nem tiszta.
-    const preBolus = boluses.some((b) => !own.has(b) && b.ts >= startTs - CLEAN_PRE_MIN * 60 && b.ts <= g.ts)
-    const preCarbs = carbsAbsorbingAt(g.ts, g)
     // Az étkezés utáni első zavarás (más bólus / korrekció, újabb CH, hipó kezelése, zavaró jegyzet) a végpontig.
     // Ha legalább 3 óra után jön, az étkezés a zavarásig számít (rövidített ablak); korábban nem tiszta.
     const disturbAt = Math.min(
@@ -357,8 +400,6 @@ export function analyze(from: number, to: number) {
     const endMin = truncated ? Math.floor((disturbAt - g.ts) / 60 / STEP) * STEP : fullEndMin
     const tEnd = g.ts + endMin * 60
     const correctionAfter = boluses.some((b) => b.kind === 'correction' && b.ts > g.ts + MEAL_WINDOW_SEC && b.ts <= end)
-    const before = sample(g.ts - 900)
-    const steep = before != null && Math.abs(startBG - before) / 15 >= STEEP_RATE
     // Az ablakban ténylegesen hatott inzulin: a saját bólus(ok) és a korábbi bólusok még ható része.
     const acted = bolusesBetween(g.ts - LOOKBACK_SEC, tEnd + 1)
       .filter((b) => b.ts > g.ts - diaAt(b.ts) * 60)
@@ -387,31 +428,6 @@ export function analyze(from: number, to: number) {
     // Hipóból induló étkezés (a CH a hipó kezelése, és az ellenreguláció is emel) nem tiszta.
     const isClean = !preBolus && !preCarbs && !steep && startBG >= low && !disturbed(g.ts - 2 * 3600, g.ts)
       && (!Number.isFinite(disturbAt) || truncated)
-    // Felszívódási görbe a tiszta étkezésből: a vércukor-változásból levonva az inzulin hatását marad a
-    // szénhidrát hatása; ennek a végponti értékhez viszonyított hányada a felszívódott CH aránya.
-    // (a gyors CH-t gyakran inzulin nélkül, hipó kezelésére viszik be, ezért ott nem kell saját bólus)
-    if (t && isClean && !truncated && g.carbs && (g.boluses.length || (g.fast && !g.fatty))) {
-      const isf = segmentAt(t, g.ts).isf
-      const near = bolusesBetween(g.ts - LOOKBACK_SEC, g.ts + endMin * 60).filter((b) => b.ts > g.ts - diaAt(b.ts) * 60)
-      const effectAt = (m: number): number | null => {
-        const v = values[(MEAL_PRE_MIN + m) / STEP]
-        if (v == null) return null
-        let acted = 0
-        for (const b of near) if (b.ts < g.ts + m * 60) acted += actedIn(b, g.ts, g.ts + m * 60)
-        return v - startBG + isf * acted
-      }
-      const tail = [endMin - 10, endMin - 5, endMin].map(effectAt).filter((x): x is number => x != null)
-      const cEnd = tail.length >= 2 ? tail.reduce((a, b) => a + b, 0) / tail.length : null
-      if (cEnd != null && cEnd >= MIN_CARB_EFFECT) {
-        const frac: (number | null)[] = []
-        for (let i = 0; i < ABSORB_POINTS; i++) {
-          const m = i * ABSORB_STEP
-          const e = m <= endMin ? effectAt(m) : null
-          frac.push(e == null ? null : Math.min(1.5, Math.max(-0.3, e / cEnd)))
-        }
-        absorbSamples.push({ cat: g.fatty ? 'fatty' : g.fast ? 'fast' : 'normal', frac, grams: g.carbs })
-      }
-    }
     meals.push({
       ts: g.ts,
       seg: segIndexAt(t, g.ts),

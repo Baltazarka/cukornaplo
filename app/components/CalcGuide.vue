@@ -230,7 +230,7 @@ felszívódott(x) = 2x²              ha x &lt; 0,5
                 = 1 − 2(1 − x)²    ha x ≥ 0,5</pre>
               <ul class="guide-ul">
                 <li><b>Mennyiség</b>: a nagyobb étkezés tovább tart. A tanult görbe a tanuló étkezések átlagos méretére érvényes; más méretnél az időt arányosan nyújtjuk vagy összehúzzuk, legfeljebb a felére vagy a duplájára.</li>
-                <li><b>Tiszta étkezés</b>: volt szénhidrát és inzulin, utána a felszívódás végéig nincs korrekció, ráétkezés vagy más bólus, nincs sport-, betegség- vagy alkohol-jegyzet, és a vércukor nem változott gyorsan az étkezés előtt. A rövidített ablakú (3 óra után megzavart) étkezés a felszívódási görbét nem tanítja.</li>
+                <li><b>Tiszta étkezés</b> (a felszívódás tanulásához): volt szénhidrát és inzulin (gyors CH-nál inzulin nélkül is), előtte 1 óráig nincs más bólus és egy korábbi étkezés CH-ja már felszívódott, és utána a tanulási ablak végéig nincs korrekció, ráétkezés vagy más bólus, sport-, betegség- vagy alkohol-jegyzet. A <b>tanulási ablak</b> a várható felszívódási idő (a beállított ütemből és az étkezés méretéből) másfélszerese, de legalább 1,5 óra (gyors), 2 óra (normál) vagy 4 óra (zsíros), legfeljebb 6 óra: rövidebb, mint a CH-arány 4 órás végpontja. Normál és zsíros étkezésnél a kezdő vércukor nem lehet alacsony és nem változhat gyorsan; a gyors CH-nál (tipikusan hipó kezelése) ez nem kizáró ok. Az ablakban legalább 70%-ban kell szenzoradat.</li>
                 <li><b>Aktív CH most</b> = Σ szénhidrát × (1 − felszívódott(eltelt idő)). A napi grafikonon ez az étkezés oszlopától induló ív.</li>
               </ul>
             </section>
