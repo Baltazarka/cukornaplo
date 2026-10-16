@@ -180,11 +180,13 @@ function buildOption() {
     if (b[1] <= o[1]) b[0] = o[0] + shiftMs
     else o[0] = b[0] + shiftMs
   }
-  // A zsírosnak jelölt étkezés oszlopa halványabb, keretes.
+  // A zsírosnak jelölt étkezés oszlopa halványabb, keretes; a zsíros és a gyors CH fölött ikon (🧀 / ⚡), mint a naplóban.
   const carryCarbs = ((d.absorption?.carbs ?? []) as [number, number, string | null][]).filter((x) => x[0] < d.dayStartMs)
+  const tagIcon = (tag: string) => ({ show: true, position: 'top', distance: 2, formatter: CARB_TAG_ICON[tag as 'fatty' | 'fast'], fontSize: 12 })
   const carbs = [...carryCarbs, ...d.carbs].map((p: any[]) => (p[2] === 'fatty'
-    ? { value: [p[0], p[1]], itemStyle: { color: rgba(C.carbs, 0.35), borderColor: C.carbs, borderWidth: 1.5 } }
-    : [p[0], p[1]]))
+    ? { value: [p[0], p[1]], itemStyle: { color: rgba(C.carbs, 0.35), borderColor: C.carbs, borderWidth: 1.5 }, label: tagIcon('fatty') }
+    : p[2] === 'fast' ? { value: [p[0], p[1]], label: tagIcon('fast') }
+      : [p[0], p[1]]))
 
   // Terápiás napszakok: halvány, váltakozó sávok mindhárom panelen, felül az értékekkel (ha elfér),
   // a glükózpanelen szaggatott vonallal a napszak célértéke.
