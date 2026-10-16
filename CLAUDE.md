@@ -25,7 +25,7 @@ Személyes cukorbetegség-napló. Nuxt 4 (SPA, `ssr: false`) + Nitro szerver, SQ
 - **Ikonok:** zsíros 🧀, gyors ⚡ (`CARB_TAG_ICON`, `shared/utils/carbTags.ts`); mit jelöljön zsírosnak: Számítások → „Zsíros ételek”.
 - **Szenzor határa:** 40 mg/dL = 2,2, 400 mg/dL = 22,2 mmol/L; a határértéket `sgText()` írja ki („<2,2” / „>22,2”), a számolás a határértékkel megy.
 - **CareLink (Guardian 4, carepartner API):** a `markers` csak `{type, index}`, mennyiség nélkül, ezért a Guardian appba beírt adat nem hozható át. A Guardian appnak nincs URL-sémája: a „Guardian megnyitása” gomb egy „Guardian” nevű iOS Parancsot futtat (`shortcuts://run-shortcut?name=Guardian`).
-- **Elemzés:** csak szenzoradatból; a korábbi étel a mérete szerinti felszívódásig zavar; hipóból induló étkezés nem tiszta; bázis-sodródás ≥ 0,3 mmol/L/óra (3 óra adat, 3 nap) → a napszak becslése nem megbízható; az ISF adaggal súlyozott mediánból. Algoritmusváltozásnál növeld a `COMPUTE_VERSION`-t (`server/utils/computed.ts`).
+- **Elemzés:** csak szenzoradatból; a korábbi étel a mérete szerinti felszívódásig zavar; hipóból induló étkezés nem tiszta (a CH-arányhoz; a gyors CH felszívódás-tanulásánál viszont a hipókezelés is számít, és a tanulási ablak a felszívódási idő másfélszerese, nem 4 óra); bázis-sodródás ≥ 0,3 mmol/L/óra (3 óra adat, 3 nap) → a napszak becslése nem megbízható; az ISF adaggal súlyozott mediánból. Algoritmusváltozásnál növeld a `COMPUTE_VERSION`-t (`server/utils/computed.ts`).
 - **Értesítések:** az inzulinjavaslat-push csak a céltartomány felső határa fölött szól (a kalkulátor a célértékhez korrigál; ez szándékos). Minden kiküldött push a `push_log` táblába kerül, a főoldalon visszanézhető.
 
 ## Kódolási tudnivalók
