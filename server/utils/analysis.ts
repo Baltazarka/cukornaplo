@@ -25,7 +25,13 @@ const MEAL_PRE_MIN = 30 // a görbe az étkezés előtt 30 perccel indul
 const CORR_WINDOW_MIN = 360 // a korrekció utáni görbe legfeljebb 6 óráig tart
 const CORR_PRE_MIN = 60 // tiszta korrekció: előtte 1 óráig nincs étel és más bólus
 const MIN_COVERAGE = 0.7 // a vizsgált ablak legalább 70%-ában legyen szenzoradat
-const MIN_DROP = 1 // mmol/L: ennél kisebb esésből nem becsülünk hatásidőt
+const MIN_DROP = 1 // mmol/L: ennél kisebb esésből nem becsülünk hatásidőt (felső korlát, ha nincs terápia)
+/**
+ * A kis adag kicsit esik: a szükséges esés az adaggal és a beállított ISF-fel arányos (a várható esés negyede),
+ * legalább 0,3 mmol/L, de legfeljebb MIN_DROP. Pl. 4 E × ISF 0,5 = 2 mmol/L várható → 0,5 mmol/L elég.
+ */
+const MIN_DROP_FRAC = 0.25
+const MIN_DROP_FLOOR = 0.3
 const CLEAN_PRE_MIN = 60 // tiszta étkezés: az étkezés / saját bólus előtt 1 óráig nincs más bólus
 const STEEP_RATE = 0.11 // mmol/L/perc (2 nyíl): ilyen gyorsan változó kezdő vércukornál nem tiszta az étkezés
 /** Tiszta korrekció: a korábbi bólusok még ható maradéka legfeljebb ennyi E, de legalább a korrekció ennyi hányada. */
@@ -500,7 +506,9 @@ export function analyze(from: number, to: number) {
     if (win.filter((v) => v != null).length / win.length < MIN_COVERAGE) continue
     const drops = values.map((v) => (v == null ? null : startBG - v))
     const best = Math.max(...drops.map((d) => d ?? 0))
-    if (best < MIN_DROP) continue
+    const expected = t ? b.v * segmentAt(t, b.ts).isf : null
+    const minDrop = expected != null ? Math.min(MIN_DROP, Math.max(MIN_DROP_FLOOR, MIN_DROP_FRAC * expected)) : MIN_DROP
+    if (best < minDrop) continue
     corrections.push({
       ts: b.ts,
       seg: segIndexAt(t, b.ts),
