@@ -233,7 +233,7 @@ export function analyze(from: number, to: number) {
   const carbTs = carbs.map((c) => c.ts)
   const boluses: Bolus[] = []
   for (const i of insulinRows) {
-    const k = insulinKind(i.ts, i.subtype, carbTs)
+    const k = insulinKind(i.ts, i.subtype, carbTs, i.v)
     if (k.kind !== 'basal') boluses.push({ ts: i.ts, v: i.v, kind: k.kind, noCarbs: k.noCarbs })
   }
   const sample = sampler(sensorGlucose)

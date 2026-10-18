@@ -68,7 +68,7 @@ export default defineEventHandler((event) => {
         if (Number(r.ts) < firstSensorTs) firstSensorTs = Number(r.ts)
       }
     } else if (r.type === 'insulin') {
-      const kind = insulinKind(Number(r.ts), r.subtype, carbTs).kind
+      const kind = insulinKind(Number(r.ts), r.subtype, carbTs, v).kind
       ;(kind === 'basal' ? basal : kind === 'meal' ? meal : correction)[Math.floor(m / 60)] += v
     } else {
       carbs[Math.floor(m / 60)] += v

@@ -11,11 +11,18 @@ async function load() {
     prediction.value = null
   }
 }
+// Napló-módosítás (új adag, CH, törlés) után azonnal újraszámol; háttérből visszatérve is.
+watch(useEntriesTick(), () => load())
+const onVisible = () => { if (!document.hidden) load() }
 onMounted(() => {
   load()
   timer = setInterval(() => { if (!document.hidden) load() }, 60_000)
+  document.addEventListener('visibilitychange', onVisible)
 })
-onBeforeUnmount(() => { if (timer) clearInterval(timer) })
+onBeforeUnmount(() => {
+  if (timer) clearInterval(timer)
+  document.removeEventListener('visibilitychange', onVisible)
+})
 
 const fmt = (v: number) => v.toLocaleString('hu-HU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 </script>

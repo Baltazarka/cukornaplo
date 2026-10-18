@@ -14,6 +14,8 @@ export default defineNuxtConfig({
     // 0 = kikapcsolva. Alapból 5 perc; a háttér-poller a Nitroban fut.
     carelinkInterval: Number(process.env.CARELINK_INTERVAL ?? 300),
     appTz: process.env.APP_TZ || 'Europe/Budapest',
+    // A felület is az app időzónájában számol (pl. „most” a naplóban, a most érvényes napszak).
+    public: { appTz: process.env.APP_TZ || 'Europe/Budapest' },
   },
   nitro: {
     // A node:sqlite a Node beépített modulja, nem kell natív fordítás.

@@ -1,7 +1,7 @@
 // Új jegyzet: időpont (YYYY-MM-DD + HH:MM, az app időzónájában), címkék, szöveg.
 import { markDirty } from '../utils/computed'
 import { db } from '../utils/db'
-import { zonedToTs } from '../utils/normalize'
+import { wallToTs } from '../utils/time'
 
 export default defineEventHandler(async (event) => {
   const body = (await readBody(event)) ?? {}
@@ -18,9 +18,7 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 400)
     return { ok: false, error: 'Adj meg legalább egy címkét vagy szöveget.' }
   }
-  const [y, mo, d] = date.split('-').map(Number)
-  const [h, mi] = time.split(':').map(Number)
-  const ts = zonedToTs(y, mo, d, h, mi, 0)
+  const ts = wallToTs(date, time)
   if (ts > Math.floor(Date.now() / 1000) + 24 * 3600) {
     setResponseStatus(event, 400)
     return { ok: false, error: 'A jegyzet ideje nem lehet a jövőben.' }

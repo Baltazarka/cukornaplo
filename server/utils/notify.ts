@@ -8,10 +8,10 @@ import { clDevice } from './carelink'
 import { hoursLeftText, SENSOR_ENDING_HOURS, TRANSMITTER_LOW } from '#shared/utils/device'
 import { sgText } from '#shared/utils/glucose'
 import { latestGlucose } from './digest'
-import { therapy, segmentAt } from './therapy'
+import { therapy, segmentAt, blendAt } from './therapy'
 import { db } from './db'
 import { hmInTz } from './time'
-import { recentFpu } from './fpuRecent'
+import { insulinGivenAfterMeal } from './fpuRecent'
 import { targetRange } from './range'
 import { rapidDoses, iobAt } from './iob'
 import { calcBolus } from '#shared/utils/bolus'
@@ -202,14 +202,16 @@ export function fpuCheckPayload(r: FpuReminder, now: { v: number; arrow: string;
   }
 }
 
-/** A bóluskalkulátor szerinti korrekció most (CH nélkül, aktív inzulin levonva), a push szövegéhez. */
+/** A bóluskalkulátor szerinti korrekció most (CH nélkül, aktív inzulin levonva, a napszakok közti átmenettel, mint a
+ * kalkulátor alapbeállítása), a push szövegéhez. */
 function correctionNow(nowTs: number, bg: number): number | null {
   const t = therapy()
   if (!t) return null
   const seg = segmentAt(t, nowTs)
   const carbTs = (db().prepare("SELECT ts FROM entries WHERE type = 'carbs' AND ts >= ?").all(nowTs - 12 * 3600) as any[]).map((r) => Number(r.ts))
   const iob = iobAt(rapidDoses(t, nowTs, nowTs + 1, carbTs), nowTs)
-  return calcBolus({ carbs: 0, bg, target: seg.target, isf: seg.isf, icr: seg.icr, iob, maxBolus: t.maxBolus }).dose
+  const b = blendAt(t, nowTs)
+  return calcBolus({ carbs: 0, bg, target: seg.target, isf: b?.isf ?? seg.isf, icr: b?.icr ?? seg.icr, iob, maxBolus: t.maxBolus }).dose
 }
 
 /** Új emlékeztető felvétele (a régieket, egy napnál idősebbeket eldobjuk; ugyanarra az étkezésre csak egy). */
@@ -222,33 +224,42 @@ export function addFpuReminder(r: FpuReminder): void {
 /**
  * Esedékes emlékeztetők: az étkezés után FPU_REMIND_MIN perccel, ha az étkezés még a naplóban van (zsírosként), és a
  * vércukor nincs a célérték alatt (alacsony cukornál nem javaslunk plusz inzulint). Mindegyik legfeljebb egyszer megy ki.
+ * Ha a szenzoradat nem friss, vagy a cukor még a cél alatt van, az emlékeztető a listában marad, és még egy órán át
+ * később is kimehet; csak kiküldéskor, túl régi vagy törölt étkezésnél, illetve már beadott plusz adagnál törlődik.
  */
 export async function checkFpuReminders(nowTs = Math.floor(Date.now() / 1000)): Promise<void> {
   const list = setting<FpuReminder[]>(FPU_KEY, null) ?? []
   if (!list.length) return
   const due = list.filter((r) => nowTs >= r.mealTs + remindMin(r) * 60)
   if (!due.length) return
-  saveSettings({ [FPU_KEY]: list.filter((r) => !due.includes(r)) })
   const s = notifySettings()
   const t = therapy()
-  if (!s.fpuPush || !t || !listSubscriptions().length) return
+  const enabled = s.fpuPush && !!t && listSubscriptions().length > 0
+  const drop = new Set<FpuReminder>()
+  const send: { payload: PushPayload; urgency: 'high' | 'normal' }[] = []
   for (const r of due) {
-    // Túl régi (pl. a szerver állt): már nem aktuális.
-    if (nowTs - r.mealTs > (remindMin(r) + 60) * 60) continue
+    // Túl régi (pl. a szerver állt), vagy ki van kapcsolva: már nem aktuális.
+    if (!enabled || nowTs - r.mealTs > (remindMin(r) + 60) * 60) { drop.add(r); continue }
     const still = db().prepare("SELECT 1 FROM entries WHERE type = 'carbs' AND subtype = 'fatty' AND ts BETWEEN ? AND ? LIMIT 1").get(r.mealTs - 120, r.mealTs + 120)
-    if (!still) continue
+    if (!still) { drop.add(r); continue }
     const now = latestGlucose(nowTs)
+    // Nem friss a szenzoradat: később újra próbáljuk.
+    if (!now || now.ageMin > 20) continue
     // Egyben adás után: ellenőrzés mindenképp (alacsony cukornál is), a mostani értékkel és trenddel.
     if (r.mode === 'check') {
-      if (now && now.ageMin <= 20) await sendPush(fpuCheckPayload(r, now, targetRange().low), { urgency: now.v < targetRange().low ? 'high' : 'normal', ttl: 60 * 60 }).catch(() => null)
+      drop.add(r)
+      send.push({ payload: fpuCheckPayload(r, now, targetRange().low), urgency: now.v < targetRange().low ? 'high' : 'normal' })
       continue
     }
-    if (!now || now.ageMin > 20 || now.v < segmentAt(t, nowTs).target) continue
-    // Ha az étkezés után (30 perc múlva vagy később) már beadtál inzulint (a pluszt vagy korrekciót), nem emlékeztetünk.
-    const recent = recentFpu(nowTs)
-    if (recent && recent.mealTs === r.mealTs && recent.givenSince >= 0.5) continue
-    await sendPush(fpuPayload(r, now, correctionNow(nowTs, now.v)), { urgency: 'normal', ttl: 60 * 60 }).catch(() => null)
+    // Ha ennél az étkezésnél (30 perc múlva vagy később) már beadtál inzulint (a pluszt vagy korrekciót), nem emlékeztetünk.
+    if (insulinGivenAfterMeal(r.mealTs, nowTs) >= 0.5) { drop.add(r); continue }
+    // A cél alatt még várunk (később emelkedhet).
+    if (now.v < segmentAt(t!, nowTs).target) continue
+    drop.add(r)
+    send.push({ payload: fpuPayload(r, now, correctionNow(nowTs, now.v)), urgency: 'normal' })
   }
+  if (drop.size) saveSettings({ [FPU_KEY]: list.filter((r) => !drop.has(r)) })
+  for (const x of send) await sendPush(x.payload, { urgency: x.urgency, ttl: 60 * 60 }).catch(() => null)
 }
 
 /** Szenzor lejárata (szenzoronként egyszer, 12 órával előtte) és alacsony transzmittertöltés (12 óránként). */

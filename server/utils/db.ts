@@ -190,7 +190,7 @@ export function storeRows(rows: Row[]): [number, number] {
   // Ugyanaz a szenzormérés két úton is beérkezhet (CareLink és Apple Health), a percre kerekített és a pontos
   // időponttal: 2,5 percen belüli, szinte azonos szenzorértéket nem veszünk fel még egyszer.
   const nearGlucose = d.prepare(
-    "SELECT 1 FROM entries WHERE type = 'glucose' AND ts BETWEEN ? AND ? AND ABS(value - ?) <= 0.2 AND (source IS NULL OR source != ?) LIMIT 1",
+    "SELECT 1 FROM entries WHERE type = 'glucose' AND ts BETWEEN ? AND ? AND ABS(value - ?) <= 0.2 + 1e-9 AND (source IS NULL OR source != ?) LIMIT 1",
   )
   const now = Math.floor(Date.now() / 1000)
   let inserted = 0

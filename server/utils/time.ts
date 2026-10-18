@@ -62,3 +62,16 @@ export function huWeekday(ymd: string): string {
   const dow = new Date(Date.UTC(y, mo - 1, d)).getUTCDay()
   return HU_DAYS[dow]
 }
+
+/**
+ * Faliidő → unix, a kézi bevitelhez: ősszel (óraátállításkor) a kétszer előforduló órában a `zonedToTs()` a későbbit
+ * adja; ha az még a jövőben van, a korábbi (már elmúlt) időpont számít.
+ */
+export function wallToTs(ymd: string, hm: string, now = Math.floor(Date.now() / 1000)): number {
+  const [y, mo, d] = ymd.split('-').map(Number)
+  const [h, mi] = hm.split(':').map(Number)
+  const ts = zonedToTs(y, mo, d, h, mi, 0)
+  const earlier = ts - 3600
+  if (ts > now && ymdInTz(earlier) === ymd && hmInTz(earlier) === hm) return earlier
+  return ts
+}

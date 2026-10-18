@@ -67,10 +67,14 @@ export function authSession(event: H3Event, opts?: { remember?: boolean }) {
 }
 
 /** A bejelentkezett munkamenet adatai: a tulajdonos bejelentkezésének lejárati ideje is számít. */
+/** Megjegyzés nélküli bejelentkezés érvényessége a szerveroldalon. */
+const SESSION_SEC = 12 * 3600
+
 export async function loginSession(event: H3Event, remember: boolean) {
   setRemember(event, remember)
   const session = await authSession(event, { remember })
-  await session.update({ auth: true, exp: remember ? Math.floor(Date.now() / 1000) + REMEMBER_SEC : undefined })
+  // Megjegyzés nélkül is lejár a szerveroldalon (12 óra), ha a böngésző nem zárul be és a süti megmarad.
+  await session.update({ auth: true, exp: Math.floor(Date.now() / 1000) + (remember ? REMEMBER_SEC : SESSION_SEC) })
   return session
 }
 

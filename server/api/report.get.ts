@@ -29,12 +29,14 @@ export default defineEventHandler((event) => {
   type Day = {
     date: string; label: string; weekday: string
     glucose: [number, number][]
+    /** A glükózpontok időpontja (unix mp), a `glucose` sorrendjében: a párosításhoz (óraátállításkor a perc kétértelmű). */
+    gts: number[]
     sensorN: number
-    events: { time: string; minute: number; type: 'insulin' | 'carbs'; kind: string | null; v: number; fatty: boolean; fast: boolean; glucose: number | null }[]
+    events: { ts: number; time: string; minute: number; type: 'insulin' | 'carbs'; kind: string | null; v: number; fatty: boolean; fast: boolean; glucose: number | null }[]
   }
   const byDay = new Map<string, Day>()
   for (let d = start; d <= end; d = addDaysYmd(d, 1)) {
-    byDay.set(d, { date: d, label: d.replaceAll('-', '. ') + '.', weekday: huWeekday(d), glucose: [], sensorN: 0, events: [] })
+    byDay.set(d, { date: d, label: d.replaceAll('-', '. ') + '.', weekday: huWeekday(d), glucose: [], gts: [], sensorN: 0, events: [] })
   }
   const allGlucose: { ts: number; v: number }[] = []
   for (const r of rows) {
@@ -46,14 +48,15 @@ export default defineEventHandler((event) => {
     const minute = minuteOfDayInTz(ts)
     if (r.type === 'glucose') {
       day.glucose.push([minute, v])
+      day.gts.push(ts)
       if (r.source !== 'manual') {
         day.sensorN++
         allGlucose.push({ ts, v }) // a változás sebességéhez csak szenzoradat
       }
     } else {
-      const kind = r.type === 'insulin' ? insulinKind(ts, r.subtype, carbTs) : null
+      const kind = r.type === 'insulin' ? insulinKind(ts, r.subtype, carbTs, Number(r.value)) : null
       day.events.push({
-        time: hmInTz(ts), minute, type: r.type as 'insulin' | 'carbs',
+        ts, time: hmInTz(ts), minute, type: r.type as 'insulin' | 'carbs',
         kind: kind ? (kind.kind === 'meal' && kind.noCarbs ? 'meal-nocarb' : kind.kind) : null,
         v, fatty: r.type === 'carbs' && r.subtype === 'fatty', fast: r.type === 'carbs' && r.subtype === 'fast', glucose: null,
       })
@@ -61,14 +64,15 @@ export default defineEventHandler((event) => {
   }
 
   const notes = notesBetween(from, to)
-  const out = [...byDay.values()].map((d) => {
-    // A bejegyzések mellé a legközelebbi (±10 perc) glükózérték.
+  const out = [...byDay.values()].map(({ gts, ...d }) => {
+    // A bejegyzések mellé a legközelebbi (±10 perc) glükózérték, időpont szerint párosítva.
     for (const e of d.events) {
       let best: number | null = null
-      let diff = 11
-      for (const [m, v] of d.glucose) {
-        if (Math.abs(m - e.minute) < diff) { diff = Math.abs(m - e.minute); best = v }
-      }
+      let diff = 11 * 60
+      d.glucose.forEach(([, v], i) => {
+        const dt = Math.abs(gts[i] - e.ts)
+        if (dt < diff) { diff = dt; best = v }
+      })
       e.glucose = best
     }
     const stats = glucoseStats(d.glucose.map((g) => g[1]), low, high)

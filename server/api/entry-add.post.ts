@@ -8,8 +8,7 @@
 import { markDirty } from '../utils/computed'
 import { isAssumedBasal } from '../utils/basal'
 import { db, MANUAL_SOURCE, MANUAL_MATCH_SEC } from '../utils/db'
-import { zonedToTs } from '../utils/normalize'
-import { hmInTz, ymdInTz } from '../utils/time'
+import { hmInTz, ymdInTz, wallToTs } from '../utils/time'
 import { therapy, segmentAt, DEFAULT_FPU_PERCENT } from '../utils/therapy'
 import { addFpuReminder } from '../utils/notify'
 import { fpuSuggestion, MACRO_MAX_G } from '#shared/utils/fpu'
@@ -60,10 +59,9 @@ export default defineEventHandler(async (event) => {
   // Típus nélküli, a beállított bázisadaggal egyező inzulin bázis (mint az adatfogadásnál).
   if (type === 'insulin' && sub === null && isAssumedBasal(value, null)) sub = 'basal'
 
-  const [y, mo, d] = date.split('-').map(Number)
-  const [h, mi] = time.split(':').map(Number)
-  const ts = zonedToTs(y, mo, d, h, mi, 0)
-  if (ts > Math.floor(Date.now() / 1000) + 15 * 60) {
+  // Időpont nélkül a pontos mostani pillanat (óraátállításkor sem kétértelmű); faliidőből a már elmúlt előfordulás.
+  const ts = body.date || body.time ? wallToTs(date, time, nowSec) : nowSec
+  if (ts > nowSec + 15 * 60) {
     setResponseStatus(event, 400)
     return { ok: false, error: 'Az időpont nem lehet a jövőben.' }
   }

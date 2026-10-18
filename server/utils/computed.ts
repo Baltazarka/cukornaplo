@@ -14,7 +14,7 @@ export interface Computed<T> {
  * A számolás (algoritmus) változata: ha a kód változik, és a tárolt eredmény régebbi változatú, nem használjuk
  * (újraszámolódik). Az elemzéseket / előrejelzés-tesztet érintő kódváltoztatásnál növeld.
  */
-export const COMPUTE_VERSION = 10
+export const COMPUTE_VERSION = 11
 
 const inflight = new Set<string>()
 const DIRTY_KEY = 'meta:dirty'
@@ -40,7 +40,7 @@ export function markDirty(): void {
   db().prepare('INSERT OR REPLACE INTO computed_cache (key, at, json) VALUES (?, ?, ?)').run(DIRTY_KEY, Math.floor(Date.now() / 1000), '{}')
 }
 
-function dirtyAt(): number {
+export function dirtyAt(): number {
   const row = db().prepare('SELECT at FROM computed_cache WHERE key = ?').get(DIRTY_KEY) as { at: number } | undefined
   return row ? Number(row.at) : 0
 }

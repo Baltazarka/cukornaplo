@@ -4,6 +4,7 @@
 // Tájékoztató. A számolt szénhidrátot és adagot kérésre be lehet írni a naplóba is (a mostani időponttal).
 const emit = defineEmits<{ (e: 'logged'): void }>()
 const { data, refresh } = await useFetch<any>('/api/bolus-context', { key: 'bolus-context' })
+const entriesChanged = useEntriesChanged()
 
 /** A CGM-érték ennyi percig számít frissnek, utána kézzel kell beírni. */
 const FRESH_MIN = 15
@@ -104,29 +105,41 @@ const togetherOverMax = computed(() => (fpuTogetherExtra.value && data.value?.ma
 const logDose = ref('')
 const doseTouched = ref(false)
 // A beírási mezőbe a javasolt adag kerül (egyben adásnál a zsír-fehérje plusszal együtt, legfeljebb a maximális
-// dózisig), amíg kézzel át nem írod.
-watch(() => [result.value?.dose, fpuTogetherExtra.value, data.value?.maxBolus] as const, ([d, extra, max]) => {
+// dózisig), amíg kézzel át nem írod. Ha utána a CH-t, a vércukrot vagy a jelölést módosítod, újra a javasolt jön.
+function syncDose() {
+  const d = result.value?.dose
   if (doseTouched.value || d == null) return
-  const v = extra ? Math.min(d + extra, max ?? Infinity) : d
+  const extra = fpuTogetherExtra.value
+  const v = extra ? Math.min(d + extra, data.value?.maxBolus ?? Infinity) : d
   logDose.value = String(v).replace('.', ',')
-}, { immediate: true })
+}
+watch(() => [result.value?.dose, fpuTogetherExtra.value, data.value?.maxBolus] as const, syncDose, { immediate: true })
+watch([carbs, bg, logCarbSub, fatG, proteinG], () => {
+  if (!doseTouched.value) return
+  doseTouched.value = false
+  syncDose()
+})
 const doseV = computed(() => num(logDose.value))
-const doseInvalid = computed(() => logInsulin.value && (doseV.value == null || doseV.value < 0.1 || doseV.value > 100))
+// Üres vagy 0 adag nem hiba (pl. nem kell inzulin): olyankor bólus nem kerül a naplóba.
+const doseInvalid = computed(() => logInsulin.value && logDose.value.trim() !== '' && doseV.value !== 0
+  && (doseV.value == null || doseV.value < 0.1 || doseV.value > 100))
 const canLog = computed(() => (logCarbs.value && !!carbsV.value) || (logInsulin.value && !doseInvalid.value && (doseV.value ?? 0) > 0))
 const logBusy = ref(false)
 const logMsg = ref('')
 const logErr = ref('')
 useToastFrom(logMsg, 'success')
 useToastFrom(logErr, 'error')
-async function addEntry(body: Record<string, any>, force = false): Promise<void> {
+/** Felvesz egy bejegyzést; false, ha a hasonló közeli bejegyzés miatt mégsem kérted (dupla). */
+async function addEntry(body: Record<string, any>, force = false): Promise<boolean> {
   try {
     await $fetch('/api/entry-add', { method: 'POST', body: { ...body, force } })
+    return true
   } catch (e: any) {
     // Hasonló bejegyzés a közelben (pl. véletlenül kétszer beírva): rákérdezünk.
     if (e?.data?.duplicate && !force && (await askConfirm(`${e.data.error}
 
 Mégis felveszed?`, { confirmLabel: 'Felveszem' }))) return addEntry(body, true)
-    if (e?.data?.duplicate) return
+    if (e?.data?.duplicate) return false
     throw e
   }
 }
@@ -139,6 +152,7 @@ function clearInputs() {
   proteinG.value = ''
   logDose.value = ''
   doseTouched.value = false
+  logCarbs.value = true
 }
 const resetTick = useState<number>('bolus-reset', () => 0)
 watch(resetTick, clearInputs)
@@ -154,31 +168,43 @@ async function logToDiary() {
   logErr.value = ''
   const done: string[] = []
   const logged: { carbs: number | null; dose: number | null } = { carbs: null, dose: null }
+  let skipped = false
   try {
     if (logCarbs.value && carbsV.value) {
       // Zsíros ételnél a zsír / fehérje is elmentődik; plusz-javaslatnál a szerver 1,5 óra múlvára emlékeztetőt állít be.
       const macros = logCarbSub.value === 'fatty' && !macroInvalid.value ? { fat: fatV.value, protein: proteinV.value } : {}
-      await addEntry({ type: 'carbs', value: carbsV.value, sub: logCarbSub.value, ...macros })
-      done.push(`${fmt(carbsV.value, 0)} g CH`)
-      logged.carbs = carbsV.value
+      if (await addEntry({ type: 'carbs', value: carbsV.value, sub: logCarbSub.value, ...macros })) {
+        done.push(`${fmt(carbsV.value, 0)} g CH`)
+        logged.carbs = carbsV.value
+      } else skipped = true
     }
     if (logInsulin.value && doseV.value && !doseInvalid.value) {
       // Típussal: a CH-val együtt (vagy a kalkulátorba írt CH mellett) étkezési bólus, CH nélkül korrekció.
       const kind = carbsV.value ? 'meal' : 'correction'
-      await addEntry({ type: 'insulin', value: doseV.value, sub: kind })
-      done.push(`${fmt(doseV.value)} E ${kind === 'meal' ? 'étkezési bólus' : 'korrekció'}`)
-      logged.dose = doseV.value
+      if (await addEntry({ type: 'insulin', value: doseV.value, sub: kind })) {
+        done.push(`${fmt(doseV.value)} E ${kind === 'meal' ? 'étkezési bólus' : 'korrekció'}`)
+        logged.dose = doseV.value
+      } else skipped = true
     }
     lastLogged.value = done.length ? logged : null
-    logMsg.value = done.length ? `Beírva a naplóba: ${done.join(', ')}.` : 'Nem történt beírás.'
-    // A beírt adatok a naplóba kerültek, a kalkulátor üres, készen áll a következőre.
-    if (done.length) clearInputs()
-    await refresh()
-    emit('logged')
+    logMsg.value = done.length ? `Beírva a naplóba: ${done.join(', ')}.` : skipped ? '' : 'Nem történt beírás.'
+    // Ha minden a naplóba került, a kalkulátor üres, készen áll a következőre (dupla miatt kihagyottnál megmarad).
+    if (done.length && !skipped) clearInputs()
+    else if (logged.carbs != null) logCarbs.value = false
   } catch (e: any) {
-    logErr.value = e?.data?.error ?? 'A beírás nem sikerült.'
+    // Részleges hiba (pl. a CH bekerült, a bólus nem): a már beírt CH-t újra ne küldje, csak a bólust.
+    if (logged.carbs != null) {
+      logCarbs.value = false
+      lastLogged.value = logged
+    }
+    logErr.value = (done.length ? `Beírva: ${done.join(', ')}. ` : '') + (e?.data?.error ?? 'A beírás nem sikerült.')
   } finally {
     logBusy.value = false
+  }
+  if (done.length) {
+    entriesChanged()
+    await refresh().catch(() => null)
+    emit('logged')
   }
 }
 

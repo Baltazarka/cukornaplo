@@ -140,6 +140,23 @@ export function segmentAt(t: Therapy, ts: number): TherapySegment {
   return seg
 }
 
+/**
+ * Átmenet a napszakok között (a bóluskalkulátor alapbeállítása): a CH-arány és az érzékenység a napszak kezdetén a
+ * beállított érték, onnan a következő napszak kezdetéig arányosan halad a következő értékéig. Pl. 06:00-kor 2 g/E,
+ * 12:00-kor 4 g/E → 09:00-kor 3 g/E. Az utolsó napszak éjfélen át az elsőig tart. Egy napszaknál null.
+ */
+export function blendAt(t: Therapy, ts: number): { frac: number; icr: number; isf: number; next: TherapySegment } | null {
+  const segs = activeSegments(t)
+  const seg = segmentAt(t, ts)
+  const idx = segs.indexOf(seg)
+  if (segs.length < 2 || idx < 0) return null
+  const next = segs[(idx + 1) % segs.length]
+  const len = (hmMin(next.start) - hmMin(seg.start) + 1440) % 1440 || 1440
+  const frac = ((minuteOfDayInTz(ts) - hmMin(seg.start) + 1440) % 1440) / len
+  const mix = (a: number, b: number) => Math.round((a + (b - a) * frac) * 100) / 100
+  return { frac: Math.round(frac * 100) / 100, icr: mix(seg.icr, next.icr), isf: mix(seg.isf, next.isf), next }
+}
+
 /** Egy bólus hatásideje percben: a beadás napszakáé, ha ott külön meg van adva. */
 export function actionMinutesAt(t: Therapy, ts: number): number {
   // Napszakbeállítás nélkül a közös hatásidő érvényes (a rejtett, napszakonkénti érték nem írhatja felül).

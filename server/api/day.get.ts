@@ -53,7 +53,7 @@ export default defineEventHandler((event) => {
 
   // Bólusok besorolása (étkezési / korrekció / bázis): a nap széleinél a szomszédos napok CH-ja is számít.
   const carbTs = carbTimes(dayStart - 8 * 3600 - MEAL_WINDOW_SEC, dayEnd + PREBOLUS_SEC)
-  for (const e of dayRows.insulin) Object.assign(e, insulinKind(e.ts, e.sub, carbTs))
+  for (const e of dayRows.insulin) Object.assign(e, insulinKind(e.ts, e.sub, carbTs, e.v))
 
   const dayStats = glucoseStats([...dayRows.glucose.map((g) => g.v), ...manualGlucose.map((g) => g.v)], low, high)
   const rangeStats = glucoseStats(allGlucose, low, high)

@@ -1,11 +1,10 @@
 // A bóluskalkulátor kiinduló adatai most: a legutóbbi CGM-érték és trendje, a most érvényes
 // napszak beállításai, a még aktív gyors hatású inzulin és a maximális dózis.
 import { db } from '../utils/db'
-import { therapy, activeSegments, segmentAt, DEFAULT_FPU_PERCENT } from '../utils/therapy'
+import { therapy, activeSegments, segmentAt, blendAt, DEFAULT_FPU_PERCENT } from '../utils/therapy'
 import { targetRange } from '../utils/range'
 import { lastTrend } from '../utils/trend'
 import { rapidDoses, iobAt } from '../utils/iob'
-import { minuteOfDayInTz } from '../utils/time'
 import { recentFpu } from '../utils/fpuRecent'
 
 export default defineEventHandler(() => {
@@ -35,23 +34,9 @@ export default defineEventHandler(() => {
   const doses = rapidDoses(t, now, now + 1, carbTs)
   const lastDose = doses.at(-1)
 
-  // Átmenet a napszakok között: a CH-arány és az érzékenység a napszak kezdetén a beállított érték,
-  // onnan a következő napszak kezdetéig arányosan (lineárisan) halad a következő értékéig.
-  // Pl. 06:00-kor 2 g/E, 12:00-kor 4 g/E → 09:00-kor 3 g/E. Az utolsó napszak éjfélen át az elsőig tart.
-  let blend = null
-  if (segs.length > 1 && idx >= 0) {
-    const next = segs[(idx + 1) % segs.length]
-    const hm = (x: string) => Number(x.slice(0, 2)) * 60 + Number(x.slice(3, 5))
-    const len = (hm(next.start) - hm(seg.start) + 1440) % 1440 || 1440
-    const frac = ((minuteOfDayInTz(now) - hm(seg.start) + 1440) % 1440) / len
-    const mix = (a: number, b: number) => Math.round((a + (b - a) * frac) * 100) / 100
-    blend = {
-      frac: Math.round(frac * 100) / 100,
-      icr: mix(seg.icr, next.icr),
-      isf: mix(seg.isf, next.isf),
-      next: { start: next.start, icr: next.icr, isf: next.isf },
-    }
-  }
+  // Átmenet a napszakok között (blendAt): a kalkulátor alapból ezzel számol.
+  const b = blendAt(t, now)
+  const blend = b ? { frac: b.frac, icr: b.icr, isf: b.isf, next: { start: b.next.start, icr: b.next.icr, isf: b.next.isf } } : null
 
   return {
     therapySet: true,

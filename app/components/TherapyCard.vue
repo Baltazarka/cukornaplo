@@ -7,11 +7,9 @@ const t = computed(() => data.value?.therapy ?? null)
 const readOnly = useReadOnly()
 
 // A most érvényes napszak percenként frissül.
+// Az app időzónája szerint (a böngésző órája más időzónában lehet).
+const { nowMinute } = useAppTime()
 const minute = ref(nowMinute())
-function nowMinute() {
-  const d = new Date()
-  return d.getHours() * 60 + d.getMinutes()
-}
 let timer: ReturnType<typeof setInterval> | undefined
 onMounted(() => { timer = setInterval(() => (minute.value = nowMinute()), 60_000) })
 onBeforeUnmount(() => clearInterval(timer))

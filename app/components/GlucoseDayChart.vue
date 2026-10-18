@@ -241,7 +241,8 @@ function buildOption() {
   const ai = d.activeInsulin
   const iobTotal: [number, number | null][] = ai?.points ?? []
   // A tengely a legnagyobb adagnál csak 5 E-vel magasabb (a bázis nem számít bele: az csak egy pont).
-  const insMax = Math.ceil(Math.max(1, ...d.insulin.filter((p: any[]) => p[2] !== 'basal').map((p: any[]) => p[1]), ...iobTotal.map((p) => p[1] ?? 0)) + 5)
+  // A skála az előző napról áthúzódó (még aktív) adagokat és CH-t is figyelembe veszi.
+  const insMax = Math.ceil(Math.max(1, ...bolus.map((p: any[]) => p[1]), ...iobTotal.map((p) => p[1] ?? 0)) + 5)
   const drop = (IOB_LINE / 2) * (insMax / INS_HEIGHT)
   const curves: { kind: string; data: [number, number][] }[] = []
   if (ai) {
@@ -259,7 +260,7 @@ function buildOption() {
   // Aktív szénhidrát: minden étkezés saját görbéje (a tanult felszívódással, zsíros / gyors külön), az oszlop
   // tetejéről indulva, mutatja, mennyi CH nem szívódott még fel.
   const ab = d.absorption
-  const carbMax = niceMax(Math.max(10, ...d.carbs.map((p: any[]) => p[1])))
+  const carbMax = niceMax(Math.max(10, ...d.carbs.map((p: any[]) => p[1]), ...carryCarbs.map((p) => p[1])))
   const carbDrop = (IOB_LINE / 2) * (carbMax / INS_HEIGHT)
   const protoFrac = (prof: number[], m: number) => {
     if (m <= 0) return 0
@@ -301,8 +302,9 @@ function buildOption() {
       if (diff < gDiff) { gDiff = diff; gNear = p[1] }
     }
     const win = 6 * 60000
-    const ins = d.insulin.filter((p: any[]) => Math.abs(p[0] - x) <= win)
-    const ch = d.carbs.filter((p: any[]) => Math.abs(p[0] - x) <= win)
+    // Az előző napról áthúzódó adag és CH is (a nap elején).
+    const ins = [...carryDoses.map((p) => [p[0], p[1], p[3]]), ...d.insulin].filter((p: any[]) => Math.abs(p[0] - x) <= win)
+    const ch = [...carryCarbs, ...d.carbs].filter((p: any[]) => Math.abs(p[0] - x) <= win)
     let html = `<div style="font-weight:600;margin-bottom:4px">${hm(x)}</div>`
     const sg = segmentAt(x)
     if (sg && !narrow) {
@@ -496,6 +498,8 @@ function buildOption() {
 async function render() {
   if (!el.value) return
   if (!echarts) echarts = await import('echarts')
+  // A betöltés alatt a komponens eltűnhetett (pl. másik napra lapozás).
+  if (!el.value) return
   if (!chart) chart = echarts.init(el.value, null, { renderer: 'canvas', devicePixelRatio: Math.max(2, window.devicePixelRatio || 1) })
   chart.setOption(buildOption(), true)
 }
@@ -512,7 +516,7 @@ onMounted(async () => {
     chart?.resize()
     render()
   })
-  ro.observe(el.value!)
+  if (el.value) ro.observe(el.value)
 })
 watch(() => props.day, loadForecast)
 onBeforeUnmount(() => {

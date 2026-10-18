@@ -27,9 +27,13 @@ const clAuthUrl = ref('')
 const clAuthErr = ref('')
 const clCode = ref('')
 async function loadAuthUrl() {
-  const r: any = await $fetch('/api/carelink/authorize-url')
-  if (r.ok) clAuthUrl.value = r.url
-  else clAuthErr.value = r.error
+  try {
+    const r: any = await $fetch('/api/carelink/authorize-url')
+    if (r.ok) clAuthUrl.value = r.url
+    else clAuthErr.value = r.error
+  } catch (e: any) {
+    clAuthErr.value = e?.data?.error ?? 'A CareLink belépési cím nem kérhető le.'
+  }
 }
 onMounted(() => { if (!data.value?.carelink.connected) loadAuthUrl() })
 
@@ -73,13 +77,24 @@ async function pkDelete(id: string) {
     busy.value = ''
   }
 }
+/** Művelet hibakezeléssel: hiba esetén üzenet, a végén mindig frissít és feloldja a gombot. */
+async function guarded(key: string, fn: () => Promise<void>, errMsg: string) {
+  busy.value = key
+  try {
+    await fn()
+  } catch (e: any) {
+    flash('', e?.data?.error ?? errMsg)
+  } finally {
+    busy.value = ''
+    await refresh().catch(() => null)
+  }
+}
 async function regenToken() {
   if (!(await askConfirm('Új kulcsot generálsz? A régi kulccsal ezután nem lehet adatot küldeni.', { confirmLabel: 'Új kulcs', danger: true }))) return
-  busy.value = 'token'
-  await $fetch('/api/token/regen', { method: 'POST' })
-  await refresh()
-  busy.value = ''
-  flash('Új kulcs készült. A telefonon (Health Auto Export vagy Parancsok) is írd át!')
+  await guarded('token', async () => {
+    await $fetch('/api/token/regen', { method: 'POST' })
+    flash('Új kulcs készült. A telefonon (Health Auto Export vagy Parancsok) is írd át!')
+  }, 'Az új kulcs nem készült el.')
 }
 
 const importText = ref('')
@@ -122,38 +137,43 @@ async function clConnect() {
   }
 }
 async function clPoll() {
-  busy.value = 'cl-poll'
-  const r: any = await $fetch('/api/carelink/poll', { method: 'POST' })
-  await refresh()
-  busy.value = ''
-  r.ok ? flash(`CareLink: ${r.received} érték, ${r.inserted} új` + (r.latest ? `, a legfrissebb ${new Date(r.latest * 1000).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' })}-kor.` : '.'))
-    : flash('', 'CareLink hiba: ' + r.error)
+  await guarded('cl-poll', async () => {
+    const r: any = await $fetch('/api/carelink/poll', { method: 'POST' })
+    r.ok ? flash(`CareLink: ${r.received} érték, ${r.inserted} új` + (r.latest ? `, a legfrissebb ${new Date(r.latest * 1000).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' })}-kor.` : '.'))
+      : flash('', 'CareLink hiba: ' + r.error)
+  }, 'A CareLink-lekérés nem sikerült.')
 }
 async function clPatient(e: Event) {
-  busy.value = 'cl-patient'
-  await $fetch('/api/carelink/patient', { method: 'POST', body: { patient: (e.target as HTMLSelectElement).value } })
-  await refresh()
-  busy.value = ''
-  flash('Páciens beállítva.')
+  await guarded('cl-patient', async () => {
+    await $fetch('/api/carelink/patient', { method: 'POST', body: { patient: (e.target as HTMLSelectElement).value } })
+    flash('Páciens beállítva.')
+  }, 'A páciens beállítása nem sikerült.')
 }
 async function clDisconnect() {
   if (!(await askConfirm('Biztos törlöd a CareLink kapcsolatot? A letöltött adatok megmaradnak.', { confirmLabel: 'Kapcsolat törlése', danger: true }))) return
-  await $fetch('/api/carelink/disconnect', { method: 'POST' })
-  clAuthUrl.value = ''
-  await refresh()
-  await loadAuthUrl()
-  flash('A CareLink kapcsolat törölve. A már letöltött adatok megmaradnak.')
+  await guarded('cl-disconnect', async () => {
+    await $fetch('/api/carelink/disconnect', { method: 'POST' })
+    clAuthUrl.value = ''
+    flash('A CareLink kapcsolat törölve. A már letöltött adatok megmaradnak.')
+  }, 'A kapcsolat törlése nem sikerült.')
+  if (!clAuthUrl.value) await loadAuthUrl()
 }
 
 async function resetDb() {
   if (!(await askConfirm('Biztos törlöd az ÖSSZES mért adatot? Ez nem vonható vissza. A jelszó és a CareLink kapcsolat megmarad.', { title: 'Összes adat törlése', confirmLabel: 'Adatok törlése', danger: true }))) return
-  const r: any = await $fetch('/api/reset', { method: 'POST', body: { confirm: true } })
-  await refresh()
-  flash(`Törölve: ${r.deleted} bejegyzés.`)
+  await guarded('reset', async () => {
+    const r: any = await $fetch('/api/reset', { method: 'POST', body: { confirm: true } })
+    flash(`Törölve: ${r.deleted} bejegyzés.`)
+  }, 'A törlés nem sikerült.')
 }
 async function factoryReset() {
   if (!(await askConfirm('MINDENT töröl: a mért adatokat, a jelszót, a passkey-ket, az API-kulcsot és a CareLink kapcsolatot is. Utána elölről kell beállítani. Biztos?', { title: 'Gyári visszaállítás', confirmLabel: 'Mindent törlök', danger: true }))) return
-  await $fetch('/api/factory-reset', { method: 'POST', body: { confirm: true } })
+  try {
+    await $fetch('/api/factory-reset', { method: 'POST', body: { confirm: true } })
+  } catch (e: any) {
+    flash('', e?.data?.error ?? 'A visszaállítás nem sikerült.')
+    return
+  }
   if (auth.value) { auth.value.hasPassword = false; auth.value.authed = false }
   await navigateTo('/setup')
 }

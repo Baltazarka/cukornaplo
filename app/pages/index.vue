@@ -11,6 +11,9 @@ const period = computed(() => {
   return PERIODS.includes(n) ? n : 1
 })
 const { data, refresh } = await useFetch<any>('/api/day', { query: { date } })
+// Napló-módosítás után a kalkulátor (aktív inzulin) és a hipó-figyelmeztetés is frissül.
+const entriesChanged = useEntriesChanged()
+const appTime = useAppTime()
 // Megosztási linkkel belépett megtekintő: minden szerkesztő elem rejtve.
 const readOnly = useReadOnly()
 const { data: agp, refresh: refreshAgp } = await useAsyncData(
@@ -101,6 +104,9 @@ async function saveRange() {
     await $fetch('/api/settings', { method: 'POST', body: { range_low: editLow.value, range_high: editHigh.value } })
     editLow.value = null
     await refresh()
+    entriesChanged()
+  } catch (err: any) {
+    useToast().error(err?.data?.error ?? 'A mentés nem sikerült.')
   } finally {
     saving.value = false
   }
@@ -116,13 +122,23 @@ watchEffect(() => {
   }
 })
 async function saveBasal() {
-  await $fetch('/api/basal', { method: 'POST', body: { basal_dose: basalDose.value || null } })
-  await refresh()
+  try {
+    await $fetch('/api/basal', { method: 'POST', body: { basal_dose: basalDose.value || null } })
+    await refresh()
+    entriesChanged()
+  } catch (err: any) {
+    useToast().error(err?.data?.error ?? 'A mentés nem sikerült.')
+  }
 }
 // Szénhidrát jelölése: zsíros / fehérjedús (a CH-arány becslése kihagyja, az elemzés külön mutatja),
 // vagy gyors CH (pl. hipó kezelése). A kettő kizárja egymást; újra kattintva a jelölés lekerül.
 async function toggleCarbTag(e: any, tag: 'fatty' | 'fast') {
-  await $fetch('/api/entry-tag', { method: 'POST', body: { id: e.id, tag: e.sub === tag ? null : tag } })
+  try {
+    await $fetch('/api/entry-tag', { method: 'POST', body: { id: e.id, tag: e.sub === tag ? null : tag } })
+    entriesChanged()
+  } catch (err: any) {
+    useToast().error(err?.data?.error ?? 'A jelölés nem sikerült.')
+  }
   await refresh()
 }
 // Zsír / fehérje utólag (zsíros CH-sornál): a zsír-fehérje javaslat kiértékeléséhez.
@@ -144,7 +160,13 @@ async function saveMacros() {
 }
 const macroText = (e: any) => [e.fat != null ? `${fmt(e.fat, 0)} g zsír` : '', e.protein != null ? `${fmt(e.protein, 0)} g fehérje` : ''].filter(Boolean).join(', ')
 async function setSub(e: any, v: string) {
-  await $fetch('/api/entry-subtype', { method: 'POST', body: { id: e.id, subtype: v } })
+  try {
+    await $fetch('/api/entry-subtype', { method: 'POST', body: { id: e.id, subtype: v } })
+    entriesChanged()
+  } catch (err: any) {
+    useToast().error(err?.data?.error ?? 'A típus mentése nem sikerült.')
+  }
+  // Hibánál is: a legördülő visszaáll a mentett értékre.
   await refresh()
 }
 
@@ -156,6 +178,7 @@ async function deleteEvent(e: any) {
   deletingId.value = e.type + e.id
   try {
     await $fetch('/api/entry-delete', { method: 'POST', body: { id: e.id } })
+    entriesChanged()
     await refresh()
   } catch (err: any) {
     useToast().error(err?.data?.error ?? 'A törlés nem sikerült.')
@@ -174,9 +197,7 @@ const noteError = ref('')
 useToastFrom(noteError, 'error')
 const noteSaving = ref(false)
 function defaultTime() {
-  const now = new Date()
-  return data.value?.day === data.value?.today
-    ? `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}` : '12:00'
+  return data.value?.day === data.value?.today ? appTime.nowTime() : '12:00'
 }
 function openNoteForm() {
   entryForm.value = null
@@ -224,6 +245,7 @@ async function saveEntry(force = false) {
     const macros = f.type === 'carbs' && f.sub === 'fatty' ? { fat: f.fat, protein: f.protein } : { fat: '', protein: '' }
     await $fetch('/api/entry-add', { method: 'POST', body: { ...f, ...macros, force } })
     entryForm.value = null
+    entriesChanged()
     if (f.type !== 'glucose') {
       const v = Number(f.value.replace(',', '.'))
       // Másik napra vett bejegyzésnél a dátum is kell, hogy a Guardianben is oda kerüljön.
@@ -251,6 +273,8 @@ async function deleteNote(n: any) {
   try {
     await $fetch('/api/note-delete', { method: 'POST', body: { id: n.id } })
     await refresh()
+  } catch (err: any) {
+    useToast().error(err?.data?.error ?? 'A törlés nem sikerült.')
   } finally {
     deletingId.value = null
   }
@@ -370,7 +394,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
               <label class="note-time">Fehérje <input v-model="entryForm.protein" type="text" inputmode="decimal" class="entry-amount" placeholder="g"> <span class="muted">g</span></label>
             </template>
           </div>
-          <p v-if="entryForm.type !== 'glucose'" class="muted small">Ha 30 percen belül már van ugyanekkora bejegyzés, rákérdez, hogy ne legyen véletlenül dupla.</p>
+          <p v-if="entryForm.type !== 'glucose'" class="muted small">Ha 30 percen belül már van ilyen típusú bejegyzés, rákérdez, hogy ne legyen véletlenül dupla.</p>
           <p v-else class="muted small">A kézi mérés „kézi” jelöléssel kerül a naplóba és a grafikonra. Pontos mérésként beleszámít az értékekbe (átlag, célban töltött idő, hipóesemények), de a szenzorlefedettségbe és a trendnyílba nem. A bóluskalkulátor használhatja, ha újabb a szenzor értékénél.</p>
           <div class="btn-row">
             <button type="submit" class="sm" :disabled="entrySaving">Mentés</button>
@@ -399,7 +423,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
           <span class="muted">E</span>
           <button type="submit" class="ghost sm">Mentés</button>
         </form>
-        <p v-if="!readOnly" class="muted small">A pontosan ekkora újonnan érkező adag bázis (üresen hagyva kikapcsolva). A többi bólus automatikusan: étkezési, ha 60 percen belül utána (előbólus) vagy 30 percen belül előtte szénhidrát is van; „CH nélküli” étkezési, ha nincs szénhidrát, de a vércukor a célérték + 2 mmol/L alatt volt; különben korrekció. Az „(auto)” sorokat a legördülővel bármikor átállíthatod (pl. korrekcióról étkezési bólusra), a × gombbal törölheted (a telefon sem tölti vissza).</p>
+        <p v-if="!readOnly" class="muted small">A típus nélküli adag bázis, ha ekkora, vagy a maximális bólusnál nagyobb és ennek ±25%-án belül (üresen hagyva kikapcsolva). A többi típus nélküli bólus automatikusan: étkezési, ha 60 percen belül utána (előbólus) vagy 30 percen belül előtte szénhidrát is van; különben korrekció. Az „(auto)” sorokat a legördülővel bármikor átállíthatod (pl. korrekcióról étkezési bólusra), a × gombbal törölheted (a telefon sem tölti vissza).</p>
         <div v-if="logRows.length" class="table-wrap">
           <table class="table log-table">
             <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num">Glükóz</th><th v-if="!readOnly"><span class="sr-only">Törlés</span></th></tr></thead>

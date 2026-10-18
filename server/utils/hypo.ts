@@ -100,7 +100,7 @@ export function hypoAnalysis(from: number, to: number) {
   const carbTs = carbs.map((c) => c.ts)
   const boluses = other
     .filter((r) => r.type === 'insulin')
-    .map((r) => ({ ts: Number(r.ts), v: Number(r.value), kind: insulinKind(Number(r.ts), r.subtype, carbTs).kind }))
+    .map((r) => ({ ts: Number(r.ts), v: Number(r.value), kind: insulinKind(Number(r.ts), r.subtype, carbTs, Number(r.value)).kind }))
     .filter((b) => b.kind !== 'basal')
   const doses = t ? rapidDoses(t, from - 2 * 3600, to, carbTs) : []
   const notes = notesBetween(from - NOTE_BEFORE_SEC, to)

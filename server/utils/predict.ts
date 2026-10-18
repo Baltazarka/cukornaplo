@@ -11,7 +11,7 @@
 //  számít, ha a saját adataidon tényleg pontosabb az egyszerűnél.
 // Tájékoztató becslés, nem helyettesíti a CGM riasztásait.
 import { db } from './db'
-import { therapy, segmentAt } from './therapy'
+import { therapy, segmentAt, blendAt } from './therapy'
 import { rapidDoses, iobAt } from './iob'
 import { targetRange } from './range'
 import { glucosePoints, latestGlucose, type Latest } from './digest'
@@ -198,6 +198,7 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
 const round = (x: number, k: number) => Math.round(x * k) / k
 
 const roundTo = (x: number, step: number) => Math.round(x / step) * step
+const floorTo = (x: number, step: number) => Math.floor(x / step + 1e-9) * step
 
 /**
  * A pontosság visszatesztjéhez: egyszer felépített modellből az összes kért módszer és távolság becslése.
@@ -235,13 +236,16 @@ export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 100
   const carbsNeeded = risk ? Math.min(30, Math.max(10, roundTo((m.target - lowest) / m.perG, 5))) : null
   // Inzulin: csak ha a vércukor most is és a hosszú távú értéke is a céltartomány fölött van, nincs hipó-veszély,
   // nem esik, kevés az aktív inzulin, és az utolsó bólus óta legalább egy óra eltelt (a valós adatban a frissen
-  // beadott adag melletti javaslatok halmozódtak). A javaslat (hosszú távú érték − cél) ÷ ISF, 0,5 E-re kerekítve,
-  // a maximális bólusig.
-  const falling = (m.latest.rate ?? 0) <= -0.03
+  // beadott adag melletti javaslatok halmozódtak). Ismeretlen trendnél (kevés friss szenzoradat) nincs javaslat.
+  // A javaslat (hosszú távú érték − cél) ÷ ISF (a kalkulátorhoz hasonlóan a napszakok közti átmenettel), 0,5 E-re
+  // lefelé kerekítve, a (lefelé kerekített) maximális bólusig.
+  const falling = m.latest.rate == null || m.latest.rate <= -0.03
   const recentBolus = m.lastBolusTs > 0 && nowTs - m.lastBolusTs < SUGGEST_AFTER_BOLUS_MIN * 60
   let insulinNeeded: number | null = null
   if (!risk && !falling && !recentBolus && m.iob < SUGGEST_MAX_IOB && m.latest.v > m.high && m.eventual > m.high) {
-    const dose = Math.min(m.maxBolus, roundTo((m.eventual - m.target) / m.isf, 0.5))
+    const t = therapy()
+    const isf = (t && blendAt(t, nowTs)?.isf) || m.isf
+    const dose = Math.min(floorTo(m.maxBolus, 0.5), floorTo((m.eventual - m.target) / isf, 0.5))
     if (dose >= 0.5) insulinNeeded = dose
   }
   return {

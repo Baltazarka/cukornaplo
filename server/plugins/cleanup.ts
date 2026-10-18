@@ -2,11 +2,10 @@
 //  - az InPenből jött vércukor ujjbegyes mérés: kézi mérésnek jelöljük (nem szenzoradat);
 //  - ugyanaz a szenzormérés két úton (Apple Health és CareLink) ~1 percen belül kétszer szerepelt: a Health-ből
 //    jött (percre kerekített) másolat törlődik, a CareLink pontos időpontú sora marad;
-//  - a típus nélküli, bázisnak tekintendő inzulinadagok (a beállított bázisadag, vagy a maximális bólusnál nagyobb)
-//    bázis jelölést kapnak, hogy a napi összesítők és az elemzés is úgy kezelje.
+//  - a típus nélküli, bázisnak látszó adagot nem írjuk át: a besorolás (insulinKind / isAssumedBasal) futásidőben,
+//    a mostani beállításból ismeri fel, így a bázisadag módosítása a régi sorokat nem változtatja meg végleg.
 // Ha bármi változott, a tárolt elemzések a háttérben újraszámolódnak.
 import { db, GLUCOSE_DUP_SEC, MANUAL_SOURCE } from '../utils/db'
-import { isAssumedBasal } from '../utils/basal'
 import { markDirty } from '../utils/computed'
 
 export default defineNitroPlugin(() => {
@@ -24,7 +23,7 @@ function cleanup(): void {
       `DELETE FROM entries WHERE id IN (
          SELECT a.id FROM entries a
          JOIN entries b ON b.type = 'glucose' AND b.id <> a.id AND b.source = 'CareLink'
-           AND b.ts BETWEEN a.ts - ? AND a.ts + ? AND ABS(b.value - a.value) <= 0.2
+           AND b.ts BETWEEN a.ts - ? AND a.ts + ? AND ABS(b.value - a.value) <= 0.2 + 1e-9
          WHERE a.type = 'glucose' AND (a.source IS NULL OR a.source NOT IN ('CareLink', ?))
        )`,
     ).run(GLUCOSE_DUP_SEC, GLUCOSE_DUP_SEC, MANUAL_SOURCE)
@@ -42,19 +41,10 @@ function cleanup(): void {
       }
       saveSettings({ fix_basal_v1: true })
     }
-    const untyped = d.prepare("SELECT id, value FROM entries WHERE type = 'insulin' AND (subtype IS NULL OR subtype = '')").all() as { id: number; value: number }[]
-    const setBasal = d.prepare("UPDATE entries SET subtype = 'basal' WHERE id = ?")
-    let basal = 0
-    for (const r of untyped) {
-      if (isAssumedBasal(Number(r.value), null)) {
-        setBasal.run(r.id)
-        basal++
-      }
-    }
     const removed = Number(dup.changes)
     const relabeled = Number(inpen.changes)
-    if (removed || basal || unbasal || relabeled) {
-      console.log(`[adattisztítás] ${removed} dupla szenzorérték törölve, ${basal} adag bázisnak jelölve, ${unbasal} tévesen bázisnak jelölt adag visszaállítva, ${relabeled} InPen-vércukor kézi mérésnek jelölve`)
+    if (removed || unbasal || relabeled) {
+      console.log(`[adattisztítás] ${removed} dupla szenzorérték törölve, ${unbasal} tévesen bázisnak jelölt adag visszaállítva, ${relabeled} InPen-vércukor kézi mérésnek jelölve`)
       markDirty()
     }
   } catch (e) {
