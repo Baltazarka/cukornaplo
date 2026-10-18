@@ -114,11 +114,12 @@ function syncDose() {
   logDose.value = String(v).replace('.', ',')
 }
 watch(() => [result.value?.dose, fpuTogetherExtra.value, data.value?.maxBolus] as const, syncDose, { immediate: true })
-watch([carbs, bg, logCarbSub, fatG, proteinG], () => {
+// Csak a kézi módosításra (a CGM-frissítés a vércukor mezőt magától is átírja: az nem írhatja felül a beírt adagot).
+function inputChanged() {
   if (!doseTouched.value) return
   doseTouched.value = false
-  syncDose()
-})
+  nextTick(syncDose)
+}
 const doseV = computed(() => num(logDose.value))
 // Üres vagy 0 adag nem hiba (pl. nem kell inzulin): olyankor bólus nem kerül a naplóba.
 const doseInvalid = computed(() => logInsulin.value && logDose.value.trim() !== '' && doseV.value !== 0
@@ -153,6 +154,7 @@ function clearInputs() {
   logDose.value = ''
   doseTouched.value = false
   logCarbs.value = true
+  logInsulin.value = true
 }
 const resetTick = useState<number>('bolus-reset', () => 0)
 watch(resetTick, clearInputs)
@@ -160,7 +162,7 @@ watch(resetTick, clearInputs)
 // --- Átvitel a Guardian appba: beírás után a CH és az adag egy sorban (GuardianLine) ---
 const lastLogged = ref<{ carbs: number | null; dose: number | null } | null>(null)
 // Új számolás kezdetén a sor eltűnik.
-watch(carbs, (v) => { if (v.trim() !== '') lastLogged.value = null })
+watch(carbs, (v) => { if (v.trim() !== '') { lastLogged.value = null; logCarbs.value = true; logInsulin.value = true } })
 
 async function logToDiary() {
   logBusy.value = true
@@ -186,11 +188,16 @@ async function logToDiary() {
         logged.dose = doseV.value
       } else skipped = true
     }
-    lastLogged.value = done.length ? logged : null
+    // Részleges beírás utáni újrapróbálásnál a korábban beírt CH is megmarad a Guardian-sorban.
+    lastLogged.value = done.length ? { carbs: logged.carbs ?? lastLogged.value?.carbs ?? null, dose: logged.dose ?? lastLogged.value?.dose ?? null } : null
     logMsg.value = done.length ? `Beírva a naplóba: ${done.join(', ')}.` : skipped ? '' : 'Nem történt beírás.'
     // Ha minden a naplóba került, a kalkulátor üres, készen áll a következőre (dupla miatt kihagyottnál megmarad).
     if (done.length && !skipped) clearInputs()
-    else if (logged.carbs != null) logCarbs.value = false
+    else {
+      // A már beírt részt újra ne küldje.
+      if (logged.carbs != null) logCarbs.value = false
+      if (logged.dose != null) logInsulin.value = false
+    }
   } catch (e: any) {
     // Részleges hiba (pl. a CH bekerült, a bólus nem): a már beírt CH-t újra ne küldje, csak a bólust.
     if (logged.carbs != null) {
@@ -230,10 +237,10 @@ const trendText = computed(() => {
     <template v-else-if="seg">
       <form class="bc-form" @submit.prevent>
         <label>Szénhidrát
-          <span class="bc-input"><input v-model="carbs" type="text" inputmode="numeric" placeholder="0"><small>g</small></span>
+          <span class="bc-input"><input v-model="carbs" type="text" inputmode="numeric" placeholder="0" @input="inputChanged"><small>g</small></span>
         </label>
         <label>Vércukor
-          <span class="bc-input"><input v-model="bg" type="text" inputmode="decimal" placeholder="–" @input="bgTouched = true"><small>mmol/L</small></span>
+          <span class="bc-input"><input v-model="bg" type="text" inputmode="decimal" placeholder="–" @input="bgTouched = true; inputChanged()"><small>mmol/L</small></span>
         </label>
       </form>
       <div class="bc-cgm small">
@@ -290,7 +297,7 @@ const trendText = computed(() => {
         <b>Beírás a naplóba</b>
         <label v-if="carbsV" class="bc-log-row">
           <span class="bc-log-check"><input v-model="logCarbs" type="checkbox"> CH <b>{{ fmt(carbsV, 0) }} g</b></span>
-          <select v-model="logCarbSub" class="sub-select" aria-label="Étkezés típusa" :title="logCarbSub === 'fatty' ? CARB_TAG_HINT.fatty : logCarbSub === 'fast' ? CARB_TAG_HINT.fast : CARB_TAG_HINT.normal">
+          <select v-model="logCarbSub" class="sub-select" @change="inputChanged" aria-label="Étkezés típusa" :title="logCarbSub === 'fatty' ? CARB_TAG_HINT.fatty : logCarbSub === 'fast' ? CARB_TAG_HINT.fast : CARB_TAG_HINT.normal">
             <option value="" :title="CARB_TAG_HINT.normal">normál</option>
             <option value="fatty" :title="CARB_TAG_HINT.fatty">{{ CARB_TAG_ICON.fatty }} zsíros / fehérjedús</option>
             <option value="fast" :title="CARB_TAG_HINT.fast">{{ CARB_TAG_ICON.fast }} gyors CH</option>
@@ -299,8 +306,8 @@ const trendText = computed(() => {
         </label>
         <div v-if="carbsV && logCarbSub === 'fatty'" class="bc-log-row">
           <span class="muted">Ha tudod:</span>
-          <label class="bc-fpu-in">zsír <span class="bc-input"><input v-model="fatG" type="text" inputmode="decimal" placeholder="0" aria-label="Zsír, gramm"><small>g</small></span></label>
-          <label class="bc-fpu-in">fehérje <span class="bc-input"><input v-model="proteinG" type="text" inputmode="decimal" placeholder="0" aria-label="Fehérje, gramm"><small>g</small></span></label>
+          <label class="bc-fpu-in">zsír <span class="bc-input"><input v-model="fatG" type="text" inputmode="decimal" placeholder="0" aria-label="Zsír, gramm" @input="inputChanged"><small>g</small></span></label>
+          <label class="bc-fpu-in">fehérje <span class="bc-input"><input v-model="proteinG" type="text" inputmode="decimal" placeholder="0" aria-label="Fehérje, gramm" @input="inputChanged"><small>g</small></span></label>
         </div>
         <p v-if="carbsV && logCarbSub === 'fatty' && fpu" class="muted bc-hint">
           Zsír-fehérje: kb. {{ fmt(fpu.units) }} egység (≈ {{ fmt(fpu.carbEq, 0) }} g CH) →
