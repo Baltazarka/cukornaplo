@@ -195,6 +195,8 @@ export interface CorrectionEvent {
   isf: number
   /** Esés egységenként (mmol/L/E) 0 … 360 percig, 5 percenként. */
   perUnit: (number | null)[]
+  /** Rövidített ablak: a hatásidőn belül, de legalább 3 óra után étel / bólus / zavaró jegyzet jött, a görbe addig tart. */
+  truncated?: boolean
 }
 
 /**
@@ -475,9 +477,20 @@ export function analyze(from: number, to: number) {
     const dia = diaAt(b.ts)
     const cleanEnd = b.ts + dia * 60
     const pre = b.ts - CORR_PRE_MIN * 60
-    if (boluses.some((x) => x !== b && x.ts >= pre && x.ts <= cleanEnd)) continue
-    if (carbs.some((c) => c.ts >= pre && c.ts <= cleanEnd)) continue
-    if (disturbed(pre, cleanEnd)) continue
+    // Előtte 1 óráig nincs más bólus, CH és zavaró jegyzet.
+    if (boluses.some((x) => x !== b && x.ts >= pre && x.ts <= b.ts)) continue
+    if (carbs.some((c) => c.ts >= pre && c.ts <= b.ts)) continue
+    if (disturbed(pre, b.ts)) continue
+    // Utána a hatásidőig sincs. Ha ilyen csak legalább 3 óra után jön (pl. vacsora), a korrekció a zavarásig
+    // számít (rövidített ablak, mint az étkezésnél); korábban nem tiszta.
+    const disturbAt = Math.min(
+      ...boluses.filter((x) => x !== b && x.ts > b.ts && x.ts <= cleanEnd).map((x) => x.ts),
+      ...carbs.filter((c) => c.ts > b.ts && c.ts <= cleanEnd).map((c) => c.ts),
+      ...disturbTs.filter((ts) => ts > b.ts && ts <= cleanEnd),
+      Infinity,
+    )
+    const truncated = Number.isFinite(disturbAt)
+    if (truncated && disturbAt - b.ts < TRUNC_MIN * 60) continue
     // Korábbi étkezés még felszívódó CH-ja (a mérete szerinti felszívódási ideig) és korábbi bólusok még ható
     // maradéka sem torzíthat: a 60 perces előzmény kevés (egy 1–3 órával korábbi étkezési bólus maradéka több E
     // lehet, mint maga a korrekció).
@@ -494,15 +507,16 @@ export function analyze(from: number, to: number) {
     const bgBefore = sample(b.ts - 900)
     if (bgBefore != null && Math.abs(startBG - bgBefore) / 15 >= STEEP_RATE) continue
     // A következő étkezés vagy bólus (a hatásidő után): onnantól a görbe már nem tiszta.
-    const nextEvent = Math.min(
+    const nextEvent = truncated ? disturbAt : Math.min(
       ...boluses.filter((x) => x !== b && x.ts > cleanEnd).map((x) => x.ts),
       ...carbs.filter((c) => c.ts > cleanEnd).map((c) => c.ts),
       b.ts + CORR_WINDOW_MIN * 60 + 1,
     )
     const raw = curveAround(sample, b.ts, 0, CORR_WINDOW_MIN).values
     const values = raw.map((v, i) => (b.ts + i * STEP * 60 < nextEvent ? v : null))
-    // A lefedettséget a kötelezően tiszta ablakra (a hatásidőre) nézzük.
-    const win = values.slice(0, Math.floor(Math.min(dia, CORR_WINDOW_MIN) / STEP) + 1)
+    // A lefedettséget a kötelezően tiszta ablakra (a hatásidőre, rövidített ablaknál a zavarásig) nézzük.
+    const winMin = truncated ? Math.floor((disturbAt - b.ts) / 60 / STEP) * STEP : Math.min(dia, CORR_WINDOW_MIN)
+    const win = values.slice(0, Math.floor(winMin / STEP) + (truncated ? 0 : 1))
     if (win.filter((v) => v != null).length / win.length < MIN_COVERAGE) continue
     const drops = values.map((v) => (v == null ? null : startBG - v))
     const best = Math.max(...drops.map((d) => d ?? 0))
@@ -517,6 +531,7 @@ export function analyze(from: number, to: number) {
       drop: r1(best),
       isf: r2(best / b.v),
       perUnit: drops.map((d) => (d == null ? null : r2(d / b.v))),
+      ...(truncated ? { truncated: true } : {}),
     })
   }
 

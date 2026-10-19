@@ -58,6 +58,7 @@ becslés   = (modell · w + trend) ÷ (w + 1),  w = 0,1 · 2,5^(t ÷ 5 perc)</pr
       <div>
         <h3>Becslés a mért adatokból</h3>
         <pre>ISF, hatásidő: tiszta korrekciók esése ÷ E, illesztve
+               (3 óra utáni zavarásnál a zavarásig)
                esés(t) ≈ ISF × (1 − aktív(t))
 CH-arány = felszívódott CH ÷ (hatott inzulin + (végpont − kezdő) ÷ ISF)
 végpont: 4–6 óra;  3 óra utáni zavarásnál a zavarásig</pre>
