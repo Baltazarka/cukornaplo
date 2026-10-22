@@ -11,6 +11,7 @@ import { notesBetween } from '../utils/notes'
 import { rapidDoses, iobAt, bolusPeak } from '../utils/iob'
 import { detectHypos, hypoCount } from '../utils/hypo'
 import { carbCurve, cobAt, absorbCategory } from '../utils/absorption'
+import { excludedBetween } from '../utils/excluded'
 
 export default defineEventHandler((event) => {
   const q = getQuery(event)
@@ -23,9 +24,12 @@ export default defineEventHandler((event) => {
   const dayEnd = startOfDayTs(addDaysYmd(day, 1))
   const rangeStart = startOfDayTs(addDaysYmd(day, -13))
 
-  const rows = db()
-    .prepare('SELECT id, type, ts, value, subtype, source, fat, protein FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
+  const allRows = db()
+    .prepare('SELECT id, type, ts, value, subtype, source, fat, protein, excluded FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
     .all(rangeStart, dayEnd) as any[]
+  // A kizárt szenzorértékek (pl. ráfekvés) semmibe nem számítanak, csak a grafikonon látszanak szürkén.
+  const rows = allRows.filter((r) => !r.excluded)
+  const excludedGlucose = allRows.filter((r) => r.excluded && Number(r.ts) >= dayStart).map((r) => [Number(r.ts) * 1000, Number(r.value)])
 
   const dayRows = { glucose: [] as any[], insulin: [] as any[], carbs: [] as any[] }
   // Kézzel felvitt vércukor: pontos mérés, a statisztikákba beleszámít, de külön listában (a naplóban és a grafikonon
@@ -92,7 +96,7 @@ export default defineEventHandler((event) => {
     .map((e) => ({ ts: Number(e.ts), v: Number(e.value), sub: e.subtype ?? null }))
   // A nap előtti és utáni 8 óra vércukra: a grafikon meghosszabbított (átlógó) szakaszaihoz.
   const glucoseExt = (db()
-    .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND (source IS NULL OR source != 'manual') AND ((ts >= ? AND ts < ?) OR (ts >= ? AND ts < ?)) ORDER BY ts")
+    .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND (source IS NULL OR source != 'manual') AND ((ts >= ? AND ts < ?) OR (ts >= ? AND ts < ?)) AND excluded = 0 ORDER BY ts")
     .all(dayStart - 8 * 3600, dayStart, dayEnd, dayEnd + 8 * 3600) as { ts: number; value: number }[]).map((r) => [Number(r.ts) * 1000, Number(r.value)])
   const nowTs = Math.floor(Date.now() / 1000)
   const cobNow = day === today ? Math.round(cobAt(cobCarbs, nowTs) * 10) / 10 : null
@@ -109,6 +113,8 @@ export default defineEventHandler((event) => {
     range: { veryLow: RANGE_VERY_LOW, low, high, veryHigh: RANGE_VERY_HIGH },
     glucose: dayRows.glucose.map((g) => [g.ts * 1000, g.v]),
     glucoseExt,
+    excludedGlucose,
+    excluded: excludedBetween(dayStart - 8 * 3600, dayEnd + 8 * 3600).map((x) => ({ id: x.id, from: x.from * 1000, to: x.to * 1000 })),
     manualGlucose: manualGlucose.map((g) => [g.ts * 1000, g.v]),
     insulin: dayRows.insulin.map((e) => [e.ts * 1000, e.v, e.kind]),
     carbs: dayRows.carbs.map((e) => [e.ts * 1000, e.v, e.sub === 'fatty' || e.sub === 'fast' ? e.sub : null]),

@@ -208,7 +208,7 @@ export function analyze(from: number, to: number) {
   const loadFrom = from - 8 * 3600
   const loadTo = to + 7 * 3600
   const rows = db()
-    .prepare('SELECT type, ts, value, subtype, source, fat, protein FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
+    .prepare('SELECT type, ts, value, subtype, source, fat, protein FROM entries WHERE ts >= ? AND ts < ? AND excluded = 0 ORDER BY ts')
     .all(loadFrom, loadTo) as { type: string; ts: number; value: number; subtype: string | null; source: string | null; fat: number | null; protein: number | null }[]
 
   const glucose: G[] = []

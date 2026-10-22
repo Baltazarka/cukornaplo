@@ -49,6 +49,14 @@ export function db(): DatabaseSync {
   const cols = new Set((d.prepare('PRAGMA table_info(entries)').all() as { name: string }[]).map((c) => c.name))
   if (!cols.has('fat')) d.exec('ALTER TABLE entries ADD COLUMN fat REAL')
   if (!cols.has('protein')) d.exec('ALTER TABLE entries ADD COLUMN protein REAL')
+  // Kizárt szenzorérték (pl. ráfekvés): a jelölt szakaszban 1, minden számolásból kimarad (utils/excluded.ts).
+  if (!cols.has('excluded')) d.exec('ALTER TABLE entries ADD COLUMN excluded INTEGER NOT NULL DEFAULT 0')
+  d.exec(`CREATE TABLE IF NOT EXISTS excluded_ranges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_ts INTEGER NOT NULL,
+    to_ts INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  )`)
   d.exec('CREATE TABLE IF NOT EXISTS login_failures (ip TEXT NOT NULL, ts INTEGER NOT NULL)')
   // Kézzel törölt bejegyzések. A telefon a következő küldésnél újra elküldené őket
   // (mindig az utolsó napokat küldi), ezért a beírás ezeket kihagyja.
@@ -197,6 +205,10 @@ export function storeRows(rows: Row[]): [number, number] {
   const sameSlot = d.prepare(
     "SELECT 1 FROM entries WHERE type = 'glucose' AND source = 'CareLink' AND ts BETWEEN ? AND ? LIMIT 1",
   )
+  // Kizárt szakaszba (pl. késve érkező) szenzorérték is kizárva kerül be.
+  const markExcluded = d.prepare(
+    "UPDATE entries SET excluded = 1 WHERE type = 'glucose' AND ts = ? AND value = ? AND EXISTS (SELECT 1 FROM excluded_ranges x WHERE ? BETWEEN x.from_ts AND x.to_ts)",
+  )
   const now = Math.floor(Date.now() / 1000)
   let inserted = 0
   d.exec('BEGIN')
@@ -211,6 +223,7 @@ export function storeRows(rows: Row[]): [number, number] {
       const sub = manual?.subtype && (r.subtype == null || r.subtype === 'bolus') ? manual.subtype : r.subtype
       const info = stmt.run(r.type, r.ts, r.value, sub, r.source, now, r.type, r.ts, r.value)
       inserted += Number(info.changes)
+      if (r.type === 'glucose' && r.source !== MANUAL_SOURCE && Number(info.changes) > 0) markExcluded.run(r.ts, r.value, r.ts)
       if (manual && Number(info.changes) > 0) {
         if (manual.fat != null || manual.protein != null) copyMacros.run(manual.fat, manual.protein, r.type, r.ts, r.value)
         dropManual.run(manual.id)

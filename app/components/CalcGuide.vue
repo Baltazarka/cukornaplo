@@ -131,7 +131,13 @@ onBeforeUnmount(() => {
                 <div><dt>Dupla mérés</dt><dd>
                   ugyanaz a szenzormérés két úton is beérkezhet (CareLink és Apple Health, ~1 perc eltéréssel). A 2,5 percen
                   belüli, 0,2 mmol/L-nél kisebb eltérésű szenzorértéket csak egyszer vesszük fel; a már meglévő duplákból a
-                  CareLink-es (pontos időpontú) sor marad.
+                  CareLink-es (pontos időpontú) sor marad. Egy 5 perces méréshez csak egy CareLink-érték tartozhat.
+                </dd></div>
+                <div><dt>Kizárt szakasz</dt><dd>
+                  a napi grafikon „Szenzorhiba kijelölése” gombjával (utána kattints a hibás szakasz elejére, majd a végére)
+                  egy szakasz szenzorértékei kizárhatók, pl. ráfekvés okozta hamis mélynél. Ezek semmibe nem számítanak bele
+                  (mutatók, hipóesemények, elemzés, előrejelzés), a grafikonon szürke szaggatott vonallal látszanak; a grafikon
+                  alatti „Kizárva …” címke × gombjával visszavonható. A kézi mérést nem érinti.
                 </dd></div>
                 <div><dt>GMI (becsült HbA1c)</dt><dd>
                   <code class="guide-f">GMI (%) = 3,31 + 0,02392 × átlag (mg/dL)</code>, ahol mg/dL = mmol/L × 18,018

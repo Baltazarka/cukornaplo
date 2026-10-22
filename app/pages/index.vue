@@ -349,7 +349,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
         </form>
       </div>
       <ClientOnly>
-        <GlucoseDayChart :day="data" />
+        <GlucoseDayChart :day="data" @changed="refresh(); entriesChanged()" />
         <template #fallback><div class="chart-box" /></template>
       </ClientOnly>
     </section>

@@ -17,7 +17,7 @@ export function widgetData(hours: number) {
   const now = Math.floor(Date.now() / 1000)
   const { low, high } = targetRange()
   const sensor = (db()
-    .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND (source IS NULL OR source != 'manual') AND ts >= ? ORDER BY ts")
+    .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND (source IS NULL OR source != 'manual') AND ts >= ? AND excluded = 0 ORDER BY ts")
     .all(now - Math.max(hours, 1) * 3600) as any[]).map((r) => ({ ts: Number(r.ts), v: Number(r.value) }))
   const last = sensor.at(-1)
   const tr = last ? lastTrend(sensor) : null

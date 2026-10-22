@@ -4,6 +4,7 @@
 // kitöltve), inzulin (bólus/bázis) és szénhidrát oszlopok. A crosshair mindhárom panelt
 // összeköti, a tooltip egyszerre mutatja az értékeket.
 const props = defineProps<{ day: any }>()
+const emit = defineEmits<{ (e: 'changed'): void }>()
 
 // Előrejelzés a mai napon (szaggatott vonal): a felvett inzulinból, szénhidrátból és a trendből.
 // Az időtáv (0 = ki) a böngészőben megmarad.
@@ -28,6 +29,67 @@ async function loadForecast() {
 function setForecastHours() {
   try { localStorage.setItem('forecastHours', String(forecastHours.value)) } catch { /* nincs localStorage */ }
   loadForecast()
+}
+
+// --- Szenzorhiba (pl. ráfekvés) kijelölése: a gomb után a grafikonon a szakasz elejére, majd a végére kattintasz.
+// A kizárt szakasz szenzorértékei semmibe nem számítanak (statisztika, hipó, elemzés), a grafikonon szürkén látszanak.
+const pickMode = ref(false)
+const pickStart = ref<number | null>(null)
+const pickBusy = ref(false)
+function startPick() {
+  pickMode.value = true
+  pickStart.value = null
+  render()
+}
+function cancelPick() {
+  pickMode.value = false
+  pickStart.value = null
+  render()
+}
+const roundMin = (ms: number) => Math.round(ms / 60000) * 60000
+async function onChartClick(ms: number) {
+  if (!pickMode.value || pickBusy.value) return
+  const d = props.day
+  const x = Math.min(Math.max(roundMin(ms), d.dayStartMs - 8 * 3600000), Math.min(Date.now(), d.dayEndMs + 8 * 3600000))
+  if (pickStart.value == null) {
+    pickStart.value = x
+    render()
+    return
+  }
+  const from = Math.min(pickStart.value, x)
+  const to = Math.max(pickStart.value, x)
+  const n = [...(d.glucose ?? []), ...(d.glucoseExt ?? [])].filter((p: [number, number]) => p[0] >= from && p[0] <= to).length
+  pickBusy.value = true
+  try {
+    if (to - from < 5 * 60000) {
+      useToast().error('Túl rövid szakasz: kattints a végére legalább 5 perccel később.')
+      return
+    }
+    const ok = await askConfirm(
+      `Kizárod a szenzorértékeket ${hm(from)} és ${hm(to)} között (${n} mérés)?\n\nPl. ráfekvés okozta hamis mélynél. Ezek az értékek nem számítanak a statisztikába, a hipóeseményekbe és az elemzésbe; a grafikonon szürkén látszanak. Később visszavonható.`,
+      { confirmLabel: 'Kizárás' },
+    )
+    if (!ok) return
+    await $fetch('/api/excluded', { method: 'POST', body: { from: Math.floor(from / 1000), to: Math.floor(to / 1000) } })
+    pickMode.value = false
+    pickStart.value = null
+    useToast().success(`Kizárva: ${hm(from)}–${hm(to)}.`)
+    emit('changed')
+  } catch (e: any) {
+    useToast().error(e?.data?.error ?? 'A kizárás nem sikerült.')
+  } finally {
+    pickBusy.value = false
+    render()
+  }
+}
+async function removeExcluded(x: { id: number; from: number; to: number }) {
+  if (!(await askConfirm(`Visszavonod a kizárást (${hm(x.from)}–${hm(x.to)})? Az értékek újra beleszámítanak.`, { confirmLabel: 'Visszavonás' }))) return
+  try {
+    await $fetch('/api/excluded-delete', { method: 'POST', body: { id: x.id } })
+    emit('changed')
+  } catch (e: any) {
+    useToast().error(e?.data?.error ?? 'A visszavonás nem sikerült.')
+  }
 }
 
 const el = ref<HTMLElement | null>(null)
@@ -144,6 +206,13 @@ function buildOption() {
     if (i > 0 && p[0] - gSrc[i - 1][0] > 15 * 60000) g.push([p[0] - 1, null])
     g.push([p[0], p[1]])
   })
+  // Kizárt szenzorértékek (pl. ráfekvés): 15 percnél hosszabb szünetnél megszakadnak.
+  const excludedG: [number, number | null][] = []
+  ;((d.excludedGlucose ?? []) as [number, number][]).forEach((p, i, a) => {
+    if (i > 0 && p[0] - a[i - 1][0] > 15 * 60000) excludedG.push([p[0] - 1, null])
+    excludedG.push([p[0], p[1]])
+  })
+  const excludedAreas = ((d.excluded ?? []) as { from: number; to: number }[]).map((x) => [{ xAxis: x.from }, { xAxis: x.to }])
   // Kézzel felvitt vércukor (kézi mérés): rombusz jelölő, a görbétől külön.
   const manualG = ((d.manualGlucose ?? []) as [number, number][]).filter((p) => p[0] >= axisMin && p[0] <= axisMax)
   const gMax = [...d.glucose, ...manualG].reduce((m: number, p: [number, number]) => Math.max(m, p[1]), 0)
@@ -460,6 +529,27 @@ function buildOption() {
           data: [{ yAxis: r.low }, { yAxis: r.high }],
         },
       },
+      // Kizárt szenzorértékek (szürke, szaggatott) és a kizárt szakaszok sávja; kijelöléskor a választott kezdőpont.
+      ...(excludedG.length
+        ? [{
+            name: 'Kizárt', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: excludedG, symbol: 'none', silent: true, z: 3,
+            connectNulls: false, tooltip: { show: false }, lineStyle: { width: 1.5, type: [4, 3], color: rgba(C.muted, 0.8) },
+          }]
+        : []),
+      ...(excludedAreas.length || pickStart.value != null
+        ? [{
+            type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: [], silent: true, z: 1, tooltip: { show: false },
+            markArea: {
+              silent: true,
+              itemStyle: { color: rgba(C.muted, 0.14) },
+              label: { show: true, position: 'insideTop', distance: 16, color: C.muted, fontSize: 10, formatter: 'kizárva' },
+              data: excludedAreas,
+            },
+            ...(pickStart.value != null
+              ? { markLine: { silent: true, symbol: 'none', label: { show: true, formatter: 'kezdet', color: C.low, fontSize: 10 }, lineStyle: { color: C.low, width: 1.5, type: [5, 4] }, data: [{ xAxis: pickStart.value }] } }
+              : {}),
+          }]
+        : []),
       ...(forecast.value.length > 1
         ? [{
             name: 'Előrejelzés', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: forecast.value, symbol: 'none', silent: true, z: 4,
@@ -500,7 +590,15 @@ async function render() {
   if (!echarts) echarts = await import('echarts')
   // A betöltés alatt a komponens eltűnhetett (pl. másik napra lapozás).
   if (!el.value) return
-  if (!chart) chart = echarts.init(el.value, null, { renderer: 'canvas', devicePixelRatio: Math.max(2, window.devicePixelRatio || 1) })
+  if (!chart) {
+    chart = echarts.init(el.value, null, { renderer: 'canvas', devicePixelRatio: Math.max(2, window.devicePixelRatio || 1) })
+    // Szenzorhiba kijelölésekor a kattintás helye az időtengelyen.
+    chart.getZr().on('click', (e: any) => {
+      if (!pickMode.value || !chart) return
+      const ms = chart.convertFromPixel({ xAxisIndex: 0 }, e.offsetX)
+      if (Number.isFinite(ms)) onChartClick(ms)
+    })
+  }
   chart.setOption(buildOption(), true)
 }
 
@@ -595,6 +693,19 @@ const actionText = computed(() => {
       </label>
       <span v-if="forecast.length > 1" class="muted small">A szaggatott vonal becslés a felvett inzulinból, CH-ból és a trendből; új étkezést vagy adagot nem ismer, nem helyettesíti a szenzor riasztását.</span>
     </div>
-    <div ref="el" class="chart-box" />
+    <div v-if="!readOnly" class="exclude-bar">
+      <template v-if="!pickMode">
+        <button type="button" class="ghost sm" title="Pl. ráfekvés okozta hamis mély: a kijelölt szakasz szenzorértékei nem számítanak bele semmibe" @click="startPick">Szenzorhiba kijelölése</button>
+      </template>
+      <template v-else>
+        <span class="small exclude-hint">{{ pickStart == null ? 'Kattints a grafikonon a hibás szakasz elejére…' : `Kezdet: ${hm(pickStart)}. Most kattints a végére…` }}</span>
+        <button type="button" class="ghost sm" @click="cancelPick">Mégse</button>
+      </template>
+      <span v-for="x in day.excluded ?? []" :key="x.id" class="exclude-chip small">
+        Kizárva {{ hm(x.from) }}–{{ hm(x.to) }}
+        <button type="button" class="link-btn" :aria-label="`Kizárás visszavonása ${hm(x.from)}–${hm(x.to)}`" title="Visszavonás" @click="removeExcluded(x)">×</button>
+      </span>
+    </div>
+    <div ref="el" class="chart-box" :class="{ picking: pickMode }" />
   </div>
 </template>

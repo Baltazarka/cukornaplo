@@ -822,6 +822,11 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
 .clean-meal p { margin: 4px 0 0; }
 @media (max-width: 760px) { .clean-meals { grid-template-columns: minmax(0, 1fr); } }
 
+.exclude-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 4px 0 6px; }
+.exclude-hint { color: var(--status-critical); font-weight: 600; }
+.exclude-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--text-muted) 14%, transparent); color: var(--text-secondary); }
+.exclude-chip .link-btn { background: none; border: 0; padding: 0 2px; cursor: pointer; color: inherit; font-size: 15px; line-height: 1; }
+.chart-box.picking { cursor: crosshair; outline: 2px dashed var(--status-critical); outline-offset: 2px; border-radius: 4px; }
 .forecast-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 8px; }
 .forecast-pick label { display: inline-flex; align-items: center; gap: 6px; }
 .forecast-pick select { padding: 4px 8px; }

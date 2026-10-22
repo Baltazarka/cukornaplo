@@ -14,7 +14,7 @@ export default defineEventHandler(() => {
 
   // A legutóbbi érték: szenzor vagy kézi mérés (amelyik újabb). A trend csak a szenzoradatból számolódik.
   const all = (db()
-    .prepare("SELECT ts, value, source FROM entries WHERE type = 'glucose' AND ts >= ? ORDER BY ts")
+    .prepare("SELECT ts, value, source FROM entries WHERE type = 'glucose' AND ts >= ? AND excluded = 0 ORDER BY ts")
     .all(now - 3600) as any[]).map((r) => ({ ts: Number(r.ts), v: Number(r.value), manual: r.source === 'manual' }))
   const recent = all.filter((p) => !p.manual)
   const last = all.at(-1)

@@ -15,6 +15,7 @@ Személyes cukorbetegség-napló. Nuxt 4 (SPA, `ssr: false`) + Nitro szerver, SQ
 - Értesítés a felületen: `useToast()` / `useToastFrom()` (nincs böngészős `alert()`); kérdés: `askConfirm()` (nincs `confirm()`).
 - Mobil elrendezés: `main.css`-ben a ≤700 px szabályok (`display: contents` + `order`).
 - A kézi vércukor (`entries.source='manual'`) a statisztikába beleszámít, de a szenzorlefedettségbe, trendbe és a görbébe nem.
+- Kizárt szenzorszakasz (ráfekvés stb., `excluded_ranges`, `entries.excluded = 1`, `server/utils/excluded.ts`): minden vércukrot olvasó lekérdezésbe kell az `AND excluded = 0`; a napi grafikon külön (`excludedGlucose`) szürkén mutatja.
 - Az `data/` mappa (jelszó-hash, API-kulcs, CareLink-kulcs, adatbázis) **soha nem kerülhet git-be**.
 
 ## Adatok és számolási döntések (a felhasználóval egyeztetve)

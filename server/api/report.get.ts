@@ -22,7 +22,7 @@ export default defineEventHandler((event) => {
   const to = startOfDayTs(addDaysYmd(end, 1))
 
   const rows = db()
-    .prepare('SELECT type, ts, value, subtype, source FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
+    .prepare('SELECT type, ts, value, subtype, source FROM entries WHERE ts >= ? AND ts < ? AND excluded = 0 ORDER BY ts')
     .all(from - MEAL_WINDOW_SEC, to + PREBOLUS_SEC) as { type: string; ts: number; value: number; subtype: string | null; source: string | null }[]
   const carbTs = rows.filter((r) => r.type === 'carbs').map((r) => Number(r.ts))
 
