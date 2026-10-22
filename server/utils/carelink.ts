@@ -243,10 +243,14 @@ function clParseTime(value: any): number | null {
  * időpontot ennyivel toljuk. A viszonyítás a készülék feltöltéskori ideje; csak ha az hiányzik, a legutolsó szenzorérték.
  * Csak a pontosan egész órás (±10 perc) eltérés számít időzóna-hibának: szenzorkimaradás után a legutolsó érték
  * 30–90 perccel is régebbi lehet, ami kerekítve tévesen egy órás eltolásnak látszana.
+ * Csak friss feltöltésnél (a szerveridő legfeljebb 20 perces): ha a telefon nem tölt fel (pl. frissítés, kikapcsolt
+ * app), a régi szerveridő és a készülékidő különbsége óránként nő, és egész óránál tévesen eltolta az egész napot
+ * (2026-10-22: az előző nap görbéje 1 és 2 órával eltolva még kétszer bekerült).
  */
-function clTimeShift(pd: any): number {
+function clTimeShift(pd: any, now = Math.floor(Date.now() / 1000)): number {
   const serverMs = pd.lastMedicalDeviceDataUpdateServerTime ?? pd.lastConduitUpdateServerDateTime ?? null
   if (typeof serverMs !== 'number' || serverMs <= 1) return 0
+  if (Math.abs(now - serverMs / 1000) > 20 * 60) return 0
   const deviceTs = clParseTime(pd.medicalDeviceTimeAsString ?? pd.sMedicalDeviceTime ?? null)
   const lastSg = pd.lastSG
   const lastTs = lastSg && typeof lastSg === 'object' ? clParseTime(lastSg.datetime ?? lastSg.timestamp ?? null) : null

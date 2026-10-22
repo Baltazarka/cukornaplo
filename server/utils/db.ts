@@ -192,12 +192,18 @@ export function storeRows(rows: Row[]): [number, number] {
   const nearGlucose = d.prepare(
     "SELECT 1 FROM entries WHERE type = 'glucose' AND ts BETWEEN ? AND ? AND ABS(value - ?) <= 0.2 + 1e-9 AND (source IS NULL OR source != ?) LIMIT 1",
   )
+  // A szenzor 5 percenként mér: ugyanarra az időpontra (±2,5 perc) a CareLinkből csak egy érték lehet. Más értékű,
+  // közeli sor eltolt időpontú másolat (pl. téves időzóna-javítás), nem vesszük fel.
+  const sameSlot = d.prepare(
+    "SELECT 1 FROM entries WHERE type = 'glucose' AND source = 'CareLink' AND ts BETWEEN ? AND ? LIMIT 1",
+  )
   const now = Math.floor(Date.now() / 1000)
   let inserted = 0
   d.exec('BEGIN')
   try {
     for (const r of rows) {
       if (r.type === 'glucose' && r.source !== MANUAL_SOURCE && nearGlucose.get(r.ts - GLUCOSE_DUP_SEC, r.ts + GLUCOSE_DUP_SEC, r.value, MANUAL_SOURCE)) continue
+      if (r.type === 'glucose' && r.source === 'CareLink' && sameSlot.get(r.ts - GLUCOSE_DUP_SEC, r.ts + GLUCOSE_DUP_SEC)) continue
       const manual = r.type !== 'glucose' && r.source !== MANUAL_SOURCE
         ? manualMatch.get(MANUAL_SOURCE, r.type, r.value, r.ts - MANUAL_MATCH_SEC, r.ts + MANUAL_MATCH_SEC, r.ts) as { id: number; subtype: string | null; fat: number | null; protein: number | null } | undefined
         : undefined

@@ -2,6 +2,7 @@
 //  - az InPenből jött vércukor ujjbegyes mérés: kézi mérésnek jelöljük (nem szenzoradat);
 //  - ugyanaz a szenzormérés két úton (Apple Health és CareLink) ~1 percen belül kétszer szerepelt: a Health-ből
 //    jött (percre kerekített) másolat törlődik, a CareLink pontos időpontú sora marad;
+//  - ugyanarra az időpontra (±2,5 perc) két CareLink-érték: a később felvett (eltolt időpontú másolat) törlődik;
 //  - a típus nélküli, bázisnak látszó adagot nem írjuk át: a besorolás (insulinKind / isAssumedBasal) futásidőben,
 //    a mostani beállításból ismeri fel, így a bázisadag módosítása a régi sorokat nem változtatja meg végleg.
 // Ha bármi változott, a tárolt elemzések a háttérben újraszámolódnak.
@@ -27,6 +28,17 @@ function cleanup(): void {
          WHERE a.type = 'glucose' AND (a.source IS NULL OR a.source NOT IN ('CareLink', ?))
        )`,
     ).run(GLUCOSE_DUP_SEC, GLUCOSE_DUP_SEC, MANUAL_SOURCE)
+    // Eltolt időpontú CareLink-másolatok (téves időzóna-javítás, lásd carelink.ts clTimeShift): ugyanarra az
+    // 5 perces mérésre két érték; az elsőként (élőben) felvett marad.
+    const shifted = d.prepare(
+      `DELETE FROM entries WHERE id IN (
+         SELECT a.id FROM entries a
+         JOIN entries b ON b.type = 'glucose' AND b.source = 'CareLink' AND b.id <> a.id
+           AND b.ts BETWEEN a.ts - ? AND a.ts + ?
+           AND (b.created_at < a.created_at OR (b.created_at = a.created_at AND b.id < a.id))
+         WHERE a.type = 'glucose' AND a.source = 'CareLink'
+       )`,
+    ).run(GLUCOSE_DUP_SEC, GLUCOSE_DUP_SEC)
     // Javítás (egyszer): egy korábbi, túl tág szabály a maximális bólusnál nagyobb étkezési bólust is bázisnak
     // jelölte. A bázisnak jelölt, de a bázisadagtól 25%-nál jobban eltérő és CH mellett (±30 perc) beadott adag
     // visszakapja a típus nélküli (automatikus) besorolást.
@@ -41,7 +53,7 @@ function cleanup(): void {
       }
       saveSettings({ fix_basal_v1: true })
     }
-    const removed = Number(dup.changes)
+    const removed = Number(dup.changes) + Number(shifted.changes)
     const relabeled = Number(inpen.changes)
     if (removed || unbasal || relabeled) {
       console.log(`[adattisztítás] ${removed} dupla szenzorérték törölve, ${unbasal} tévesen bázisnak jelölt adag visszaállítva, ${relabeled} InPen-vércukor kézi mérésnek jelölve`)
