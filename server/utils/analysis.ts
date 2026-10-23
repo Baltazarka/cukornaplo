@@ -179,6 +179,8 @@ export interface FpuEvent {
   hypoAfter: boolean
   /** Kiértékelhető: nincs más étel a végpontig, nincs hipó az ablakban, elég szenzoradat, nem gyorsan változó kezdés. */
   clean: boolean
+  /** Rövidített végpont: a várt hatásidő vége előtt (de legalább 3 óra után és a hatásidő 75%-án túl) jött étel / zavarás. */
+  truncated?: boolean
   /** A CH és az inzulin hatásán felüli emelés a végpontban, mmol/L (a zsír-fehérje hatása). */
   effect: number | null
   /** Ebből: a varsói érték hány %-ának felelt meg (100 = 1 egység pont annyit emelt, mint 10 g CH). */
@@ -549,7 +551,18 @@ export function analyze(from: number, to: number) {
     const startBG = sample(g.ts)
     if (startBG == null) continue
     const hours = fpuHours(units)
-    const endMin = Math.min(480, Math.max(MEAL_WINDOW_MIN, 60 + hours * 60))
+    const fullEndMin = Math.min(480, Math.max(MEAL_WINDOW_MIN, 60 + hours * 60))
+    // Rövidített végpont: ha a következő étel (vagy zavaró jegyzet) legalább 3 óra után és a várt hatásidő 75%-án túl
+    // jön, a végpont 5 perccel előtte van (a zsír-fehérje hatásának nagy része addigra lezajlott); korábban nem
+    // kiértékelhető.
+    const disturbAt = Math.min(
+      ...carbs.filter((c) => c.ts > g.last && c.ts <= g.ts + fullEndMin * 60).map((c) => c.ts),
+      ...disturbTs.filter((ts) => ts > g.ts && ts <= g.ts + fullEndMin * 60),
+      Infinity,
+    )
+    const truncMin = Number.isFinite(disturbAt) ? Math.floor((disturbAt - g.ts) / 60 / STEP) * STEP - STEP : null
+    const truncated = truncMin != null && truncMin >= Math.max(TRUNC_MIN, 0.75 * fullEndMin)
+    const endMin = truncated ? truncMin! : fullEndMin
     const end = g.ts + endMin * 60
     const own = new Set(g.boluses)
     const extraGiven = bolusesBetween(g.ts + 45 * 60, g.ts + 5 * 3600).filter((b) => !own.has(b)).reduce((a, b) => a + b.v, 0)
@@ -587,6 +600,7 @@ export function analyze(from: number, to: number) {
       extraGiven: r2(extraGiven),
       hypoAfter: lowIn(g.ts, g.ts + 8 * 3600),
       clean,
+      ...(truncated ? { truncated: true } : {}),
       effect: effect != null ? r1(effect) : null,
       pct,
     })
