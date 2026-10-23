@@ -92,6 +92,102 @@ async function removeExcluded(x: { id: number; from: number; to: number }) {
   }
 }
 
+// --- Nagyítás (csúszka nélkül): asztalin Ctrl + görgő (érintőpadon két ujjas csippentés), telefonon csippentés;
+// nagyítva húzással mozgatható. A sima görgetés és a függőleges húzás a lapot görgeti. Saját kezelés: az ECharts
+// beépített nagyítása a grafikon fölött minden görgetést elnyelne. A nagyítás az újrarajzolásokat túléli, másik napon
+// visszaáll.
+const zoomRange = ref<[number, number] | null>(null)
+/** A teljes (nagyítatlan) tengely, a legutóbbi rajzolásból. */
+let fullRange: [number, number] = [0, 0]
+const MIN_SPAN = 30 * 60000
+function viewRange(): [number, number] {
+  return zoomRange.value ?? fullRange
+}
+function setView(a: number, span: number) {
+  const [f0, f1] = fullRange
+  if (span >= f1 - f0 - 60000) {
+    zoomRange.value = null
+  } else {
+    span = Math.max(MIN_SPAN, span)
+    a = Math.min(Math.max(a, f0), f1 - span)
+    zoomRange.value = [a, a + span]
+  }
+  scheduleRender()
+}
+/** Nagyítás `center` (ms) körül: factor < 1 nagyít, > 1 kicsinyít; `base` a kiinduló nézet. */
+function zoomAt(center: number, factor: number, base = viewRange()) {
+  const [a, b] = base
+  const span = Math.min(fullRange[1] - fullRange[0], Math.max(MIN_SPAN, (b - a) * factor))
+  setView(center - (center - a) * (span / (b - a)), span)
+}
+function resetZoom() {
+  zoomRange.value = null
+  render()
+}
+watch(() => props.day?.day, () => { zoomRange.value = null })
+let rafId: ReturnType<typeof setTimeout> | 0 = 0
+function scheduleRender() {
+  if (rafId) return
+  rafId = setTimeout(() => {
+    rafId = 0
+    render()
+  }, 16)
+}
+/** Képernyő-x (a grafikon dobozához képest) → időpont, ms. */
+function msAtX(x: number): number | null {
+  const v = chart?.convertFromPixel({ xAxisIndex: 0 }, x)
+  return Number.isFinite(v) ? v : null
+}
+const plotPx = () => Math.max(200, (chart?.getWidth?.() ?? el.value?.clientWidth ?? 800) - GRID_LEFT - GRID_RIGHT)
+function onWheel(e: WheelEvent) {
+  if (!e.ctrlKey || !chart || !el.value) return
+  e.preventDefault()
+  const c = msAtX(e.clientX - el.value.getBoundingClientRect().left)
+  if (c != null) zoomAt(c, e.deltaY > 0 ? 1.25 : 0.8)
+}
+// Húzás (egér) nagyítva: mozgatás.
+let drag: { x: number; view: [number, number]; moved: boolean } | null = null
+function onMouseDown(e: MouseEvent) {
+  if (!zoomRange.value || e.button !== 0) return
+  drag = { x: e.clientX, view: zoomRange.value, moved: false }
+}
+function onMouseMove(e: MouseEvent) {
+  if (!drag) return
+  const dx = e.clientX - drag.x
+  if (Math.abs(dx) > 3) drag.moved = true
+  if (!drag.moved) return
+  const span = drag.view[1] - drag.view[0]
+  setView(drag.view[0] - (dx * span) / plotPx(), span)
+}
+function onMouseUp() { drag = null }
+// Érintés: két ujjal csippentés (nagyítás), nagyítva egy ujjal vízszintes húzás (mozgatás); a függőleges húzás a lapot görgeti.
+let touch: { d: number; cx: number; x: number; view: [number, number]; pinch: boolean } | null = null
+function onTouchStart(e: TouchEvent) {
+  if (!el.value) return
+  const left = el.value.getBoundingClientRect().left
+  if (e.touches.length === 2) {
+    const [p, q] = [e.touches[0], e.touches[1]]
+    const cx = msAtX((p.clientX + q.clientX) / 2 - left)
+    touch = cx == null ? null : { d: Math.abs(p.clientX - q.clientX) || 1, cx, x: 0, view: viewRange(), pinch: true }
+  } else if (e.touches.length === 1 && zoomRange.value) {
+    touch = { d: 0, cx: 0, x: e.touches[0].clientX, view: zoomRange.value, pinch: false }
+  }
+}
+function onTouchMove(e: TouchEvent) {
+  if (!touch) return
+  if (touch.pinch && e.touches.length === 2) {
+    e.preventDefault()
+    const d = Math.abs(e.touches[0].clientX - e.touches[1].clientX) || 1
+    zoomAt(touch.cx, touch.d / d, touch.view)
+  } else if (!touch.pinch && e.touches.length === 1) {
+    const span = touch.view[1] - touch.view[0]
+    setView(touch.view[0] - ((e.touches[0].clientX - touch.x) * span) / plotPx(), span)
+  }
+}
+function onTouchEnd(e: TouchEvent) {
+  if (e.touches.length === 0) touch = null
+}
+
 const el = ref<HTMLElement | null>(null)
 let chart: any = null
 let echarts: any = null
@@ -235,7 +331,12 @@ function buildOption() {
 
   // Oszlopok: ha egy bólus és egy bázis 5 percen belül esik, a kisebbiket egy oszlopnyival eltoljuk.
   const plotWidth = Math.max(200, (chart?.getWidth?.() ?? el.value?.clientWidth ?? 800) - GRID_LEFT - GRID_RIGHT)
-  const msPerPx = (axisMax - axisMin) / plotWidth
+  // Nagyítva a tengely a nagyított tartomány (a teljes tartományon belül).
+  fullRange = [axisMin, axisMax]
+  if (zoomRange.value && (zoomRange.value[0] < axisMin || zoomRange.value[1] > axisMax || zoomRange.value[1] - zoomRange.value[0] < MIN_SPAN)) zoomRange.value = null
+  const [viewMin, viewMax] = zoomRange.value ?? [axisMin, axisMax]
+  const viewSpan = viewMax - viewMin
+  const msPerPx = viewSpan / plotWidth
   const shiftMs = (BAR_WIDTH + 2) * msPerPx
   // [oszlop helye, adag, eredeti időpont, típus]; étkezési bólus és korrekció egy csoportban.
   const carryDoses = ((d.activeInsulin?.doses ?? []) as [number, number, number, string][])
@@ -430,10 +531,10 @@ function buildOption() {
     type: 'value' as const,
     gridIndex,
     containShape: false, // ECharts 6: különben az oszlopok miatt kitágítaná a tengelyt, és a panelek elcsúsznának
-    min: axisMin,
-    max: axisMax,
-    interval: 2 * 3600000,
-    axisLabel: { ...axisLabel, formatter: (v: number) => hm(v).slice(0, 2) },
+    min: viewMin,
+    max: viewMax,
+    interval: viewSpan <= 3 * 3600000 ? 30 * 60000 : viewSpan <= 8 * 3600000 ? 3600000 : 2 * 3600000,
+    axisLabel: { ...axisLabel, formatter: (v: number) => (viewSpan <= 3 * 3600000 ? hm(v) : hm(v).slice(0, 2)) },
     axisLine,
     axisTick: { show: true },
     splitLine: { show: true, lineStyle: { color: C.grid } },
@@ -614,10 +715,22 @@ onMounted(async () => {
     chart?.resize()
     render()
   })
-  if (el.value) ro.observe(el.value)
+  if (el.value) {
+    ro.observe(el.value)
+    el.value.addEventListener('wheel', onWheel, { passive: false })
+    el.value.addEventListener('mousedown', onMouseDown)
+    el.value.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.value.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.value.addEventListener('touchend', onTouchEnd)
+  }
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup', onMouseUp)
 })
 watch(() => props.day, loadForecast)
 onBeforeUnmount(() => {
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('mouseup', onMouseUp)
+  if (rafId) clearTimeout(rafId)
   ro?.disconnect()
   chart?.dispose()
   chart = null
@@ -693,7 +806,10 @@ const actionText = computed(() => {
       </label>
       <span v-if="forecast.length > 1" class="muted small">A szaggatott vonal becslés a felvett inzulinból, CH-ból és a trendből; új étkezést vagy adagot nem ismer, nem helyettesíti a szenzor riasztását.</span>
     </div>
-    <div v-if="!readOnly" class="exclude-bar">
+    <div class="exclude-bar">
+      <button v-if="zoomRange" type="button" class="ghost sm" @click="resetZoom">Teljes nap</button>
+      <span v-else class="muted small zoom-hint">Nagyítás: Ctrl + görgő vagy csippentés</span>
+    <template v-if="!readOnly">
       <template v-if="!pickMode">
         <button type="button" class="ghost sm" title="Pl. ráfekvés okozta hamis mély: a kijelölt szakasz szenzorértékei nem számítanak bele semmibe" @click="startPick">Szenzorhiba kijelölése</button>
       </template>
@@ -705,7 +821,8 @@ const actionText = computed(() => {
         Kizárva {{ hm(x.from) }}–{{ hm(x.to) }}
         <button type="button" class="link-btn" :aria-label="`Kizárás visszavonása ${hm(x.from)}–${hm(x.to)}`" title="Visszavonás" @click="removeExcluded(x)">×</button>
       </span>
+    </template>
     </div>
-    <div ref="el" class="chart-box" :class="{ picking: pickMode }" />
+    <div ref="el" class="chart-box" :class="{ picking: pickMode, zoomed: !!zoomRange }" />
   </div>
 </template>

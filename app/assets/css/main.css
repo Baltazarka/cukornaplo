@@ -647,6 +647,11 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
   border: 1px solid var(--axis); color: var(--text-secondary); background: var(--page);
 }
 .note-text { color: var(--text-primary); }
+.table tr.excluded-row td { color: var(--text-muted); font-style: italic; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--text-muted) 7%, transparent) 0 6px, transparent 6px 12px); }
+.dot-excluded { background: var(--text-muted); opacity: .6; }
+.excl-spark { vertical-align: middle; margin-left: 6px; }
+.excl-spark polyline { fill: none; stroke: var(--text-muted); stroke-width: 1.5; stroke-dasharray: 3 2; }
+.excl-detail { font-style: normal; }
 .table tr.note-row td { background: color-mix(in srgb, var(--text-primary) 3%, transparent); }
 .note-form { display: flex; flex-direction: column; gap: 8px; padding: 10px; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
 .note-form-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; }
@@ -826,6 +831,8 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
 .exclude-hint { color: var(--status-critical); font-weight: 600; }
 .exclude-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--text-muted) 14%, transparent); color: var(--text-secondary); }
 .exclude-chip .link-btn { background: none; border: 0; padding: 0 2px; cursor: pointer; color: inherit; font-size: 15px; line-height: 1; }
+.chart-box { touch-action: pan-y; }
+.chart-box.zoomed { cursor: grab; }
 .chart-box.picking { cursor: crosshair; outline: 2px dashed var(--status-critical); outline-offset: 2px; border-radius: 4px; }
 .forecast-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 8px; }
 .forecast-pick label { display: inline-flex; align-items: center; gap: 6px; }

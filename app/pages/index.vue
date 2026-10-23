@@ -187,9 +187,52 @@ async function deleteEvent(e: any) {
   }
 }
 
-// Napló: bejegyzések és jegyzetek időrendben.
+// Kizárt szenzorszakaszok a naplóban (szürkén): a kizárt értékek mintázata (kis görbe), a legkisebb / legnagyobb
+// érték, és a szakasz előtti / utáni érvényes mérés, hogy látszódjon, mennyire tért el.
+const hmMs = (ms: number) => new Date(ms).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' })
+const excludedRows = computed<any[]>(() => {
+  const d = data.value
+  if (!d) return []
+  const pts = (d.excludedGlucose ?? []) as [number, number][]
+  const good = (d.glucose ?? []) as [number, number][]
+  return ((d.excluded ?? []) as { id: number; from: number; to: number }[])
+    .filter((x) => x.to >= d.dayStartMs && x.from < d.dayEndMs)
+    .map((x) => {
+      const v = pts.filter((p) => p[0] >= x.from && p[0] <= x.to)
+      const lo = v.length ? v.reduce((a, p) => (p[1] < a[1] ? p : a)) : null
+      const hi = v.length ? v.reduce((a, p) => (p[1] > a[1] ? p : a)) : null
+      const before = [...good].reverse().find((p) => p[0] < x.from)
+      const after = good.find((p) => p[0] > x.to)
+      // Kis görbe (SVG polyline, 120 × 22): a kizárt értékek a szakasz előtti / utáni méréssel együtt.
+      const line = [...(before && x.from - before[0] <= 20 * 60000 ? [before] : []), ...v, ...(after && after[0] - x.to <= 20 * 60000 ? [after] : [])]
+      let spark = ''
+      if (line.length > 1) {
+        const t0 = line[0][0]
+        const t1 = line[line.length - 1][0]
+        const vMin = Math.min(...line.map((p) => p[1]))
+        const vMax = Math.max(...line.map((p) => p[1]), vMin + 1)
+        spark = line.map((p) => `${(((p[0] - t0) / (t1 - t0 || 1)) * 118 + 1).toFixed(1)},${(21 - ((p[1] - vMin) / (vMax - vMin)) * 20).toFixed(1)}`).join(' ')
+      }
+      return {
+        type: 'excluded', id: x.id, ts: x.from, time: hmMs(x.from), from: x.from, to: x.to, n: v.length,
+        lo, hi, before: before?.[1] ?? null, after: after?.[1] ?? null, spark,
+      }
+    })
+})
+async function undoExcluded(x: any) {
+  if (!(await askConfirm(`Visszavonod a kizárást (${hmMs(x.from)}–${hmMs(x.to)})? Az értékek újra beleszámítanak.`, { confirmLabel: 'Visszavonás' }))) return
+  try {
+    await $fetch('/api/excluded-delete', { method: 'POST', body: { id: x.id } })
+    entriesChanged()
+  } catch (err: any) {
+    useToast().error(err?.data?.error ?? 'A visszavonás nem sikerült.')
+  }
+  await refresh()
+}
+
+// Napló: bejegyzések, jegyzetek és kizárt szenzorszakaszok időrendben.
 const logRows = computed<any[]>(() =>
-  [...(data.value?.events ?? []), ...(data.value?.notes ?? []).map((n: any) => ({ ...n, type: 'note' }))].sort((a, b) => a.ts - b.ts))
+  [...(data.value?.events ?? []), ...(data.value?.notes ?? []).map((n: any) => ({ ...n, type: 'note' })), ...excludedRows.value].sort((a, b) => a.ts - b.ts))
 
 // Új jegyzet: időpont (mai napon most, különben 12:00), címkék, szöveg.
 const noteForm = ref<{ time: string; tags: string[]; text: string } | null>(null)
@@ -428,9 +471,24 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
           <table class="table log-table">
             <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num">Glükóz</th><th v-if="!readOnly"><span class="sr-only">Törlés</span></th></tr></thead>
             <tbody>
-              <tr v-for="e in logRows" :key="e.type + e.id" :class="{ 'note-row': e.type === 'note' }">
+              <tr v-for="e in logRows" :key="e.type + e.id" :class="{ 'note-row': e.type === 'note', 'excluded-row': e.type === 'excluded' }">
                 <td class="num">{{ e.time }}</td>
-                <td v-if="e.type === 'note'" colspan="3">
+                <template v-if="e.type === 'excluded'">
+                  <td>
+                    <span class="dot dot-excluded" />
+                    Szenzorhiba, kizárva {{ hmMs(e.from) }}–{{ hmMs(e.to) }}
+                    <svg v-if="e.spark" class="excl-spark" viewBox="0 0 120 22" width="120" height="22" aria-hidden="true"><polyline :points="e.spark" /></svg>
+                    <div class="small excl-detail">
+                      <template v-if="e.before != null">előtte {{ sgText(e.before) }} · </template>
+                      <template v-if="e.lo">legalacsonyabb {{ sgText(e.lo[1]) }} ({{ hmMs(e.lo[0]) }})</template>
+                      <template v-if="e.hi && e.hi[1] !== e.lo?.[1]"> · legmagasabb {{ sgText(e.hi[1]) }}</template>
+                      <template v-if="e.after != null"> · utána {{ sgText(e.after) }}</template>
+                    </div>
+                  </td>
+                  <td class="num">{{ e.n }} mérés</td>
+                  <td class="num">{{ e.lo ? sgText(e.lo[1]) : '–' }}</td>
+                </template>
+                <td v-else-if="e.type === 'note'" colspan="3">
                   <span class="dot dot-note" />
                   <span v-for="tg in e.tags" :key="tg" class="note-chip">{{ noteTagLabel(tg) }}</span>
                   <span class="note-text">{{ e.text }}</span>
@@ -484,8 +542,9 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                 <td v-if="!readOnly" class="act">
                   <button
                     type="button" class="row-del" :disabled="deletingId === e.type + e.id"
-                    :aria-label="`${e.time} ${e.type === 'note' ? 'jegyzet' : eventLabel(e)} törlése`" :title="'Törlés'"
-                    @click="e.type === 'note' ? deleteNote(e) : deleteEvent(e)"
+                    :aria-label="e.type === 'excluded' ? `${e.time} kizárás visszavonása` : `${e.time} ${e.type === 'note' ? 'jegyzet' : eventLabel(e)} törlése`"
+                    :title="e.type === 'excluded' ? 'Kizárás visszavonása' : 'Törlés'"
+                    @click="e.type === 'excluded' ? undoExcluded(e) : e.type === 'note' ? deleteNote(e) : deleteEvent(e)"
                   >×</button>
                 </td>
               </tr>
