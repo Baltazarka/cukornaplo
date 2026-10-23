@@ -6,8 +6,6 @@ import { resetAbsorptionCache } from './absorption'
 import { resetPredictChoice } from './predict'
 import { todayYmd } from './time'
 
-export { analysisCached, analysisKey } from './analysisCache'
-
 export const ACCURACY_DAYS = [7, 14, 30]
 const DAY = 86400
 
