@@ -93,7 +93,11 @@ const KIND_LABEL: Record<string, string> = {
   meal: 'Étkezési bólus', 'meal-nocarb': 'Étkezési bólus (CH nélkül)', correction: 'Korrekció', basal: 'Bázis',
 }
 /** Egy nap bejegyzései és jegyzetei időrendben. */
-const rowsOf = (d: any) => [...d.events, ...d.notes.map((n: any) => ({ ...n, type: 'note' }))].sort((a, b) => a.minute - b.minute)
+const rowsOf = (d: any) => [
+  ...d.events,
+  ...d.notes.map((n: any) => ({ ...n, type: 'note' })),
+  ...(d.excluded ?? []).map((x: any) => ({ ...x, type: 'excluded' })),
+].sort((a, b) => a.minute - b.minute)
 const preBolus = (v: number | null) => (v == null ? '–' : v < 0 ? `${-v} p előtte` : v > 0 ? `${v} p után` : 'evéskor')
 const okPct = (r: any) => {
   const n = r.ok + r.spike + r.high + r.low
@@ -305,12 +309,20 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
               CH {{ fmt(d.totals.carbs, 0) }} g · szenzor {{ d.coverage }}%
             </span>
           </header>
-          <ReportDayChart :glucose="d.glucose" :events="d.events" :low="rep.range.low" :high="rep.range.high" />
-          <table v-if="d.events.length || d.notes.length" class="table report-events">
+          <ReportDayChart :glucose="d.glucose" :events="d.events" :low="rep.range.low" :high="rep.range.high" :excluded-glucose="d.excludedGlucose" :excluded="d.excluded" />
+          <table v-if="d.events.length || d.notes.length || d.excluded?.length" class="table report-events">
             <tbody>
-              <tr v-for="(e, i) in rowsOf(d)" :key="i" :class="{ 'report-note': e.type === 'note' }">
-                <td class="num">{{ e.time }}</td>
-                <td v-if="e.type === 'note'" colspan="3"><i class="dot dot-note" />Jegyzet: <b>{{ e.tags.map(noteTagLabel).join(', ') }}</b> {{ e.text }}</td>
+              <tr v-for="(e, i) in rowsOf(d)" :key="i" :class="{ 'report-note': e.type === 'note', 'report-excluded': e.type === 'excluded' }">
+                <td class="num">{{ e.type === 'excluded' ? e.time.slice(0, 5) : e.time }}</td>
+                <template v-if="e.type === 'excluded'">
+                  <td>
+                    <i class="dot dot-excluded" />Szenzorhiba, kizárva {{ e.time }}
+                    <span class="muted">({{ [e.before != null ? `előtte ${sgText(e.before)}` : '', e.lo != null ? `legalacsonyabb ${sgText(e.lo)} (${e.loTime})` : '', e.hi != null && e.hi !== e.lo ? `legmagasabb ${sgText(e.hi)}` : '', e.after != null ? `utána ${sgText(e.after)}` : ''].filter(Boolean).join(' · ') }})</span>
+                  </td>
+                  <td class="num">{{ e.n }} mérés</td>
+                  <td class="num">{{ e.lo != null ? `${sgText(e.lo)} mmol/L` : '' }}</td>
+                </template>
+                <td v-else-if="e.type === 'note'" colspan="3"><i class="dot dot-note" />Jegyzet: <b>{{ e.tags.map(noteTagLabel).join(', ') }}</b> {{ e.text }}</td>
                 <template v-else>
                   <td>
                     <i class="dot" :class="e.type === 'carbs' ? 'dot-carbs' : e.kind === 'basal' ? 'dot-basal' : e.kind === 'correction' ? 'dot-correction' : 'dot-insulin'" />

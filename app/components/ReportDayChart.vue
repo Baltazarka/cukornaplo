@@ -6,6 +6,9 @@ const props = defineProps<{
   events: { minute: number; type: string; kind: string | null; v: number; fatty: boolean; fast?: boolean }[]
   low: number
   high: number
+  /** Kizárt szenzorértékek (pl. ráfekvés) [perc, mmol/L] és szakaszok: szürkén, szaggatottan. */
+  excludedGlucose?: [number, number][]
+  excluded?: { minute: number; toMinute: number }[]
 }>()
 
 const W = 720
@@ -31,6 +34,16 @@ const path = computed(() => {
   let d = ''
   let prev: number | null = null
   for (const [m, v] of props.glucose) {
+    d += `${prev == null || m - prev > 15 ? 'M' : 'L'}${sx(m).toFixed(1)},${sy(v).toFixed(1)}`
+    prev = m
+  }
+  return d
+})
+
+const excludedPath = computed(() => {
+  let d = ''
+  let prev: number | null = null
+  for (const [m, v] of props.excludedGlucose ?? []) {
     d += `${prev == null || m - prev > 15 ? 'M' : 'L'}${sx(m).toFixed(1)},${sy(v).toFixed(1)}`
     prev = m
   }
@@ -83,6 +96,8 @@ const carbs = computed(() => placed(props.events.filter((e) => e.type === 'carbs
       <text :x="L - 4" :y="INS_Y + 3" text-anchor="end">E</text>
       <text :x="L - 4" :y="CH_Y + 3" text-anchor="end">g</text>
     </g>
+    <rect v-for="(x, i) in excluded ?? []" :key="'ex' + i" :x="sx(x.minute)" :y="TOP" :width="Math.max(1, sx(x.toMinute) - sx(x.minute))" :height="PLOT_H" class="rd-excluded" />
+    <path v-if="excludedPath" :d="excludedPath" class="rd-excluded-line" />
     <path :d="path" class="rd-glucose" />
     <g v-for="(e, i) in insulin" :key="'i' + i">
       <rect :x="e.x - 2" :y="INS_Y - 6" width="4" height="10" rx="1" :style="{ fill: KIND_COLOR[e.kind ?? 'meal'] }" />

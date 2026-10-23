@@ -7,6 +7,7 @@ import { startOfDayTs, todayYmd, addDaysYmd, huWeekday, hmInTz, minuteOfDayInTz,
 import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from '../utils/insulinKind'
 import { changeTime } from '../utils/trend'
 import { notesBetween } from '../utils/notes'
+import { excludedBetween } from '../utils/excluded'
 
 const PERIODS = [7, 14, 30]
 
@@ -33,10 +34,14 @@ export default defineEventHandler((event) => {
     gts: number[]
     sensorN: number
     events: { ts: number; time: string; minute: number; type: 'insulin' | 'carbs'; kind: string | null; v: number; fatty: boolean; fast: boolean; glucose: number | null }[]
+    /** Kizárt szenzorértékek (pl. ráfekvés): [perc, mmol/L], a grafikonon szürkén. */
+    excludedGlucose: [number, number][]
+    /** Kizárt szakaszok: a naplóban szürke sor, a szakasz előtti / utáni érvényes méréssel. */
+    excluded: { minute: number; toMinute: number; time: string; n: number; lo: number | null; loTime: string | null; hi: number | null; before: number | null; after: number | null }[]
   }
   const byDay = new Map<string, Day>()
   for (let d = start; d <= end; d = addDaysYmd(d, 1)) {
-    byDay.set(d, { date: d, label: d.replaceAll('-', '. ') + '.', weekday: huWeekday(d), glucose: [], gts: [], sensorN: 0, events: [] })
+    byDay.set(d, { date: d, label: d.replaceAll('-', '. ') + '.', weekday: huWeekday(d), glucose: [], gts: [], sensorN: 0, events: [], excludedGlucose: [], excluded: [] })
   }
   const allGlucose: { ts: number; v: number }[] = []
   for (const r of rows) {
@@ -64,6 +69,27 @@ export default defineEventHandler((event) => {
   }
 
   const notes = notesBetween(from, to)
+  // Kizárt szenzorszakaszok (a fenti lekérdezés ezeket kihagyja): külön, szürkén mutatjuk őket.
+  const exRows = (db()
+    .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND excluded = 1 AND ts >= ? AND ts < ? ORDER BY ts")
+    .all(from, to) as { ts: number; value: number }[]).map((r) => ({ ts: Number(r.ts), v: Number(r.value) }))
+  for (const r of exRows) byDay.get(ymdInTz(r.ts))?.excludedGlucose.push([minuteOfDayInTz(r.ts), r.v])
+  for (const x of excludedBetween(from, to)) {
+    const day = byDay.get(ymdInTz(Math.max(x.from, from)))
+    if (!day) continue
+    const vals = exRows.filter((r) => r.ts >= x.from && r.ts <= x.to)
+    const lo = vals.length ? vals.reduce((a, r) => (r.v < a.v ? r : a)) : null
+    const hi = vals.length ? vals.reduce((a, r) => (r.v > a.v ? r : a)) : null
+    const before = [...allGlucose].reverse().find((g) => g.ts < x.from)
+    const after = allGlucose.find((g) => g.ts > x.to)
+    day.excluded.push({
+      minute: minuteOfDayInTz(Math.max(x.from, from)), toMinute: ymdInTz(x.to) === day.date ? minuteOfDayInTz(x.to) : 1440,
+      time: `${hmInTz(x.from)}–${hmInTz(x.to)}`, n: vals.length,
+      lo: lo?.v ?? null, loTime: lo ? hmInTz(lo.ts) : null, hi: hi?.v ?? null,
+      before: before && x.from - before.ts <= 3600 ? before.v : null, after: after && after.ts - x.to <= 3600 ? after.v : null,
+    })
+  }
+
   const out = [...byDay.values()].map(({ gts, ...d }) => {
     // A bejegyzések mellé a legközelebbi (±10 perc) glükózérték, időpont szerint párosítva.
     for (const e of d.events) {

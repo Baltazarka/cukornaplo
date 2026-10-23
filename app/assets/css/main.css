@@ -659,6 +659,9 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .note-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .note-tags .tag-toggle { margin-left: 0; }
 .report-note td { font-style: italic; }
+.report-excluded td { font-style: italic; color: var(--text-muted); }
+.rd-excluded { fill: var(--text-muted); opacity: .12; }
+.rd-excluded-line { fill: none; stroke: var(--text-muted); stroke-width: 1.2; stroke-dasharray: 3 2; }
 
 /* ---- E-mail és megosztás (Beállítások) ---- */
 .mail-form, .share-form { display: flex; flex-direction: column; gap: 10px; max-width: 520px; }
