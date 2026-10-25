@@ -185,6 +185,8 @@ onMounted(async () => {
   ro.observe(el.value!)
 })
 watch(() => props.data, render)
+// Témaváltáskor újrarajzol (a színek a CSS-változókból jönnek).
+watch(useState<number>('theme-tick', () => 0), render)
 onBeforeUnmount(() => {
   ro?.disconnect()
   chart?.dispose()

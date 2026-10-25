@@ -727,6 +727,8 @@ onMounted(async () => {
   window.addEventListener('mouseup', onMouseUp)
 })
 watch(() => props.day, loadForecast)
+// Témaváltáskor újrarajzol (a színek a CSS-változókból jönnek).
+watch(useState<number>('theme-tick', () => 0), () => { render() })
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseup', onMouseUp)

@@ -25,8 +25,9 @@
   --notice-bg: #e8f1fc;
   --alert-bg: #fbe9e9;
 }
+/* Sötét: rendszer szerint (ha nincs választott téma), vagy kézzel; a pasztell témák erre épülnek. */
 @media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) {
+  :root:where(:not([data-theme])) {
     color-scheme: dark;
     --page: #0d0d0d;
     --surface-1: #1a1a19;
@@ -48,6 +49,73 @@
     --notice-bg: #17283d;
     --alert-bg: #3a1c1c;
   }
+}
+:root:where([data-theme="dark"], [data-theme^="pastel-"]) {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface-1: #1a1a19;
+  --surface-2: #222221;
+  --tooltip-bg: #242423;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+  --accent: #3987e5;
+  --series-glucose: #3987e5;
+  --series-insulin: #d95926;
+  --series-carbs: #199e70;
+  --series-basal: #9085e9;
+  --series-correction: #d660a8;
+  --band: rgba(12, 163, 12, 0.16);
+  --notice-bg: #17283d;
+  --alert-bg: #3a1c1c;
+}
+/* Pasztell sötét témák: színezett sötét háttér, lágy kiemelőszínek (a gombfelirat sötét). */
+:root:where([data-theme^="pastel-"]) {
+  --accent-ink: #15131a;
+  --status-good: #7fd18b;
+  --status-warning: #f2cf7a;
+  --status-serious: #f0a07c;
+  --status-critical: #ef8a8a;
+  --band: rgba(127, 209, 139, 0.13);
+}
+:root:where([data-theme="pastel-lavender"]) {
+  --page: #17141f; --surface-1: #201c2b; --surface-2: #282336; --tooltip-bg: #2a2538;
+  --text-primary: #f1edf9; --text-secondary: #c9c0dc; --text-muted: #8f86a3;
+  --grid: #2f2a3d; --axis: #433b56; --border: rgba(230, 220, 255, 0.11);
+  --accent: #b4a2f0;
+  --series-glucose: #a99cf2; --series-insulin: #f2a7a0; --series-carbs: #96dcc0;
+  --series-basal: #8fc5f0; --series-correction: #f0a6d4;
+  --notice-bg: #262041; --alert-bg: #3a2232;
+}
+:root:where([data-theme="pastel-mint"]) {
+  --page: #111a18; --surface-1: #18231f; --surface-2: #1f2c28; --tooltip-bg: #213029;
+  --text-primary: #e8f5f0; --text-secondary: #b8d4ca; --text-muted: #7f9a90;
+  --grid: #26352f; --axis: #37493f; --border: rgba(210, 255, 235, 0.11);
+  --accent: #8fdcc0;
+  --series-glucose: #8fcfe8; --series-insulin: #f5b39a; --series-carbs: #b4e09a;
+  --series-basal: #b9a8ef; --series-correction: #ee9fc8;
+  --notice-bg: #1a2f2b; --alert-bg: #3a2226;
+}
+:root:where([data-theme="pastel-peach"]) {
+  --page: #1c1515; --surface-1: #261d1c; --surface-2: #2f2423; --tooltip-bg: #322625;
+  --text-primary: #fbefea; --text-secondary: #dcc3ba; --text-muted: #a08a83;
+  --grid: #352a28; --axis: #4b3b38; --border: rgba(255, 230, 220, 0.11);
+  --accent: #f5b49a;
+  --series-glucose: #9cc4f0; --series-insulin: #f5a58a; --series-carbs: #9fdcb8;
+  --series-basal: #c2aef2; --series-correction: #f0a0c8;
+  --notice-bg: #2c2330; --alert-bg: #41222a;
+}
+:root:where([data-theme="pastel-sky"]) {
+  --page: #10151d; --surface-1: #172030; --surface-2: #1d283a; --tooltip-bg: #202b3e;
+  --text-primary: #eaf1fb; --text-secondary: #bccbe0; --text-muted: #8293ab;
+  --grid: #243147; --axis: #34445d; --border: rgba(220, 235, 255, 0.11);
+  --accent: #9cc8f5;
+  --series-glucose: #9cc8f5; --series-insulin: #f3b08e; --series-carbs: #9adbbd;
+  --series-basal: #bfaaf0; --series-correction: #eea2cc;
+  --notice-bg: #1a2a42; --alert-bg: #3b2230;
 }
 
 * { box-sizing: border-box; }
@@ -85,6 +153,19 @@ h2 { font-size: 15px; margin-bottom: 12px; }
   display: inline-flex; align-items: center; justify-content: center; flex: none;
 }
 .theme-toggle:hover { background: var(--page); }
+.theme-menu-wrap { position: relative; flex: none; }
+.theme-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 200px; padding: 4px;
+  display: flex; flex-direction: column; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.theme-menu button {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--text-primary); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+}
+.theme-menu button:hover { background: var(--page); }
+.theme-menu button.active { background: color-mix(in srgb, var(--accent) 18%, transparent); font-weight: 600; }
+.theme-sw { width: 22px; text-align: center; }
 .menu-toggle { display: none; }
 .menu-toggle, .theme-toggle { -webkit-tap-highlight-color: transparent; }
 

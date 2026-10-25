@@ -53,7 +53,7 @@ export default defineNuxtConfig({
       ],
       // A mentett témát még a Vue betöltése előtt beállítjuk (nincs villanás).
       script: [{
-        innerHTML: "try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}",
+        innerHTML: "try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark'||/^pastel-[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t)}catch(e){}",
         tagPosition: 'head',
       }, {
         innerHTML: "if('serviceWorker' in navigator)addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){})})",

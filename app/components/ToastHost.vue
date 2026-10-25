@@ -56,7 +56,7 @@ const icon = (k: string) => (k === 'success' ? '✓' : k === 'error' ? '!' : 'i'
 .toast-info { border-left-color: var(--accent, #2a78d6); }
 .toast-icon {
   flex: none; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 700; color: #fff; background: var(--accent, #2a78d6);
+  font-size: 12px; font-weight: 700; color: var(--accent-ink, #fff); background: var(--accent, #2a78d6);
 }
 .toast-success .toast-icon { background: var(--status-good); }
 .toast-error .toast-icon { background: var(--status-critical); }
