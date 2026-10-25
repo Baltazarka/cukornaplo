@@ -39,6 +39,14 @@ async function save() {
     saving.value = false
   }
 }
+// A mostani hét dátumai (hétfő–vasárnap): vasárnap is a most véget érő hét, nem a következő.
+const thisWeekRange = computed(() => {
+  if (!today.value) return ''
+  const mon = mondayOf(today.value)
+  const [y, m, d] = mon.split('-').map(Number)
+  const sun = new Date(Date.UTC(y, m - 1, d + 6)).toISOString().slice(0, 10)
+  return `${mon.slice(5).replace('-', '.')}.–${sun.slice(5).replace('-', '.')}.`
+})
 // A következő 3 hét előnézete.
 const preview = computed(() => {
   if (!enabled.value || !today.value) return []
@@ -74,7 +82,7 @@ const shifts = computed<any[]>(() => (data.value?.shifts ?? []).filter((x: any) 
       </label>
       <template v-if="enabled">
         <label class="tf-row">
-          <span class="tf-label">Ez a hét</span>
+          <span class="tf-label">Ez a hét <small class="muted">({{ thisWeekRange }})</small></span>
           <select v-model="thisWeek">
             <option value="morning">délelőttös (pl. 06–14)</option>
             <option value="afternoon">délutános (pl. 14–22)</option>
