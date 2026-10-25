@@ -222,10 +222,12 @@ async function save() {
         <p v-if="!shiftOn" class="notice small" role="note">Ehhez add meg lent, a „Váltott műszak” kártyán, milyen műszakos ez a hét; addig az alap beállítás érvényes minden nap.</p>
         <h3 class="seg-profile-h">Délutános hét</h3>
         <SegmentsEditor ref="altEd" :segments="altSegments" :by-time-of-day="byTimeOfDay" :action-minutes="actionMinutes" :action-options="actionOptions" :new-key="newKey" />
-        <div class="btn-row">
-          <button v-if="byTimeOfDay" type="button" class="ghost sm" :disabled="altSegments.length >= 12" @click="altEd?.add()">+ Napszak</button>
+        <div v-if="byTimeOfDay" class="btn-row">
+          <button type="button" class="ghost sm" :disabled="altSegments.length >= 12" @click="altEd?.add()">+ Napszak</button>
+        </div>
+        <div class="therapy-fields">
           <label class="tf-row">
-            <span class="tf-label">Szabadnapon</span>
+            <span class="tf-label">Szabadnapon érvényes</span>
             <select v-model="freeProfile">
               <option value="base">a délelőttös hét beállítása</option>
               <option value="alt">a délutános hét beállítása</option>
