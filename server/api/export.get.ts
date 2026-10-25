@@ -21,6 +21,7 @@ export default defineEventHandler((event) => {
     const out = new DatabaseSync(file)
     try {
       for (const t of SECRET_TABLES) out.exec(`DROP TABLE IF EXISTS ${t}`)
+      out.exec('DROP TABLE IF EXISTS export_settings')
       out.exec('CREATE TABLE export_settings (key TEXT PRIMARY KEY, json TEXT NOT NULL)')
       const ins = out.prepare('INSERT INTO export_settings (key, json) VALUES (?, ?)')
       for (const k of SAFE_SETTINGS) {

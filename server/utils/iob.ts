@@ -37,7 +37,8 @@ export function rapidDoses(t: Therapy, from: number, to: number, carbTs: number[
   for (const r of rows) {
     const ts = Number(r.ts)
     // A bázis (Toujeo) nem gyors hatású inzulin: nem számít.
-    if (insulinKind(ts, r.subtype, carbTs).kind === 'basal') continue
+    const kind = insulinKind(ts, r.subtype, carbTs).kind
+    if (kind === 'basal') continue
     const dia = actionMinutesAt(t, ts)
     out.push({ ts, v: Number(r.value), dia, kind, model: insulinModel(peak, dia) })
   }
