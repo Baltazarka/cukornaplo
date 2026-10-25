@@ -22,7 +22,7 @@ export function bolusPeak(t: Therapy): number {
 
 /** A leghosszabb beállított hatásidő, perc: ennyivel korábbi adag számíthat még. */
 export function maxActionMinutes(t: Therapy): number {
-  return Math.max(t.actionMinutes, ...t.segments.map((s) => s.actionMinutes ?? 0))
+  return Math.max(t.actionMinutes, ...[...t.segments, ...(t.altSegments ?? [])].map((s) => s.actionMinutes ?? 0))
 }
 
 /**

@@ -112,6 +112,18 @@ async function saveRange() {
   }
 }
 
+// Váltott műszak: a megnézett nap műszakjának átállítása (a beosztás szerintire visszaállítva a kézi jelölés törlődik).
+async function setDayShift(kind: string) {
+  try {
+    await $fetch('/api/shift-day', { method: 'POST', body: { date: data.value!.day, shift: kind } })
+    await refreshNuxtData('therapy')
+    entriesChanged()
+  } catch (err: any) {
+    useToast().error(err?.data?.error ?? 'A műszak mentése nem sikerült.')
+  }
+  await refresh()
+}
+
 // Bázis-küszöb és az inzulinsorok típusának utólagos állítása.
 const basalDose = ref<number | null>(null)
 const basalLoaded = ref(false)
@@ -360,6 +372,17 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
         <button v-for="p in PERIODS" :key="p" type="button" :aria-pressed="period === p" @click="nav(date, p)">{{ p }} nap</button>
       </div>
       <h1>{{ period === 1 ? data.label : agp?.label }}</h1>
+      <!-- Váltott műszak: a nap műszakja (átállítható, pl. szabadság vagy csere). -->
+      <template v-if="period === 1 && data.shift?.kind">
+        <select
+          v-if="!readOnly" class="shift-select" :value="data.shift.kind" aria-label="A nap műszakja"
+          :title="data.shift.kind === data.shift.scheduled ? 'A beosztás szerint' : 'Kézzel átállítva'"
+          @change="setDayShift(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="k in SHIFT_KINDS" :key="k" :value="k">{{ SHIFT_LABEL[k] }}{{ k === data.shift.scheduled ? '' : ' (átállítva)' }}</option>
+        </select>
+        <span v-else class="note-chip">{{ SHIFT_LABEL[data.shift.kind as 'morning'] }}</span>
+      </template>
       <NuxtLink
         class="btn ghost report-link" :to="{ path: '/riport', query: { days: period > 1 ? period : 14, end: (period > 1 ? agp?.end : data.day) || undefined } }"
         title="Részletes, nyomtatható riport (PDF-be menthető)"

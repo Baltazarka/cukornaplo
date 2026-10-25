@@ -4,7 +4,8 @@ import { glucoseStats, RANGE_LOW, RANGE_HIGH, RANGE_VERY_LOW, RANGE_VERY_HIGH } 
 import { targetRange } from '../utils/range'
 import { hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/time'
 import { groupByDay, summaryRows } from '../utils/summary'
-import { therapy, daySegments } from '../utils/therapy'
+import { therapy, daySegments, shiftSchedule, shiftOn, profileOn } from '../utils/therapy'
+import { scheduledShift } from '#shared/utils/shift'
 import { changeTime, lastTrend } from '../utils/trend'
 import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from '../utils/insulinKind'
 import { notesBetween } from '../utils/notes'
@@ -114,6 +115,8 @@ export default defineEventHandler((event) => {
     glucose: dayRows.glucose.map((g) => [g.ts * 1000, g.v]),
     glucoseExt,
     excludedGlucose,
+    // Váltott műszak: a nap műszakja (kézzel átállítva vagy a beosztás szerint), ha van beosztás.
+    shift: shiftSchedule() ? { kind: shiftOn(day), scheduled: scheduledShift(shiftSchedule(), day) } : null,
     excluded: excludedBetween(dayStart - 8 * 3600, dayEnd + 8 * 3600).map((x) => ({ id: x.id, from: x.from * 1000, to: x.to * 1000 })),
     manualGlucose: manualGlucose.map((g) => [g.ts * 1000, g.v]),
     insulin: dayRows.insulin.map((e) => [e.ts * 1000, e.v, e.kind]),
@@ -194,6 +197,8 @@ function segmentsFor(day: string) {
   if (!t) return null
   return {
     byTimeOfDay: t.byTimeOfDay,
+    // Váltott műszaknál: a délutános hétre beállított napszakok érvényesek-e ezen a napon.
+    profile: profileOn(t, day),
     list: daySegments(t, day).map((s) => ({ ...s, from: s.from * 1000, to: s.to * 1000 })),
   }
 }

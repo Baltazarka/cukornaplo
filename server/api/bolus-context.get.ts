@@ -28,7 +28,7 @@ export default defineEventHandler(() => {
   if (!t) return { therapySet: false, now, glucose, range: { low, high } }
 
   const seg = segmentAt(t, now)
-  const segs = activeSegments(t)
+  const segs = activeSegments(t, now)
   const idx = segs.indexOf(seg)
   const carbTs = (db().prepare("SELECT ts FROM entries WHERE type = 'carbs' AND ts >= ?").all(now - 12 * 3600) as any[]).map((r) => Number(r.ts))
   const doses = rapidDoses(t, now, now + 1, carbTs)

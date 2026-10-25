@@ -1,10 +1,11 @@
 // Terápiás beállítások (az InPen app „Inzulinbeállítások” képernyőjének megfelelője), a settings.json
 // `therapy` kulcsa alatt. Egyelőre kézzel állítható; a `source` mező jelzi, ha később számítás vagy
 // varázsló állítja be.
-import type { Therapy, TherapySegment } from '#shared/types/therapy'
+import type { ShiftKind, ShiftSchedule, Therapy, TherapySegment } from '#shared/types/therapy'
 import { insulinById } from '#shared/utils/insulins'
+import { shiftOf, profileFor } from '#shared/utils/shift'
 import { zonedToTs } from './normalize'
-import { minuteOfDayInTz } from './time'
+import { minuteOfDayInTz, ymdInTz } from './time'
 
 export const THERAPY_LIMITS = {
   maxBolus: { min: 0.5, max: 50 },
@@ -18,6 +19,22 @@ export const THERAPY_LIMITS = {
 
 /** A zsír-fehérje javaslat alapértelmezése: a varsói érték fele (a teljes érték sokaknál későbbi hipót okoz). */
 export const DEFAULT_FPU_PERCENT = 50
+
+/** A váltott műszak beosztása (settings.json `shift`), vagy null. */
+export function shiftSchedule(): ShiftSchedule | null {
+  const s = setting<ShiftSchedule>('shift', null)
+  return s?.enabled ? s : null
+}
+
+/** Az adott nap (YYYY-MM-DD) műszakja, ha van beosztás. */
+export function shiftOn(ymd: string): ShiftKind | null {
+  return shiftOf(shiftSchedule(), ymd)
+}
+
+/** Az adott napon érvényes terápiás profil ('alt' = a délutános hétre beállított). */
+export function profileOn(t: Therapy, ymd: string): 'base' | 'alt' {
+  return profileFor(t, shiftOn(ymd))
+}
 
 export function therapy(): Therapy | null {
   const t = setting<Therapy>('therapy', null)
@@ -67,15 +84,48 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
   const bolusInsulin = insulin(body?.bolusInsulin, 'bolus')
   const basalInsulin = insulin(body?.basalInsulin, 'basal')
 
-  const raw: any[] = Array.isArray(body?.segments) ? body.segments : []
-  if (!raw.length) errors.push('Legalább egy napszak kell.')
-  if (raw.length > L.segments) errors.push(`Legfeljebb ${L.segments} napszak adható meg.`)
+  const segments = parseSegments(body?.segments, '', errors)
+  // Váltott műszak: a délutános hét külön napszakbeállítása (csak bekapcsolva ellenőrizzük és mentjük).
+  const altEnabled = body?.altEnabled === true
+  const altSegments = altEnabled ? parseSegments(body?.altSegments, 'Délutános hét, ', errors) : undefined
+
+  if (errors.length) return { ok: false, errors }
+  return {
+    ok: true,
+    therapy: {
+      mealMode: 'carbs',
+      bolusInsulin,
+      basalInsulin,
+      maxBolus: round(maxBolus!, 1),
+      actionMinutes: actionMinutes!,
+      fpuPercent,
+      fpuTiming: body?.fpuTiming === 'together' ? 'together' : 'later',
+      byTimeOfDay,
+      segments,
+      ...(altEnabled ? { altEnabled: true, altSegments, freeProfile: body?.freeProfile === 'alt' ? 'alt' : 'base' } : {}),
+      source: 'manual',
+      updatedAt: Math.floor(Date.now() / 1000),
+    },
+  }
+}
+
+/** Napszaklista ellenőrzése és normalizálása (időrendben); a hibák az `errors`-ba kerülnek. */
+function parseSegments(input: unknown, prefix: string, errors: string[]): TherapySegment[] {
+  const L = THERAPY_LIMITS
+  const inRange = (v: unknown, lim: { min: number; max: number }) => {
+    const n = Number(v)
+    return Number.isFinite(n) && n >= lim.min && n <= lim.max ? n : null
+  }
+  const num = (v: number) => v.toLocaleString('hu-HU')
+  const raw: any[] = Array.isArray(input) ? input : []
+  if (!raw.length) errors.push(`${prefix}Legalább egy napszak kell.`)
+  if (raw.length > L.segments) errors.push(`${prefix}Legfeljebb ${L.segments} napszak adható meg.`)
   // Ki kapcsolt napszakbeállításnál is minden napszakot megőrzünk (visszakapcsolva meglegyenek),
   // de csak az első érvényes, egész nap.
   const segments: TherapySegment[] = []
   raw.slice(0, L.segments).forEach((s, i) => {
     const start = String(s?.start ?? '')
-    const label = `${i + 1}. napszak`
+    const label = `${prefix}${i + 1}. napszak`
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(start)) errors.push(`${label}: érvénytelen kezdő időpont.`)
     const target = inRange(s?.target, L.target)
     const isf = inRange(s?.isf, L.isf)
@@ -100,40 +150,31 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
   segments.sort((a, b) => hmToMin(a.start) - hmToMin(b.start))
   for (let i = 1; i < segments.length; i++) {
     if (segments[i].start === segments[i - 1].start) {
-      errors.push(`Két napszak kezdődik ${segments[i].start}-kor.`)
+      errors.push(`${prefix}Két napszak kezdődik ${segments[i].start}-kor.`)
       break
     }
   }
-
-  if (errors.length) return { ok: false, errors }
-  return {
-    ok: true,
-    therapy: {
-      mealMode: 'carbs',
-      bolusInsulin,
-      basalInsulin,
-      maxBolus: round(maxBolus!, 1),
-      actionMinutes: actionMinutes!,
-      fpuPercent,
-      fpuTiming: body?.fpuTiming === 'together' ? 'together' : 'later',
-      byTimeOfDay,
-      segments,
-      source: 'manual',
-      updatedAt: Math.floor(Date.now() / 1000),
-    },
-  }
+  return segments
 }
 
 const hmMin = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5))
 
-/** Az érvényes napszakok időrendben (kikapcsolt napszakbeállításnál csak az első, egész nap). */
-export function activeSegments(t: Therapy): TherapySegment[] {
-  return t.byTimeOfDay ? t.segments : [{ ...t.segments[0], start: '00:00' }]
+/**
+ * Az érvényes napszakok időrendben (kikapcsolt napszakbeállításnál csak az első, egész nap). Időponttal (`ts`) vagy
+ * nappal (`ymd`) a váltott műszak szerinti profil (délutános héten a külön beállítás), anélkül az alap.
+ */
+export function activeSegments(t: Therapy, at?: number | string): TherapySegment[] {
+  const ymd = typeof at === 'number' ? ymdInTz(at) : at
+  const segs = ymd != null && profileOn(t, ymd) === 'alt' && t.altSegments?.length ? t.altSegments : t.segments
+  return t.byTimeOfDay ? segs : [{ ...segs[0], start: '00:00' }]
 }
 
-/** Az adott időpontban érvényes napszak (az utolsó éjfélen át az elsőig tart). */
-export function segmentAt(t: Therapy, ts: number): TherapySegment {
-  const segs = activeSegments(t)
+/**
+ * Az adott időpontban érvényes napszak (az utolsó éjfélen át az elsőig tart), a műszak szerinti profilból.
+ * `base`: mindig az alap profil (az elemzés napszak-csoportosításához).
+ */
+export function segmentAt(t: Therapy, ts: number, base = false): TherapySegment {
+  const segs = activeSegments(t, base ? undefined : ts)
   const m = minuteOfDayInTz(ts)
   let seg = segs[segs.length - 1]
   for (const s of segs) if (hmMin(s.start) <= m) seg = s
@@ -146,7 +187,7 @@ export function segmentAt(t: Therapy, ts: number): TherapySegment {
  * 12:00-kor 4 g/E → 09:00-kor 3 g/E. Az utolsó napszak éjfélen át az elsőig tart. Egy napszaknál null.
  */
 export function blendAt(t: Therapy, ts: number): { frac: number; icr: number; isf: number; next: TherapySegment } | null {
-  const segs = activeSegments(t)
+  const segs = activeSegments(t, ts)
   const seg = segmentAt(t, ts)
   const idx = segs.indexOf(seg)
   if (segs.length < 2 || idx < 0) return null
@@ -170,7 +211,7 @@ export function actionMinutesAt(t: Therapy, ts: number): number {
  */
 export function daySegments(t: Therapy, ymd: string) {
   const [y, mo, d] = ymd.split('-').map(Number)
-  const segs = activeSegments(t)
+  const segs = activeSegments(t, ymd)
   const at = (min: number) => zonedToTs(y, mo, d, Math.floor(min / 60), min % 60, 0)
   const cuts = segs.map((s, i) => ({ seg: s, index: i, from: hmMin(s.start) }))
   const out: { from: number; to: number; index: number; start: string; end: string; target: number; isf: number; icr: number; actionMinutes: number }[] = []

@@ -17,6 +17,21 @@ export interface TherapySegment {
   actionMinutes?: number
 }
 
+/** Műszak egy adott napon. */
+export type ShiftKind = 'morning' | 'afternoon' | 'free'
+
+/** Váltott műszak beosztása (settings.json `shift`): az `anchor` hete `anchorShift`, onnan hetente váltakozik. */
+export interface ShiftSchedule {
+  enabled: boolean
+  /** Egy nap a megjelölt hétből (YYYY-MM-DD). */
+  anchor: string
+  anchorShift: 'morning' | 'afternoon'
+  /** Szombat és vasárnap szabadnap. */
+  weekendFree: boolean
+  /** Kézzel átállított napok (pl. szabadság, csere). */
+  overrides: Record<string, ShiftKind>
+}
+
 export interface Therapy {
   /** Étkezésalapú terápia. Egyelőre csak a szénhidrátszámolás. */
   mealMode: 'carbs'
@@ -39,7 +54,13 @@ export interface Therapy {
   fpuTiming?: 'later' | 'together'
   /** Napszakbeállítások: ki kapcsolva csak az első napszak értékei érvényesek, egész nap. */
   byTimeOfDay: boolean
+  /** Az alap napszakbeállítás (váltott műszaknál a délelőttös hétre és minden más napra). */
   segments: TherapySegment[]
+  /** Váltott műszak: külön napszakbeállítás a délutános hétre (a műszakbeosztás szerint, shared/utils/shift.ts). */
+  altEnabled?: boolean
+  altSegments?: TherapySegment[]
+  /** Szabadnapon melyik beállítás érvényes ('base' = alap, 'alt' = délutános). Hiányzó: alap. */
+  freeProfile?: 'base' | 'alt'
   /** Egyelőre mindig kézi; később számítás vagy varázsló is beállíthatja. */
   source: 'manual'
   updatedAt: number

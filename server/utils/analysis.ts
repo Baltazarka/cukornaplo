@@ -116,7 +116,7 @@ function segmentGroups(t: Therapy | null) {
 }
 function segIndexAt(t: Therapy | null, ts: number): number {
   if (!t || !t.byTimeOfDay) return 0
-  return t.segments.indexOf(segmentAt(t, ts))
+  return t.segments.indexOf(segmentAt(t, ts, true))
 }
 
 export interface MealEvent {

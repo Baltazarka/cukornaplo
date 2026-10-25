@@ -491,6 +491,13 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .tf-note { padding: 10px 0; border-bottom: 1px solid var(--grid); }
 
 /* ---- Becslés az adatokból (Terápia oldal) ---- */
+.report-sub { margin: 8px 0 4px; font-size: 13px; }
+.shift-select { padding: 4px 8px; font-size: 14px; }
+.shift-chip { margin-right: auto; margin-left: 6px; }
+.seg-profile-h { margin: 10px 0 4px; font-size: 15px; }
+.shift-form { display: flex; flex-direction: column; gap: 6px; }
+.shift-h { margin: 0; font-size: 15px; }
+.shift-table td small { margin-left: 4px; }
 .analysis-card { max-width: 760px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
 .analysis-card p { margin: 0; }
 .analysis-table th small { display: block; font-size: 11px; font-weight: 400; }

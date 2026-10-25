@@ -8,6 +8,7 @@ import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from '../utils/insulinKind
 import { changeTime } from '../utils/trend'
 import { notesBetween } from '../utils/notes'
 import { excludedBetween } from '../utils/excluded'
+import { shiftOn } from '../utils/therapy'
 
 const PERIODS = [7, 14, 30]
 
@@ -29,6 +30,8 @@ export default defineEventHandler((event) => {
 
   type Day = {
     date: string; label: string; weekday: string
+    /** Váltott műszak: a nap műszakja, ha van beosztás. */
+    shift: string | null
     glucose: [number, number][]
     /** A glükózpontok időpontja (unix mp), a `glucose` sorrendjében: a párosításhoz (óraátállításkor a perc kétértelmű). */
     gts: number[]
@@ -41,7 +44,7 @@ export default defineEventHandler((event) => {
   }
   const byDay = new Map<string, Day>()
   for (let d = start; d <= end; d = addDaysYmd(d, 1)) {
-    byDay.set(d, { date: d, label: d.replaceAll('-', '. ') + '.', weekday: huWeekday(d), glucose: [], gts: [], sensorN: 0, events: [], excludedGlucose: [], excluded: [] })
+    byDay.set(d, { date: d, label: d.replaceAll('-', '. ') + '.', weekday: huWeekday(d), shift: shiftOn(d), glucose: [], gts: [], sensorN: 0, events: [], excludedGlucose: [], excluded: [] })
   }
   const allGlucose: { ts: number; v: number }[] = []
   for (const r of rows) {

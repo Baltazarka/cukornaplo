@@ -20,10 +20,10 @@ export function segmentEnd(segs: TherapySegment[], i: number): string {
   return segs[(i + 1) % segs.length].start
 }
 
-/** A megadott percben (a nap 0–1439. perce) érvényes napszak indexe. */
-export function activeSegment(t: Therapy, minuteOfDay: number): number {
+/** A megadott percben (a nap 0–1439. perce) érvényes napszak indexe (`segs`: a mai profil napszakai). */
+export function activeSegment(t: Therapy, minuteOfDay: number, segs: TherapySegment[] = t.segments): number {
   if (!t.byTimeOfDay) return 0
-  let idx = t.segments.length - 1
-  t.segments.forEach((s, i) => { if (hmToMinutes(s.start) <= minuteOfDay) idx = i })
+  let idx = segs.length - 1
+  segs.forEach((s, i) => { if (hmToMinutes(s.start) <= minuteOfDay) idx = i })
   return idx
 }

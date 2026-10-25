@@ -4,7 +4,7 @@ import { isAuthed } from '../utils/auth'
 import { viewerOf } from '../utils/share'
 
 // A megosztási linkkel belépett megtekintő csak ezeket olvashatja (GET), semmit nem módosíthat.
-const VIEWER_API = new Set(['/api/day', '/api/agp', '/api/analysis', '/api/report', '/api/therapy', '/api/version', '/api/hypo', '/api/lab', '/api/profile'])
+const VIEWER_API = new Set(['/api/day', '/api/agp', '/api/analysis', '/api/report', '/api/therapy', '/api/version', '/api/hypo', '/api/lab', '/api/profile', '/api/shifts'])
 
 export default defineEventHandler(async (event) => {
   const path = event.path.split('?')[0]

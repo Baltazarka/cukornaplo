@@ -34,6 +34,7 @@ Személyes cukorbetegség-napló. Nuxt 4 (SPA, `ssr: false`) + Nitro szerver, SQ
 - Időzóna: minden faliidő → unix átváltás a `zonedToTs()`-en megy (DST-helyes); a `time.ts` `parts()` percenként gyorsítótáraz.
 - Az elemzés (`analysis.ts`) ciklusaiban a bólusokat `bolusesBetween()`-nel szűkítsd időablakra; a `diaAt()` gyorsítótárazott. 90 napos elemzés PC-n ~0,3 s, ezt tartsd.
 - Böngészőfül címe bejelentkezve a widget adatai lapozva (`app/composables/useTabTitle.ts`, `/api/tab`), a végén mindig „Cukornapló”.
+- Váltott műszak: `settings.shift` (`ShiftSchedule`: megjelölt hét, hetente váltakozik, hétvége szabad, napi `overrides`), közös számolás `shared/utils/shift.ts`; a terápia `altSegments` (délutános hét, `altEnabled`, `freeProfile`). `activeSegments(t, ts|ymd)` / `segmentAt(t, ts)` a nap profilját adja; az elemzés napszak-csoportosítása mindig az alap profil (`segmentAt(t, ts, true)`). Műszak szerinti mutatók: `/api/shifts`.
 - Bázisellenőrzés a főoldali időszakos nézetben és a Terápia oldalon is (saját 14–90 napos választóval); napszak-ítélet csak ≥ 3 óra adatból, ≥ 3 napról.
 - A felhasználó széles főoldalt szeret: bal sáv (kalkulátor, terápia), közép, jobb sáv (Guardian-kártya, értesítésnapló); mobilon ezek a kalkulátor után jönnek.
 

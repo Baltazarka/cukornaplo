@@ -2,7 +2,7 @@
 // Főoldali kártya: a terápiás beállítások (célérték, ISF, CH-arány napszakonként), a most érvényes napszak kiemelve.
 import type { Therapy } from '#shared/types/therapy'
 
-const { data } = await useFetch<{ therapy: Therapy | null }>('/api/therapy', { key: 'therapy' })
+const { data } = await useFetch<{ therapy: Therapy | null; today?: { shift: 'morning' | 'afternoon' | 'free' | null; profile: 'base' | 'alt' } }>('/api/therapy', { key: 'therapy' })
 const t = computed(() => data.value?.therapy ?? null)
 const readOnly = useReadOnly()
 
@@ -16,8 +16,12 @@ onBeforeUnmount(() => clearInterval(timer))
 
 const bolus = computed(() => insulinById(t.value?.bolusInsulin))
 const basal = computed(() => insulinById(t.value?.basalInsulin))
-const rows = computed(() => (t.value ? (t.value.byTimeOfDay ? t.value.segments : t.value.segments.slice(0, 1)) : []))
-const active = computed(() => (t.value ? activeSegment(t.value, minute.value) : -1))
+// Váltott műszaknál a mai profil (délutános héten a külön beállítás).
+const todayShift = computed(() => data.value?.today?.shift ?? null)
+const alt = computed(() => data.value?.today?.profile === 'alt' && !!t.value?.altSegments?.length)
+const segs = computed(() => (t.value ? (alt.value ? t.value.altSegments! : t.value.segments) : []))
+const rows = computed(() => (t.value ? (t.value.byTimeOfDay ? segs.value : segs.value.slice(0, 1)) : []))
+const active = computed(() => (t.value ? activeSegment(t.value, minute.value, segs.value) : -1))
 // A kártya görbéje a most érvényes napszak hatásidejével (ha annak van saját értéke).
 const activeAction = computed(() => (t.value ? rows.value[active.value]?.actionMinutes ?? t.value.actionMinutes : 0))
 
@@ -33,6 +37,7 @@ const updated = computed(() =>
   <section class="card therapy-card" aria-labelledby="therapy-title">
     <div class="card-head">
       <h2 id="therapy-title">Terápiás beállítások <GuideLink section="hatas" /></h2>
+      <span v-if="todayShift" class="note-chip shift-chip" :title="alt ? 'Ma a délutános hétre beállított értékek érvényesek' : t?.altEnabled ? 'Ma az alap (délelőttös hét) beállítás érvényes' : 'Műszak a beosztás szerint'">{{ SHIFT_LABEL[todayShift] }}{{ todayShift !== 'free' ? ' hét' : '' }}</span>
       <NuxtLink v-if="t && !readOnly" to="/terapia" class="btn ghost sm">Szerkesztés</NuxtLink>
     </div>
 

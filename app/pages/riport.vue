@@ -20,6 +20,9 @@ const [{ data: agp }, { data: an }, { data: rep }, { data: th }, { data: hy }, {
   useFetch<any>('/api/lab', { key: 'lab' }),
 ])
 const { data: prof } = await useFetch<any>('/api/profile', { key: 'profile' })
+// Váltott műszak: mutatók műszak szerint (ha van beosztás).
+const { data: sh } = await useFetch<any>('/api/shifts', { query: q })
+const shiftRows = computed<any[]>(() => (sh.value?.enabled ? sh.value.shifts.filter((x: any) => x.days > 0) : []))
 const p = computed(() => prof.value?.profile ?? null)
 const birthLabel = computed(() => {
   if (!p.value?.birthDate) return ''
@@ -35,6 +38,15 @@ const diabetesLabel = computed(() => {
 const lastLab = computed(() => lab.value?.results?.[0] ?? null)
 const hypoDur = (min: number) => (min < 60 ? `${min} p` : `${Math.floor(min / 60)} ó ${min % 60} p`)
 const t = computed(() => th.value?.therapy ?? null)
+/** A beállítási táblák: az alap, és váltott műszaknál a délutános hét külön értékei. */
+const profiles = computed(() => {
+  if (!t.value) return []
+  const list = [{ label: t.value.altEnabled ? 'Délelőttös hét és minden más nap' : '', segs: t.value.segments }]
+  if (t.value.altEnabled && t.value.altSegments?.length) {
+    list.push({ label: `Délutános hét${t.value.freeProfile === 'alt' ? ' és szabadnapok' : ''}`, segs: t.value.altSegments })
+  }
+  return list
+})
 
 function setPeriod(d: number) {
   router.replace({ query: { ...route.query, days: String(d) } })
@@ -173,16 +185,38 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
           max. dózis: <b>{{ fmt(t.maxBolus, 1) }} E</b> ·
           inzulinhatás: <b>{{ actionLabel(t.actionMinutes) }}</b>
         </p>
+        <template v-for="pr in profiles" :key="pr.label">
+          <h3 v-if="pr.label" class="report-sub">{{ pr.label }}</h3>
+          <table class="table report-table">
+            <thead><tr><th>Napszak</th><th class="num">Cél (mmol/L)</th><th class="num">Érzékenység (mmol/L/E)</th><th class="num">CH-arány (g/E)</th><th class="num">Hatásidő</th></tr></thead>
+            <tbody>
+              <tr v-for="(sg, i) in (t.byTimeOfDay ? pr.segs : pr.segs.slice(0, 1))" :key="sg.start">
+                <td>{{ t.byTimeOfDay ? `${sg.start}–${segmentEnd(pr.segs, i)}` : 'Egész nap' }}</td>
+                <td class="num">{{ fmt(sg.target) }}</td>
+                <td class="num">{{ fmt(sg.isf) }}</td>
+                <td class="num">{{ fmt(sg.icr) }}</td>
+                <td class="num">{{ actionLabel(sg.actionMinutes ?? t.actionMinutes) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
+      </section>
+
+      <section v-if="shiftRows.length" class="report-section">
+        <h2>Váltott műszak szerint</h2>
+        <p class="muted small">A napok a műszakbeosztás szerint (délelőttös / délutános hét, szabadnap); csak a legalább félig szenzoradatos napok.</p>
         <table class="table report-table">
-          <thead><tr><th>Napszak</th><th class="num">Cél (mmol/L)</th><th class="num">Érzékenység (mmol/L/E)</th><th class="num">CH-arány (g/E)</th><th class="num">Hatásidő</th></tr></thead>
+          <thead>
+            <tr><th /><th v-for="x in shiftRows" :key="x.kind" class="num">{{ SHIFT_LABEL[x.kind as 'morning'] }} ({{ x.days }} nap)</th></tr>
+          </thead>
           <tbody>
-            <tr v-for="(sg, i) in (t.byTimeOfDay ? t.segments : t.segments.slice(0, 1))" :key="sg.start">
-              <td>{{ t.byTimeOfDay ? `${sg.start}–${segmentEnd(t.segments, i)}` : 'Egész nap' }}</td>
-              <td class="num">{{ fmt(sg.target) }}</td>
-              <td class="num">{{ fmt(sg.isf) }}</td>
-              <td class="num">{{ fmt(sg.icr) }}</td>
-              <td class="num">{{ actionLabel(sg.actionMinutes ?? t.actionMinutes) }}</td>
-            </tr>
+            <tr><td>Célban ({{ fmt(sh.range.low) }}–{{ fmt(sh.range.high) }})</td><td v-for="x in shiftRows" :key="x.kind" class="num">{{ fmt(x.all?.tir, 0) }}%</td></tr>
+            <tr><td>3,9–10 között</td><td v-for="x in shiftRows" :key="x.kind" class="num">{{ fmt(x.all?.tir10, 0) }}%</td></tr>
+            <tr v-for="(b, i) in sh.blocks" :key="b"><td>&nbsp;&nbsp;{{ b }} óra, 3,9–10 (átlag)</td><td v-for="x in shiftRows" :key="x.kind" class="num">{{ x.blocks[i] ? `${fmt(x.blocks[i].tir10, 0)}% (${fmt(x.blocks[i].avg)})` : '–' }}</td></tr>
+            <tr><td>Átlag</td><td v-for="x in shiftRows" :key="x.kind" class="num">{{ fmt(x.all?.avg) }}</td></tr>
+            <tr><td>13,9 fölött / {{ fmt(sh.range.low) }} alatt</td><td v-for="x in shiftRows" :key="x.kind" class="num">{{ fmt(x.all?.veryHigh) }}% / {{ fmt(x.all?.below) }}%</td></tr>
+            <tr><td>Bólus / korrekció naponta</td><td v-for="x in shiftRows" :key="x.kind" class="num">{{ fmt(x.perDay.bolus, 0) }} / {{ fmt(x.perDay.correction, 0) }} E</td></tr>
+            <tr><td>CH naponta</td><td v-for="x in shiftRows" :key="x.kind" class="num">{{ fmt(x.perDay.carbs, 0) }} g</td></tr>
           </tbody>
         </table>
       </section>
@@ -300,7 +334,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
         <h2>Napi részletek</h2>
         <article v-for="d in rep.dayList" :key="d.date" class="report-day">
           <header>
-            <b>{{ d.label }} {{ d.weekday }}</b>
+            <b>{{ d.label }} {{ d.weekday }}</b><template v-if="d.shift"> · {{ SHIFT_LABEL[d.shift as 'morning'].toLowerCase() }}</template>
             <span class="muted small">
               átlag {{ fmt(d.stats.n ? d.stats.avg : null) }} · TIR {{ fmt(d.stats.n ? d.stats.pct.inRange : null, 0) }}% ·
               TBR {{ fmt(d.stats.n ? d.stats.pct.low + d.stats.pct.veryLow : null, 0) }}% · CV {{ fmt(d.stats.n ? d.stats.cv : null, 0) }}% ·

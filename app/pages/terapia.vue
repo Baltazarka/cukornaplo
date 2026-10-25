@@ -2,7 +2,7 @@
 // Terápiás beállítások kézi szerkesztése (célérték, ISF, CH-arány, hatásidő napszakonként).
 import type { Therapy, TherapySegment } from '#shared/types/therapy'
 
-const { data } = await useFetch<{ therapy: Therapy | null }>('/api/therapy', { key: 'therapy' })
+const { data } = await useFetch<{ therapy: Therapy | null; shift: any }>('/api/therapy', { key: 'therapy' })
 
 type EditSegment = { start: string; target: number | ''; isf: number | ''; icr: number | ''; actionMinutes: number | ''; key: number }
 let nextKey = 0
@@ -24,6 +24,17 @@ const fpuTiming = ref<'later' | 'together'>(t?.fpuTiming ?? 'later')
 const fpuOptions = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 const byTimeOfDay = ref<boolean>(t?.byTimeOfDay ?? true)
 const segments = ref<EditSegment[]>(t ? t.segments.map(toEdit) : [toEdit({ start: '06:00' })])
+// Váltott műszak: külön napszakbeállítás a délutános hétre (bekapcsoláskor az alap másolatával indul).
+const altEnabled = ref<boolean>(!!t?.altEnabled)
+const altSegments = ref<EditSegment[]>(t?.altSegments?.length ? t.altSegments.map(toEdit) : [])
+const freeProfile = ref<'base' | 'alt'>(t?.freeProfile ?? 'base')
+watch(altEnabled, (on) => {
+  if (on && !altSegments.value.length) altSegments.value = segments.value.map(({ key, ...s }) => toEdit({ ...s, target: s.target || undefined, isf: s.isf || undefined, icr: s.icr || undefined, actionMinutes: s.actionMinutes || undefined }))
+})
+const shiftOn = computed(() => !!data.value?.shift?.enabled)
+const newKey = () => nextKey++
+const baseEd = ref<{ add: () => void } | null>(null)
+const altEd = ref<{ add: () => void } | null>(null)
 
 // 2:00–8:00 negyedórás lépésekben, ahogy az InPen is kínálja.
 const actionOptions = Array.from({ length: (480 - 120) / 15 + 1 }, (_, i) => 120 + i * 15)
@@ -50,15 +61,6 @@ const isfOff = computed(() => {
 })
 const hu = (v: number, dec = 1) => v.toLocaleString('hu-HU', { maximumFractionDigits: dec })
 
-function addSegment() {
-  const last = [...segments.value].sort((a, b) => hmToMinutes(a.start) - hmToMinutes(b.start)).at(-1)!
-  const m = Math.min(23 * 60 + 30, hmToMinutes(last.start) + 180)
-  const start = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
-  segments.value.push(toEdit({ start, target: last.target || undefined, isf: last.isf || undefined, icr: last.icr || undefined }))
-}
-function removeSegment(key: number) {
-  segments.value = segments.value.filter((s) => s.key !== key)
-}
 
 // A becslések átvétele a szerkesztőbe (napszak-kezdet szerint párosítva); menteni külön kell.
 const applied = ref('')
@@ -104,6 +106,9 @@ async function save() {
         fpuTiming: fpuTiming.value,
         byTimeOfDay: byTimeOfDay.value,
         segments: segments.value.map(({ start, target, isf, icr, actionMinutes }) => ({ start, target, isf, icr, actionMinutes: actionMinutes || null })),
+        altEnabled: altEnabled.value,
+        altSegments: altSegments.value.map(({ start, target, isf, icr, actionMinutes }) => ({ start, target, isf, icr, actionMinutes: actionMinutes || null })),
+        freeProfile: freeProfile.value,
       },
     })
     await refreshNuxtData('therapy')
@@ -189,36 +194,10 @@ async function save() {
         </label>
       </div>
 
-      <div class="table-wrap">
-        <table class="table therapy-edit-table">
-          <thead>
-            <tr>
-              <th v-if="byTimeOfDay">Kezdet</th>
-              <th>Glükóz célértéke <small>mmol/L</small></th>
-              <th>Inzulinérzékenységi tényező <small>mmol/L/E</small></th>
-              <th>Inzulin-szénhidrát arány <small>g/E</small></th>
-              <th v-if="byTimeOfDay">Inzulinhatás időtartama <small>ebben a napszakban</small></th>
-              <th v-if="byTimeOfDay"><span class="sr-only">Törlés</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="s in visible" :key="s.key">
-              <td v-if="byTimeOfDay"><input v-model="s.start" type="time" step="900" required aria-label="Kezdő időpont"></td>
-              <td><input v-model.number="s.target" type="number" step="0.1" min="3.9" max="13.9" required aria-label="Glükóz célértéke"></td>
-              <td><input v-model.number="s.isf" type="number" step="0.05" min="0.1" max="20" required aria-label="Inzulinérzékenységi tényező"></td>
-              <td><input v-model.number="s.icr" type="number" step="0.05" min="0.5" max="150" required aria-label="Inzulin-szénhidrát arány"></td>
-              <td v-if="byTimeOfDay">
-                <select v-model.number="s.actionMinutes" aria-label="Inzulinhatás időtartama ebben a napszakban">
-                  <option value="">közös ({{ actionLabel(actionMinutes) }})</option>
-                  <option v-for="m in actionOptions" :key="m" :value="m">{{ actionLabel(m) }}</option>
-                </select>
-              </td>
-              <td v-if="byTimeOfDay" class="act">
-                <button type="button" class="row-del" :disabled="segments.length < 2" :aria-label="`${s.start} napszak törlése`" title="Törlés" @click="removeSegment(s.key)">×</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <h3 v-if="altEnabled" class="seg-profile-h">Délelőttös hét és minden más nap</h3>
+      <SegmentsEditor ref="baseEd" :segments="segments" :by-time-of-day="byTimeOfDay" :action-minutes="actionMinutes" :action-options="actionOptions" :new-key="newKey" />
+      <div v-if="byTimeOfDay" class="btn-row">
+        <button type="button" class="ghost sm" :disabled="segments.length >= 12" @click="baseEd?.add()">+ Napszak</button>
       </div>
       <p v-if="rule" class="muted small">
         Tájékoztatásul: a napi összinzulinod átlaga {{ hu(tdd!, 0) }} E (utolsó 30 nap, bázissal). Az ökölszabályok szerinti kiinduló érték ehhez
@@ -232,13 +211,37 @@ async function save() {
         Ha egy napszakhoz külön inzulinhatás-időt adsz meg, a napi grafikonon az abban beadott bólusok hatásgörbéje ezzel rajzolódik; „közös” esetén a fenti érték érvényes.</p>
       <p v-else class="muted small">Kikapcsolva ezek az értékek egész nap érvényesek. A többi napszakot megőrzöm, visszakapcsolva újra látszanak.</p>
 
+      <!-- Váltott műszak: külön értékek a délutános hétre (a műszakbeosztás lent, a „Váltott műszak” kártyán). -->
+      <div class="therapy-fields">
+        <label class="tf-row">
+          <span class="tf-label">Külön beállítás a délutános hétre</span>
+          <input v-model="altEnabled" type="checkbox" class="switch" role="switch">
+        </label>
+      </div>
+      <template v-if="altEnabled">
+        <p v-if="!shiftOn" class="notice small" role="note">Ehhez add meg lent, a „Váltott műszak” kártyán, milyen műszakos ez a hét; addig az alap beállítás érvényes minden nap.</p>
+        <h3 class="seg-profile-h">Délutános hét</h3>
+        <SegmentsEditor ref="altEd" :segments="altSegments" :by-time-of-day="byTimeOfDay" :action-minutes="actionMinutes" :action-options="actionOptions" :new-key="newKey" />
+        <div class="btn-row">
+          <button v-if="byTimeOfDay" type="button" class="ghost sm" :disabled="altSegments.length >= 12" @click="altEd?.add()">+ Napszak</button>
+          <label class="tf-row">
+            <span class="tf-label">Szabadnapon</span>
+            <select v-model="freeProfile">
+              <option value="base">a délelőttös hét beállítása</option>
+              <option value="alt">a délutános hét beállítása</option>
+            </select>
+          </label>
+        </div>
+        <p class="muted small">A délutános héten (a műszakbeosztás szerint) ezek az értékek érvényesek a kalkulátorban, az aktív inzulinban, az előrejelzésben és a javaslatokban. Az elemzés napszakonkénti becslései az alap beállítás napszakai szerint csoportosítanak.</p>
+      </template>
+
       <div class="btn-row">
-        <button v-if="byTimeOfDay" type="button" class="ghost" :disabled="segments.length >= 12" @click="addSegment">+ Napszak</button>
         <span class="spacer" />
         <NuxtLink to="/" class="btn ghost">Mégse</NuxtLink>
         <button type="submit" :disabled="saving">Mentés</button>
       </div>
     </form>
+    <ShiftCard />
     <AnalysisCard @apply="applyEstimates" />
     <FpuCard @apply="applyFpu" />
     <!-- Üres végdátum: a szerver a mai napig számol. -->
