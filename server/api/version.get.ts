@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   const d = db().prepare('SELECT COUNT(*) c FROM deleted_entries').get() as any
   const n = db().prepare('SELECT COUNT(*) c, MAX(id) mx FROM notes').get() as any
   const s = settings()
-  const stamp = [e.c, e.mx, e.ca, d.c, n.c, n.mx, s.therapy?.updatedAt, s.range_low, s.range_high, s.basal_dose, dirtyAt()].join('|')
+  const stamp = [e.c, e.mx, e.ca, d.c, n.c, n.mx, s.therapy?.updatedAt, s.range_low, s.range_high, dirtyAt()].join('|')
   // A CareLink-figyelmeztetés és az eszközállapot is ezzel a percenkénti kéréssel jut el a főoldalra.
   const authed = await isAuthed(event)
   return { stamp, alert: authed ? clAlert() : null, device: authed ? clDevice() : null }

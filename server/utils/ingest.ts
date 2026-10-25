@@ -1,8 +1,7 @@
 // Közös ingest-logika az api/ingest.php átírásából. Az /api/ingest és a régi /api/ingest.php is ezt hívja.
 import { timingSafeEqual } from 'node:crypto'
 import type { H3Event } from 'h3'
-import { parseTextLines, parseJsonPayload, recordIngest, setBasalDose, setMaxBolus, type Parsed } from './normalize'
-import { therapy } from './therapy'
+import { parseTextLines, parseJsonPayload, recordIngest, type Parsed } from './normalize'
 import { storeRows } from './db'
 import { markDirty } from './computed'
 
@@ -52,9 +51,6 @@ export async function handleIngest(event: H3Event) {
     setResponseStatus(event, 401)
     return { ok: false, error: 'Hibás vagy hiányzó kulcs (X-Token).' }
   }
-
-  setBasalDose(setting('basal_dose', null) === null ? null : Number(setting('basal_dose')))
-  setMaxBolus(therapy()?.maxBolus ?? null)
 
   const formFields = { ...fields }
   delete formFields.token

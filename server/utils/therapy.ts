@@ -88,6 +88,15 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
   // Váltott műszak: a délutános hét külön napszakbeállítása (csak bekapcsolva ellenőrizzük és mentjük).
   const altEnabled = body?.altEnabled === true
   const altSegments = altEnabled ? parseSegments(body?.altSegments, 'Délutános hét, ', errors) : undefined
+  // A bázis automatikus beírása (időpont és adag).
+  let basalAuto: Therapy['basalAuto']
+  if (body?.basalAuto?.enabled === true) {
+    const time = String(body.basalAuto.time ?? '')
+    const units = Math.round(Number(body.basalAuto.units) * 10) / 10
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) errors.push('A bázis beadásának időpontja érvénytelen.')
+    if (!Number.isFinite(units) || units < 1 || units > 100) errors.push('A bázisadag 1 és 100 E között lehet.')
+    basalAuto = { time, units }
+  }
 
   if (errors.length) return { ok: false, errors }
   return {
@@ -103,6 +112,7 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
       byTimeOfDay,
       segments,
       ...(altEnabled ? { altEnabled: true, altSegments, freeProfile: body?.freeProfile === 'alt' ? 'alt' : 'base' } : {}),
+      ...(basalAuto ? { basalAuto } : {}),
       source: 'manual',
       updatedAt: Math.floor(Date.now() / 1000),
     },

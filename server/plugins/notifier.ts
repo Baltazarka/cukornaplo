@@ -1,6 +1,8 @@
-// Háttérciklus a push értesítésekhez (hipó-veszély, szénhidrát- és inzulinjavaslat, szenzor és transzmitter): percenként ellenőriz.
+// Háttérciklus a push értesítésekhez (hipó-veszély, szénhidrát- és inzulinjavaslat, szenzor és transzmitter) és a bázis
+// automatikus beírásához: percenként ellenőriz.
 import { checkAlerts, checkDeviceAlerts, checkFpuReminders } from '../utils/notify'
 import { learnedAbsorption } from '../utils/absorption'
+import { checkBasalAuto } from '../utils/basalAuto'
 
 export default defineNitroPlugin(() => {
   let running = false
@@ -8,7 +10,7 @@ export default defineNitroPlugin(() => {
     if (running) return
     running = true
     // Külön hibakezelés: az egyik ellenőrzés hibája ne akassza meg a többit.
-    for (const check of [checkAlerts, checkDeviceAlerts, checkFpuReminders]) {
+    for (const check of [checkBasalAuto, checkAlerts, checkDeviceAlerts, checkFpuReminders]) {
       try {
         await check()
       } catch (e) {

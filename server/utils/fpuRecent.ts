@@ -1,7 +1,6 @@
 // A legutóbbi (5 órán belüli) zsíros étkezés zsír-fehérje javaslata és az étkezés után beadott inzulin. A bóluskalkulátor
 // ebből figyelmeztet, hogy a korrekció és a zsír-fehérje adag átfed, és a push-emlékeztető is ebből dönt.
 import { db } from './db'
-import { isAssumedBasal } from './basal'
 import { therapy, segmentAt, DEFAULT_FPU_PERCENT } from './therapy'
 import { hmInTz } from './time'
 import { fpuSuggestion } from '#shared/utils/fpu'
@@ -29,8 +28,8 @@ const AFTER_MEAL_SEC = 30 * 60
 export function insulinGivenAfterMeal(mealTs: number, nowTs: number): number {
   const rows = db()
     .prepare("SELECT value, subtype FROM entries WHERE type = 'insulin' AND (subtype IS NULL OR subtype != 'basal') AND ts > ? AND ts <= ?")
-    .all(mealTs + AFTER_MEAL_SEC, nowTs) as { value: number; subtype: string | null }[]
-  const sum = rows.filter((r) => !isAssumedBasal(Number(r.value), r.subtype)).reduce((s, r) => s + Number(r.value), 0)
+    .all(mealTs + AFTER_MEAL_SEC, nowTs) as { value: number }[]
+  const sum = rows.reduce((s, r) => s + Number(r.value), 0)
   return Math.round(sum * 10) / 10
 }
 

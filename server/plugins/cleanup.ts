@@ -3,11 +3,12 @@
 //  - ugyanaz a szenzormérés két úton (Apple Health és CareLink) ~1 percen belül kétszer szerepelt: a Health-ből
 //    jött (percre kerekített) másolat törlődik, a CareLink pontos időpontú sora marad;
 //  - ugyanarra az időpontra (±2,5 perc) két CareLink-érték: a később felvett (eltolt időpontú másolat) törlődik;
-//  - a típus nélküli, bázisnak látszó adagot nem írjuk át: a besorolás (insulinKind / isAssumedBasal) futásidőben,
-//    a mostani beállításból ismeri fel, így a bázisadag módosítása a régi sorokat nem változtatja meg végleg.
+//  - egyszer: a régi, mennyiség alapján bázisnak felismert (típus nélküli) adagok bázisjelölést kapnak, mert a
+//    felismerés megszűnt (a bázist kézzel vagy a Terápia oldali automatikus beírás jelöli).
 // Ha bármi változott, a tárolt elemzések a háttérben újraszámolódnak.
 import { db, GLUCOSE_DUP_SEC, MANUAL_SOURCE } from '../utils/db'
 import { markDirty } from '../utils/computed'
+import { looksBasal } from '../utils/normalize'
 
 export default defineNitroPlugin(() => {
   // Az adatbázis a bővítmények betöltésekor még nem nyitható meg: az indulás után futtatjuk.
@@ -52,6 +53,23 @@ function cleanup(): void {
         ).run(b, b).changes)
       }
       saveSettings({ fix_basal_v1: true })
+    }
+    // A megszűnt bázisfelismerés (a főoldali „Bázisadagom” körül) eredménye a régi sorokon: egyszer rögzítjük.
+    if (!setting('basal_tag_v2', null)) {
+      const b = Number(setting('basal_dose', null))
+      const max = Number(setting<any>('therapy', null)?.maxBolus)
+      const basal = Number.isFinite(b) && b > 0 ? b : null
+      const rows = d.prepare("SELECT id, value FROM entries WHERE type = 'insulin' AND (subtype IS NULL OR subtype = '')").all() as { id: number; value: number }[]
+      const upd = d.prepare("UPDATE entries SET subtype = 'basal' WHERE id = ?")
+      let tagged = 0
+      for (const r of rows) {
+        if (looksBasal(Number(r.value), basal, Number.isFinite(max) && max > 0 ? max : null)) tagged += Number(upd.run(r.id).changes)
+      }
+      saveSettings({ basal_tag_v2: true })
+      if (tagged) {
+        console.log(`[adattisztítás] ${tagged} típus nélküli bázisadag bázisnak jelölve`)
+        markDirty()
+      }
     }
     const removed = Number(dup.changes) + Number(shifted.changes)
     const relabeled = Number(inpen.changes)

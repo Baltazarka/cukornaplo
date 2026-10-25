@@ -10,7 +10,7 @@ import { db } from '../utils/db'
 import { todayYmd } from '../utils/time'
 
 const SECRET_TABLES = ['share_tokens', 'passkeys', 'push_subscriptions', 'login_failures', 'computed_cache']
-const SAFE_SETTINGS = ['therapy', 'range_low', 'range_high', 'basal_dose', 'absorb_rates', 'notify', 'shift']
+const SAFE_SETTINGS = ['therapy', 'range_low', 'range_high', 'absorb_rates', 'notify', 'shift']
 
 export default defineEventHandler((event) => {
   const dir = mkdtempSync(join(tmpdir(), 'cukornaplo-export-'))

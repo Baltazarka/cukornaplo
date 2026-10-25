@@ -61,6 +61,11 @@ export interface Therapy {
   altSegments?: TherapySegment[]
   /** Szabadnapon melyik beállítás érvényes ('base' = alap, 'alt' = délutános). Hiányzó: alap. */
   freeProfile?: 'base' | 'alt'
+  /**
+   * A bázis automatikus beírása: naponta `time`-kor (HH:MM) `units` E bázis kerül a naplóba (push értesítéssel), ha
+   * aznap még nincs bázis beírva (server/utils/basalAuto.ts). Hiányzó: kikapcsolva.
+   */
+  basalAuto?: { time: string; units: number }
   /** Egyelőre mindig kézi; később számítás vagy varázsló is beállíthatja. */
   source: 'manual'
   updatedAt: number

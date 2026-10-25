@@ -18,6 +18,10 @@ const basalOptions = INSULINS.filter((i) => i.kind === 'basal')
 const bolusInfo = computed(() => insulinById(bolusInsulin.value))
 const basalInfo = computed(() => insulinById(basalInsulin.value))
 const maxBolus = ref<number | ''>(t?.maxBolus ?? '')
+// A bázis automatikus beírása: naponta a megadott időpontban a naplóba kerül (push értesítéssel).
+const basalAutoOn = ref<boolean>(!!t?.basalAuto)
+const basalAutoTime = ref<string>(t?.basalAuto?.time ?? '07:00')
+const basalAutoUnits = ref<number | ''>(t?.basalAuto?.units ?? '')
 const actionMinutes = ref<number>(t?.actionMinutes ?? 240)
 const fpuPercent = ref<number>(t?.fpuPercent ?? 50)
 const fpuTiming = ref<'later' | 'together'>(t?.fpuTiming ?? 'later')
@@ -100,6 +104,7 @@ async function save() {
       body: {
         bolusInsulin: bolusInsulin.value || null,
         basalInsulin: basalInsulin.value || null,
+        basalAuto: { enabled: basalAutoOn.value, time: basalAutoTime.value, units: basalAutoUnits.value },
         maxBolus: maxBolus.value,
         actionMinutes: actionMinutes.value,
         fpuPercent: fpuPercent.value,
@@ -148,6 +153,25 @@ async function save() {
           </select>
         </label>
         <label class="tf-row">
+          <span class="tf-label">Bázis automatikus beírása</span>
+          <input v-model="basalAutoOn" type="checkbox" class="switch" role="switch">
+        </label>
+        <template v-if="basalAutoOn">
+          <label class="tf-row">
+            <span class="tf-label">Beadás időpontja</span>
+            <input v-model="basalAutoTime" type="time" required>
+          </label>
+          <label class="tf-row">
+            <span class="tf-label">Bázisadag</span>
+            <span class="tf-input"><input v-model.number="basalAutoUnits" type="number" step="0.5" min="1" max="100" required> E</span>
+          </label>
+          <p class="muted small">
+            Naponta ekkor beírja a naplóba bázisként, és push értesítést küld róla (ha aznap még nincs bázis beírva). Ha más
+            adagot adtál be, vagy kimaradt, a naplóban javíthatod vagy törölheted; ha aznap kézzel írod be a bázist, az
+            automatikus sor helyére lép.
+          </p>
+        </template>
+        <label class="tf-row">
           <span class="tf-label">Kiszámított maximális dózis</span>
           <span class="tf-input"><input v-model.number="maxBolus" type="number" step="0.5" min="0.5" max="50" required> E</span>
         </label>
@@ -178,7 +202,7 @@ async function save() {
             <option value="together">egyben, evéskor az étkezési bólussal</option>
           </select>
         </label>
-        <p class="muted small tf-note">
+        <p class="muted small">
           Zsíros / fehérjedús étkezésnél a bóluskalkulátor a számolt adag alatt tájékoztatásul kiírja, mennyi plusz inzulin
           jönne ki a zsír és a fehérje grammjából (1 zsír-fehérje egység = 100 kcal zsírból és fehérjéből ≈ 10 g CH), és
           mikorra. A teljes érték sokaknál későbbi hipót okoz; a szorzót a diabetológussal egyeztesd.

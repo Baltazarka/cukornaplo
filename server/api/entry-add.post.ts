@@ -6,7 +6,7 @@
 // Ha 30 percen belül már van ugyanilyen típusú bejegyzés, 409-cel visszaszól (force: true-val mégis
 // felveszi). Ha a telefon (Apple Health) később ugyanezt az adagot küldi, a kézi sor beolvad (db.ts storeRows).
 import { markDirty } from '../utils/computed'
-import { isAssumedBasal } from '../utils/basal'
+import { autoBasalId } from '../utils/basalAuto'
 import { db, MANUAL_SOURCE, MANUAL_MATCH_SEC } from '../utils/db'
 import { hmInTz, ymdInTz, wallToTs } from '../utils/time'
 import { therapy, segmentAt, DEFAULT_FPU_PERCENT } from '../utils/therapy'
@@ -56,9 +56,6 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 400)
     return { ok: false, error: `A zsír és a fehérje 0–${MACRO_MAX_G} g lehet.` }
   }
-  // Típus nélküli, a beállított bázisadaggal egyező inzulin bázis (mint az adatfogadásnál).
-  if (type === 'insulin' && sub === null && isAssumedBasal(value, null)) sub = 'basal'
-
   // Időpont nélkül a pontos mostani pillanat (óraátállításkor sem kétértelmű); faliidőből a már elmúlt előfordulás.
   const ts = body.date || body.time ? wallToTs(date, time, nowSec) : nowSec
   if (ts > nowSec + 15 * 60) {
@@ -66,12 +63,15 @@ export default defineEventHandler(async (event) => {
     return { ok: false, error: 'Az időpont nem lehet a jövőben.' }
   }
 
+  // Kézzel beírt bázis: az aznapi automatikus bázissor helyére lép (az nem számít hasonló bejegyzésnek).
+  const autoId = type === 'insulin' && sub === 'basal' ? autoBasalId(ymdInTz(ts)) : null
+
   // Hasonló bejegyzés a közelben (pl. véletlenül kétszer beírva, vagy a telefon már elküldte): csak rákérdezünk. (Vércukornál nincs ilyen: a szenzor
   // ötpercenként mér, a kézi mérés külön pont.)
   if (body.force !== true && type !== 'glucose') {
     const near = db()
-      .prepare('SELECT ts, value FROM entries WHERE type = ? AND ts BETWEEN ? AND ? ORDER BY ABS(ts - ?) LIMIT 1')
-      .get(type, ts - MANUAL_MATCH_SEC, ts + MANUAL_MATCH_SEC, ts) as { ts: number; value: number } | undefined
+      .prepare('SELECT ts, value FROM entries WHERE type = ? AND ts BETWEEN ? AND ? AND id != ? ORDER BY ABS(ts - ?) LIMIT 1')
+      .get(type, ts - MANUAL_MATCH_SEC, ts + MANUAL_MATCH_SEC, autoId ?? -1, ts) as { ts: number; value: number } | undefined
     if (near) {
       setResponseStatus(event, 409)
       const v = Number(near.value).toLocaleString('hu-HU', { maximumFractionDigits: 1 })
@@ -93,6 +93,7 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 409)
     return { ok: false, error: 'Pontosan ilyen bejegyzés (időpont és mennyiség) már van.' }
   }
+  if (autoId != null) db().prepare("DELETE FROM entries WHERE id = ? AND type = 'insulin' AND subtype = 'basal'").run(autoId)
   markDirty()
   // Friss zsíros étkezés zsír / fehérje adattal: emlékeztető 1,5 óra múlva (a napszak CH-arányával és a beállított %-kal).
   let fpu = null

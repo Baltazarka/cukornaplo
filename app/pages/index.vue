@@ -124,24 +124,6 @@ async function setDayShift(kind: string) {
   await refresh()
 }
 
-// Bázis-küszöb és az inzulinsorok típusának utólagos állítása.
-const basalDose = ref<number | null>(null)
-const basalLoaded = ref(false)
-watchEffect(() => {
-  if (data.value && !basalLoaded.value) {
-    basalDose.value = data.value.basalDose
-    basalLoaded.value = true
-  }
-})
-async function saveBasal() {
-  try {
-    await $fetch('/api/basal', { method: 'POST', body: { basal_dose: basalDose.value || null } })
-    await refresh()
-    entriesChanged()
-  } catch (err: any) {
-    useToast().error(err?.data?.error ?? 'A mentés nem sikerült.')
-  }
-}
 // Szénhidrát jelölése: zsíros / fehérjedús (a CH-arány becslése kihagyja, az elemzés külön mutatja),
 // vagy gyors CH (pl. hipó kezelése). A kettő kizárja egymást; újra kattintva a jelölés lekerül.
 async function toggleCarbTag(e: any, tag: 'fatty' | 'fast') {
@@ -483,13 +465,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
             <button type="button" class="ghost sm" @click="noteForm = null">Mégse</button>
           </div>
         </form>
-        <form v-if="!readOnly" class="range-edit" @submit.prevent="saveBasal">
-          <span class="muted">Bázisadagom:</span>
-          <input v-model.number="basalDose" type="number" step="0.5" min="0" max="100" placeholder="pl. 52" aria-label="Bázisadag (E)">
-          <span class="muted">E</span>
-          <button type="submit" class="ghost sm">Mentés</button>
-        </form>
-        <p v-if="!readOnly" class="muted small">A típus nélküli adag bázis, ha ekkora, vagy a maximális bólusnál nagyobb és ennek ±25%-án belül (üresen hagyva kikapcsolva). A többi típus nélküli bólus automatikusan: étkezési, ha 60 percen belül utána (előbólus) vagy 30 percen belül előtte szénhidrát is van; különben korrekció. Az „(auto)” sorokat a legördülővel bármikor átállíthatod (pl. korrekcióról étkezési bólusra), a × gombbal törölheted (a telefon sem tölti vissza).</p>
+        <p v-if="!readOnly" class="muted small">A bázis az, amit bázisnak jelölsz, vagy amit a Terápia oldalon beállított automatikus beírás rögzít. A típus nélküli bólus automatikusan: étkezési, ha 60 percen belül utána (előbólus) vagy 30 percen belül előtte szénhidrát is van; különben korrekció. Az „(auto)” sorokat a legördülővel bármikor átállíthatod (pl. korrekcióról étkezési bólusra), a × gombbal törölheted (a telefon sem tölti vissza).</p>
         <div v-if="logRows.length" class="table-wrap">
           <table class="table log-table">
             <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num">Glükóz</th><th v-if="!readOnly"><span class="sr-only">Törlés</span></th></tr></thead>

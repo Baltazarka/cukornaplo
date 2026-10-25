@@ -1,6 +1,5 @@
 // Kézi import: beillesztett sorok vagy feltöltött fájl (.txt/.csv/.json).
-import { parseTextLines, parseJsonPayload, recordIngest, setBasalDose, setMaxBolus, type Parsed } from '../utils/normalize'
-import { therapy } from '../utils/therapy'
+import { parseTextLines, parseJsonPayload, recordIngest, type Parsed } from '../utils/normalize'
 import { storeRows } from '../utils/db'
 import { markDirty } from '../utils/computed'
 
@@ -17,9 +16,6 @@ export default defineEventHandler(async (event) => {
     text = String(body.lines ?? '')
   }
 
-  // A bázisadag-egyezés (típus nélküli adag = bázis) importnál is érvényes.
-  setBasalDose(setting('basal_dose', null) === null ? null : Number(setting('basal_dose')))
-  setMaxBolus(therapy()?.maxBolus ?? null)
   const trimmed = text.replace(/^\s+/, '')
   let parsed: Parsed
   if (trimmed !== '' && trimmed[0] === '{') {

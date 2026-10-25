@@ -108,7 +108,6 @@ export default defineEventHandler((event) => {
     prev: addDaysYmd(day, -1),
     next: addDaysYmd(day, 1),
     label: day.replaceAll('-', '. ') + '., ' + huWeekday(day),
-    basalDose: setting('basal_dose', null) === null ? null : Number(setting('basal_dose')),
     dayStartMs: dayStart * 1000,
     dayEndMs: dayEnd * 1000,
     range: { veryLow: RANGE_VERY_LOW, low, high, veryHigh: RANGE_VERY_HIGH },

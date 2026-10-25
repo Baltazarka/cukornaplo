@@ -185,7 +185,7 @@ onBeforeUnmount(() => {
               <h3>Inzulin: besorolás, TDD, kördiagram</h3>
               <p>Ha a bólus típusa nincs megadva („Automatikus”), így becsüljük (a naplóban kézzel bármikor felülírható, és a kézi beállítás mindig erősebb):</p>
               <ol class="guide-ol">
-                <li><b>Bázis</b>, ha a típus nélküli adag pontosan akkora, mint a főoldalon beállított „Bázisadagom” (±0,05 E), vagy a maximális bólusnál nagyobb és a bázisadag ±25%-án belül van (pl. 50 E az 52 helyett), vagy kézzel bázisnak jelölted. A típus nélküli adagot a program mindig a mostani bázisadag szerint sorolja be, az adatbázisban nem írja át.</li>
+                <li><b>Bázis</b>, ha kézzel bázisnak jelölted, vagy a Terápia oldalon bekapcsolt „Bázis automatikus beírása” írta be (naponta a megadott időpontban a megadott adag, push értesítéssel, ha aznap még nincs bázis a naplóban). Mennyiség alapján a program nem ismeri fel a bázist: a típus nélküli adag mindig bólus.</li>
                 <li><b>Étkezési bólus</b>, ha a beadás után 60 percen belül (előbólus) vagy előtte 30 percen belül szénhidrát van a naplóban.</li>
                 <li>Egyébként <b>korrekció</b>: a CH nélküli adag. Ha a bejegyzésnek van típusa („korrekció”, „étkezés”), azt használjuk.</li>
               </ol>

@@ -4,7 +4,6 @@ import type { Therapy } from '#shared/types/therapy'
 import { db } from './db'
 import { actionMinutesAt } from './therapy'
 import { insulinKind, type InsulinKind } from './insulinKind'
-import { isAssumedBasal } from './basal'
 
 export interface RapidDose {
   ts: number
@@ -37,11 +36,8 @@ export function rapidDoses(t: Therapy, from: number, to: number, carbTs: number[
   const out: RapidDose[] = []
   for (const r of rows) {
     const ts = Number(r.ts)
-    // A beállított bázisadaggal egyező, típus nélküli adag bázis (akkor is, ha nem érkezéskor lett felismerve).
-    if (isAssumedBasal(Number(r.value), r.subtype)) continue
-    const kind = insulinKind(ts, r.subtype, carbTs).kind
-    // Az automatikusan bázisnak felismert adag (pl. a beállított bázisadag) sem számít.
-    if (kind === 'basal') continue
+    // A bázis (Toujeo) nem gyors hatású inzulin: nem számít.
+    if (insulinKind(ts, r.subtype, carbTs).kind === 'basal') continue
     const dia = actionMinutesAt(t, ts)
     out.push({ ts, v: Number(r.value), dia, kind, model: insulinModel(peak, dia) })
   }

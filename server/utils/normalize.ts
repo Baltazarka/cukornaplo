@@ -1,20 +1,10 @@
 // A lib.php adatfeldolgozó részének átírása: típus/dátum/érték értelmezése és egységesítése.
 import type { Row } from './db'
 
-/** A bázisadag (E): a típus nélkül pontosan ekkora adagként érkező inzulin bázis. null = nincs beállítva. */
-let basalDose: number | null = null
-export function setBasalDose(n: number | null): void {
-  basalDose = n !== null && Number.isFinite(n) && n > 0 ? n : null
-}
-/** A terápiában beállított maximális bólus (E): a típus nélkül ennél nagyobb adagként érkező inzulin bázis. */
-let maxBolus: number | null = null
-export function setMaxBolus(n: number | null): void {
-  maxBolus = n !== null && Number.isFinite(n) && n > 0 ? n : null
-}
 export const MGDL_PER_MMOL = 18.0182
 
 /**
- * Típus nélküli adag, ami bázisnak tekintendő: a beállított bázisadag ±25%-án belül (és a maximális bólus fölött),
+ * A régi (megszűnt) felismerés, csak a régi adatok egyszeri átjelöléséhez (plugins/cleanup.ts). Típus nélküli adag, ami bázisnak tekintendő: a beállított bázisadag ±25%-án belül (és a maximális bólus fölött),
  * vagy bázisadag nélkül a maximális bólus másfélszeresénél nagyobb. Egy nagy étkezési bólus (pl. 26 E a 25-ös
  * maximum mellett) így nem lesz bázis, a más adaggal beadott bázis (pl. 50 E az 52 helyett) igen.
  */
@@ -149,9 +139,7 @@ export function normalizeRow(
     else if (st.includes('bol') || st === '2') sub = 'bolus'
   }
 
-  // A Parancsok nem küldi az adag típusát: típus nélkül a beállított bázisadaggal egyező érték = bázis, minden más bólus.
-  if (t === 'insulin' && sub === null && basalDose !== null && Math.abs(v - basalDose) < 0.05) sub = 'basal'
-  if (t === 'insulin' && sub === null && looksBasal(v, basalDose, maxBolus)) sub = 'basal'
+  // A típus nélküli adag bólus (a bázist kézzel vagy az automatikus beírás jelöli, mennyiség alapján nem ismerjük fel).
 
   let src = source.trim() !== '' ? source.trim().slice(0, 80) : null
   // Az InPen appba beírt vércukor ujjbegyes mérés, nem szenzoradat: kézi mérésként tároljuk (a görbe, a trend,
