@@ -29,8 +29,20 @@ onMounted(() => {
   } catch { /* nincs localStorage */ }
   setThemeColor(theme.value)
   document.addEventListener('click', closeThemeMenu)
+  schemeQuery = matchMedia('(prefers-color-scheme: dark)')
+  schemeQuery.addEventListener('change', onSchemeChange)
 })
-onBeforeUnmount(() => document.removeEventListener('click', closeThemeMenu))
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeThemeMenu)
+  schemeQuery?.removeEventListener('change', onSchemeChange)
+})
+// „Rendszer szerint” témánál a rendszer világos/sötét váltására is újrarajzolnak a grafikonok.
+let schemeQuery: MediaQueryList | null = null
+function onSchemeChange() {
+  if (theme.value !== 'system') return
+  setThemeColor('system')
+  themeTick.value++
+}
 function closeThemeMenu(e: MouseEvent) {
   if (themeOpen.value && !(e.target as HTMLElement)?.closest?.('.theme-menu-wrap')) themeOpen.value = false
 }
