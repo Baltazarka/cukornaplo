@@ -248,8 +248,11 @@ code { font: 13px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; }
 .stepper li.current { color: var(--text-primary); font-weight: 600; }
 .stepper li.current span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
-.wizard { max-width: 820px; width: 100%; }
-.wizard h1 { margin-bottom: 12px; }
+/* Telefon oldal: egyforma szélességű kártyák; a régi adatküldés-varázsló egy lenyitható kártyán belül. */
+.phone-page { max-width: 900px; }
+.wizard-box { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.wizard { width: 100%; }
+.wizard h3 { margin: 4px 0 12px; font-size: 17px; }
 .wizard h2 { margin: 24px 0 8px; }
 .wizard p { margin: 8px 0; }
 .steps .value, .action .value { margin-top: 6px; }
