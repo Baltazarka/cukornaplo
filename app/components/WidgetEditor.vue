@@ -13,16 +13,23 @@ type SampleKind = 'real' | 'in' | 'low' | 'high'
 const sample = ref<SampleKind>('real')
 const SAMPLE_BUTTONS: [SampleKind, string][] = [['real', 'Valós adat'], ['in', 'Minta: rendben'], ['low', 'Minta: alacsony'], ['high', 'Minta: magas']]
 const SAMPLES = { in: [6.4, 0], low: [3.6, -1], high: [12.1, 1] } as const
+// Mintajavaslat: alacsonynál szénhidrát, magasnál inzulin (a valós adatnál a szerver számolja).
+const SAMPLE_SUGGEST = { in: { insulin: null, carbs: null }, low: { insulin: null, carbs: 15 }, high: { insulin: 2.5, carbs: null } } as const
 function sampleData(kind: 'in' | 'low' | 'high') {
   const [v, dir] = SAMPLES[kind]
   const series: [number, number][] = []
   for (let m = 360; m >= 0; m -= 5) series.push([m, Math.round((v - dir * (m / 360) * 2.2 + Math.sin(m / 40) * 0.6) * 10) / 10])
   return {
-    glucose: { v, ageMin: 2 }, trend: { dir, level: dir === 0 ? 0 : 2 }, iob: 1.8, cob: 14,
+    glucose: { v, ageMin: 2 }, trend: { dir, level: dir === 0 ? 0 : 2 }, iob: 1.8, cob: 14, suggest: SAMPLE_SUGGEST[kind],
     range: data.value?.data?.range ?? { low: 3.9, high: 10 }, series,
   }
 }
 const d = computed<any>(() => (sample.value === 'real' ? data.value?.data : sampleData(sample.value)))
+// Javaslat az előnézetben: ha van, ezt mutatjuk (a telefonon frissítésenként váltakozik az aktív értékekkel).
+const sug = computed(() => {
+  const s = d.value?.suggest
+  return s && (s.insulin || s.carbs) ? s : null
+})
 
 // A mérés időpontja óra:perc alakban (a widget alján).
 const measuredAt = computed(() => new Date(Date.now() - (d.value?.glucose?.ageMin ?? 0) * 60000).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }))
@@ -108,7 +115,11 @@ async function reset() {
               <div class="wg-glu" :style="{ color: glucoseColor }">
                 <span :style="{ fontSize: form.fontSize + 'px' }">{{ sgText(d.glucose.v) }}</span><span v-if="ALL.showTrend" :style="{ fontSize: Math.round(form.fontSize * 0.6) + 'px' }">&nbsp;{{ widgetArrow(d.trend) }}</span>
               </div>
-              <div v-if="ALL.showCob || ALL.showIob" class="wg-side">
+              <div v-if="sug" class="wg-side">
+                <span v-if="sug.carbs" :style="{ color: form.colors.cob }"><span class="wg-ico">🍗</span> {{ sug.carbs }} g</span>
+                <span v-if="sug.insulin" :style="{ color: form.colors.iob }"><svg class="wg-ico" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M11.3 1.3l3.4 3.4-1 1-1-1-1.1 1.1 1 1-6.2 6.2H3.6l-1.9 1.9-.9-.9 1.9-1.9V9.3l6.2-6.2 1 1L11 3l-1-1 1.3-.7zM8.9 5.1L4.4 9.6l1.9 1.9 4.5-4.5-1.9-1.9z" /></svg> {{ widgetIob(sug.insulin) }} E</span>
+              </div>
+              <div v-else-if="ALL.showCob || ALL.showIob" class="wg-side">
                 <span v-if="ALL.showCob" :style="{ color: form.colors.cob }">CH {{ d.cob }} g</span>
                 <span v-if="ALL.showIob" :style="{ color: form.colors.iob }">B {{ widgetIob(d.iob) }} E</span>
               </div>
@@ -120,11 +131,16 @@ async function reset() {
             </svg>
             <div class="wg-age" style="color: #8a93a3">mmol/L · {{ measuredAt }}</div>
           </div>
+          <p v-if="sug" class="muted small">Javaslat: {{ sug.insulin ? `${widgetIob(sug.insulin)} E inzulin (magas cukor)` : `${sug.carbs} g szénhidrát (hipó-veszély)` }}. Ha közben aktív inzulin vagy CH is van, a widget frissítésenként váltakozva mutatja azokat is.</p>
           <div class="muted small">Zárképernyő (téglalap; a színeket az iOS adja)</div>
           <div class="wg-lock">
             <div class="wg-lock-row">
               <span class="wg-lock-gw"><b class="wg-lock-g">{{ sgText(d.glucose.v) }}<template v-if="ALL.showTrend"> {{ widgetArrow(d.trend) }}</template></b><small>mmol/L</small></span>
-              <span v-if="ALL.showCob || ALL.showIob" class="wg-lock-side">
+              <span v-if="sug" class="wg-lock-side">
+                <b v-if="sug.carbs">🍗 {{ sug.carbs }} g</b>
+                <b v-if="sug.insulin">💉 {{ widgetIob(sug.insulin) }} E</b>
+              </span>
+              <span v-else-if="ALL.showCob || ALL.showIob" class="wg-lock-side">
                 <b v-if="ALL.showCob">CH {{ d.cob }} g</b>
                 <b v-if="ALL.showIob">B {{ widgetIob(d.iob) }} E</b>
               </span>
@@ -184,6 +200,7 @@ async function reset() {
 .wg-glu { font-weight: 700; line-height: 1; white-space: nowrap; }
 .wg-side { display: flex; flex-direction: column; gap: 2px; font-weight: 700; font-size: 12px; text-align: right; white-space: nowrap; }
 .wg-line { display: block; width: 100%; height: auto; }
+.wg-ico { display: inline-block; width: 12px; height: 12px; font-size: 11px; vertical-align: -1px; }
 .wg-age { font-size: 10px; }
 .wg-lock {
   width: 170px; padding: 8px 10px; border-radius: 14px; background: #2a2d34; color: #fff; box-sizing: border-box;
