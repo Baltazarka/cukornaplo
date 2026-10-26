@@ -9,13 +9,14 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 429)
     return { ok: false, error: `Túl sok hibás próbálkozás. Próbáld újra ${Math.ceil(wait / 60)} perc múlva.` }
   }
+  // A próbálkozás az ellenőrzés előtt számít (sikeres belépéskor törlődik), a párhuzamos kérések miatt.
+  loginFailed(event)
   const body = (await readBody(event)) ?? {}
   const session = await authSession(event)
   const challenge = session.data.challenge
   const row = passkeyById(String(body.response?.id ?? ''))
   await session.update({ challenge: undefined })
   if (!challenge || !row) {
-    loginFailed(event)
     setResponseStatus(event, 401)
     return { ok: false, error: 'Ismeretlen passkey.' }
   }
@@ -36,7 +37,6 @@ export default defineEventHandler(async (event) => {
     await loginSession(event, body.remember === true)
     return { ok: true }
   } catch {
-    loginFailed(event)
     setResponseStatus(event, 401)
     return { ok: false, error: 'A passkey-s belépés nem sikerült.' }
   }

@@ -3,6 +3,8 @@
 // inzulinadagok (típus szerinti színnel) és a szénhidrátok felirattal, közös 0–24 órás tengelyen.
 const props = defineProps<{
   glucose: [number, number][]
+  /** Kézi (ujjbegyes) mérések [perc, mmol/L]: külön pontként, nem a görbében. */
+  manual?: [number, number][]
   events: { minute: number; type: string; kind: string | null; v: number; fatty: boolean; fast?: boolean }[]
   low: number
   high: number
@@ -20,7 +22,7 @@ const INS_Y = 128
 const CH_Y = 162
 const H = 186
 const sx = (m: number) => L + (m / 1440) * (W - L - R)
-const yMax = computed(() => Math.max(16, Math.ceil(Math.max(0, ...props.glucose.map((g) => g[1])) / 2) * 2))
+const yMax = computed(() => Math.max(16, Math.ceil(Math.max(0, ...props.glucose.map((g) => g[1]), ...(props.manual ?? []).map((g) => g[1])) / 2) * 2))
 const Y_MIN = 2
 const sy = (v: number) => TOP + (1 - (Math.min(yMax.value, Math.max(Y_MIN, v)) - Y_MIN) / (yMax.value - Y_MIN)) * PLOT_H
 const yTicks = computed(() => {
@@ -99,6 +101,7 @@ const carbs = computed(() => placed(props.events.filter((e) => e.type === 'carbs
     <rect v-for="(x, i) in excluded ?? []" :key="'ex' + i" :x="sx(x.minute)" :y="TOP" :width="Math.max(1, sx(x.toMinute) - sx(x.minute))" :height="PLOT_H" class="rd-excluded" />
     <path v-if="excludedPath" :d="excludedPath" class="rd-excluded-line" />
     <path :d="path" class="rd-glucose" />
+    <rect v-for="(g, i) in manual ?? []" :key="'m' + i" :x="sx(g[0]) - 3" :y="sy(g[1]) - 3" width="6" height="6" :transform="`rotate(45 ${sx(g[0])} ${sy(g[1])})`" class="rd-manual" />
     <g v-for="(e, i) in insulin" :key="'i' + i">
       <rect :x="e.x - 2" :y="INS_Y - 6" width="4" height="10" rx="1" :style="{ fill: KIND_COLOR[e.kind ?? 'meal'] }" />
       <text :x="e.lx" :y="e.above ? INS_Y - 9 : INS_Y + 14" text-anchor="middle" class="rd-label">{{ num(e.v, 1) }}</text>

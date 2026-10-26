@@ -41,6 +41,13 @@ export function hmInTz(ts: number): string {
   return `${p.hour}:${p.minute}`
 }
 
+/** Létező naptári nap 'YYYY-MM-DD' alakban (a 02-31 és hasonlók nem). */
+export function isValidYmd(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
+  const [y, mo, d] = s.split('-').map(Number)
+  return new Date(Date.UTC(y, mo - 1, d)).toISOString().slice(0, 10) === s
+}
+
 /** 'YYYY-MM-DD' adott zóna szerinti éjfélének unix másodperce. */
 export function startOfDayTs(ymd: string): number {
   const [y, mo, d] = ymd.split('-').map(Number)

@@ -144,6 +144,7 @@ function openMacroEdit(e: any) {
 }
 async function saveMacros() {
   const m = macroEdit.value!
+  macroError.value = '' // az ismételt, azonos hiba is jelenjen meg
   try {
     await $fetch('/api/entry-macros', { method: 'POST', body: { id: m.id, fat: m.fat, protein: m.protein } })
     macroEdit.value = null
@@ -535,7 +536,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                       </div>
                     </template>
                   </td>
-                  <td class="num"><span v-if="e.manual" class="note-chip manual-chip" title="Kézzel felvett bejegyzés">kézi</span>{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : e.type === 'glucose' ? fmt(e.v) + ' mmol/L' : fmt(e.v) + ' E' }}</td>
+                  <td class="num"><span v-if="e.autoBasal" class="note-chip manual-chip" title="A Terápia oldalon beállított időpontban automatikusan beírva">automatikus</span><span v-else-if="e.manual" class="note-chip manual-chip" title="Kézzel felvett bejegyzés">kézi</span>{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : e.type === 'glucose' ? fmt(e.v) + ' mmol/L' : fmt(e.v) + ' E' }}</td>
                   <td class="num">{{ e.glucose != null ? sgText(e.glucose) : '–' }}</td>
                 </template>
                 <td v-if="!readOnly" class="act">

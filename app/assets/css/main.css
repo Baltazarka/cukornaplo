@@ -690,6 +690,7 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .rd-range { stroke: var(--text-muted); stroke-width: 0.8; stroke-dasharray: 3 3; }
 .rd-axis text { font-size: 9px; fill: var(--text-muted); }
 .rd-glucose { fill: none; stroke: var(--text-primary); stroke-width: 1.4; stroke-linejoin: round; }
+.rd-manual { fill: var(--surface-2); stroke: var(--text-primary); stroke-width: 1.2; }
 .rd-label { font-size: 8.5px; fill: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .rd-carb { fill: var(--series-carbs); }
 .rd-carb.fatty { fill: color-mix(in srgb, var(--series-carbs) 35%, transparent); stroke: var(--series-carbs); stroke-width: 1; }

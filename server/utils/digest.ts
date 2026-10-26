@@ -2,7 +2,7 @@
 import { db } from './db'
 import { glucoseStats } from './stats'
 import { targetRange } from './range'
-import { startOfDayTs, addDaysYmd, hmInTz } from './time'
+import { startOfDayTs, addDaysYmd, hmInTz, todayYmd } from './time'
 import { detectHypos } from './hypo'
 import { lastTrend, type GPoint } from './trend'
 import { groupByDay, summaryRows } from './summary'
@@ -69,8 +69,12 @@ export function periodDigest(end: string, days: number): Digest {
   const stats = glucoseStats(glucose.map((p) => p.v), low, high)
   const daily = groupByDay(entries)
   const rows = summaryRows(daily, end, days, low, high).reverse()
-  const withInsulin = rows.filter((r) => r.insulin)
-  const withCarbs = rows.filter((r) => r.carbs)
+  // A mai (még le nem zárt) napot a napi átlagokból kihagyjuk, ha van lezárt nap adattal (mint az időszakos nézetben).
+  const today = todayYmd()
+  const closed = rows.filter((r) => r.date !== today)
+  const avgRows = closed.some((r) => r.insulin || r.carbs) ? closed : rows
+  const withInsulin = avgRows.filter((r) => r.insulin)
+  const withCarbs = avgRows.filter((r) => r.carbs)
   const elapsedDays = Math.min(days, Math.max(1, (Math.min(to, Math.floor(Date.now() / 1000)) - from) / 86400))
   return {
     start, end, days, stats, low, high,

@@ -33,7 +33,11 @@ async function send() {
 }
 async function revoke(s: any) {
   if (!(await askConfirm(`Visszavonod a ${s.email} címre küldött linket? Aki most nézi, azonnal kiesik.`, { confirmLabel: 'Visszavonás', danger: true }))) return
-  await $fetch('/api/share/revoke', { method: 'POST', body: { id: s.id } })
+  try {
+    await $fetch('/api/share/revoke', { method: 'POST', body: { id: s.id } })
+  } catch (e: any) {
+    useToast().error(e?.data?.error ?? 'A visszavonás nem sikerült: a link még érvényes lehet.')
+  }
   await refresh()
 }
 </script>

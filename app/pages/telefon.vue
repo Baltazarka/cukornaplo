@@ -66,12 +66,22 @@ async function poll() {
       }
     }
   } catch { /* hálózati hiba, újrapróbáljuk */ }
-  timer = setTimeout(poll, 3000)
+  // Csak az élő próba lépésén figyelünk (visszalépéskor / távozáskor leáll).
+  timer = alive && step.value === 5 ? setTimeout(poll, 3000) : null
 }
+let alive = true
 watch(step, (v) => {
-  if (v === 5 && !timer) { startTs = Math.floor(Date.now() / 1000) - 5; poll() }
+  if (v === 5 && !timer) {
+    startTs = Math.floor(Date.now() / 1000) - 5
+    liveStatus.value = 'Várakozás az adatra…'
+    liveClass.value = ''
+    poll()
+  } else if (v !== 5 && timer) {
+    clearTimeout(timer)
+    timer = null
+  }
 })
-onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
+onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
 </script>
 
 <template>

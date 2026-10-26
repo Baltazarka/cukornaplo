@@ -5,7 +5,7 @@ const setupCode = ref('')
 const error = ref('')
 useToastFrom(error, 'error')
 const busy = ref(false)
-const auth = useState<{ hasPassword: boolean; authed: boolean; needsSetupCode?: boolean }>('auth')
+const auth = useAuthState()
 const needsCode = computed(() => !!auth.value?.needsSetupCode)
 
 async function submit() {

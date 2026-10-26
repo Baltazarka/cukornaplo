@@ -80,6 +80,7 @@ function applyEstimates(values: { start: string; isf?: number; icr?: number; act
     if (v.actionMinutes != null) { row.actionMinutes = v.actionMinutes; parts.push('hatásidő') }
     if (parts.length) changed.push(`${row.start}: ${parts.join(', ')}`)
   }
+  applied.value = '' // az ismételt, azonos üzenet is jelenjen meg
   applied.value = changed.length ? `Beírtam a becsléseket (${changed.join('; ')}). Nézd át, és ha jó, mentsd.` : ''
   if (changed.length) document.querySelector('.therapy-edit-table')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
@@ -87,6 +88,7 @@ function applyEstimates(values: { start: string; isf?: number; icr?: number; act
 // A saját zsír-fehérje % átvétele a szerkesztőbe (menteni külön kell).
 function applyFpu(pct: number) {
   fpuPercent.value = pct
+  applied.value = ''
   applied.value = `A zsír-fehérje javaslatot ${pct}%-ra állítottam. Nézd át, és ha jó, mentsd.`
   document.querySelector('.fpu-select')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }

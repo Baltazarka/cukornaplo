@@ -60,7 +60,11 @@ function ikonSor(stack, ikon, t, szin) {
   szoveg(s, t, 12, szin, true)
   return s
 }
+// Régi (15 percnél régebbi) érték: szürkén, a korával, hogy ne tűnjön frissnek (pl. szenzor- vagy CareLink-kiesés).
+const regi = (d) => (d.glucose.ageMin || 0) > 15
+const kor = (d) => (regi(d) ? ' (' + (d.glucose.ageMin >= 120 ? Math.floor(d.glucose.ageMin / 60) + ' ó' : d.glucose.ageMin + ' p') + ')' : '')
 function szin(d) {
+  if (regi(d)) return HALK
   const c = d.config.colors
   const v = d.glucose.v
   return new Color(v < d.range.low ? c.low : v > d.range.high ? c.high : c.inRange)
@@ -163,7 +167,7 @@ function kicsi(d) {
   }
   // Az utolsó adat mérési időpontja (óra:perc): nem számláló, ezért nem „ragad” és nem téveszt meg.
   const mikor = d.glucose.ts ? new Date(d.glucose.ts * 1000).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }) : ''
-  szoveg(w, 'mmol/L' + (mikor ? ' · ' + mikor : ''), 10, HALK, false)
+  szoveg(w, 'mmol/L' + (mikor ? ' · ' + mikor : '') + kor(d), 10, regi(d) ? new Color(c.colors.high) : HALK, regi(d))
   return w
 }
 
@@ -181,7 +185,7 @@ function zar(d, tipus) {
     if (c.showIob) reszek.push('B ' + iobSzoveg(d.iob) + ' E')
   }
   if (tipus === 'accessoryInline') {
-    w.addText([sg(d.glucose.v) + ' mmol/L' + nyilSz].concat(reszek).join(' · '))
+    w.addText([sg(d.glucose.v) + ' mmol/L' + nyilSz + kor(d)].concat(reszek).join(' · '))
     return w
   }
   if (tipus === 'accessoryCircular') {
@@ -194,7 +198,7 @@ function zar(d, tipus) {
       const t2 = s.addText(nyil(d.trend))
       t2.font = Font.boldSystemFont(14)
     }
-    const t3 = s.addText('mmol/L')
+    const t3 = s.addText(regi(d) ? kor(d).trim() : 'mmol/L')
     t3.font = Font.systemFont(8)
     return w
   }
@@ -205,7 +209,7 @@ function zar(d, tipus) {
   bal.layoutVertically()
   const t1 = bal.addText(sg(d.glucose.v) + nyilSz)
   t1.font = Font.boldSystemFont(22)
-  const t0 = bal.addText('mmol/L')
+  const t0 = bal.addText('mmol/L' + kor(d))
   t0.font = Font.systemFont(9)
   s.addSpacer()
   if (reszek.length) {

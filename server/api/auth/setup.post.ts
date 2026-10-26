@@ -1,25 +1,30 @@
 // Első jelszó beállítása (csak ha még nincs jelszó). Nyilvános szerveren beállító kóddal.
-import { hasPassword, setPassword, loginSession, isLocalRequest, setupCodeMatches, loginLockedFor, loginFailed } from '../../utils/auth'
+import { hasPassword, setPassword, loginSession, isLocalRequest, setupCodeMatches, loginLockedFor, loginFailed, loginSucceeded } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
   if (hasPassword()) {
     setResponseStatus(event, 400)
     return { ok: false, error: 'Már van beállított jelszó. Jelentkezz be.' }
   }
-  const body = (await readBody(event)) ?? {}
-  const p1 = String(body.password ?? '')
-  const p2 = String(body.password2 ?? '')
-
-  if (!isLocalRequest(event)) {
+  const local = isLocalRequest(event)
+  if (!local) {
     if (loginLockedFor(event) > 0) {
       setResponseStatus(event, 429)
       return { ok: false, error: 'Túl sok hibás próbálkozás. Próbáld újra később.' }
     }
+    // A próbálkozás az ellenőrzés előtt számít (helyes kódnál törlődik), a párhuzamos kérések miatt.
+    loginFailed(event)
+  }
+  const body = (await readBody(event)) ?? {}
+  const p1 = String(body.password ?? '')
+  const p2 = String(body.password2 ?? '')
+
+  if (!local) {
     if (!setupCodeMatches(String(body.setup_code ?? ''))) {
-      loginFailed(event)
       setResponseStatus(event, 403)
       return { ok: false, error: 'Hibás beállító kód.' }
     }
+    loginSucceeded(event)
   }
 
   if (p1.length < 8) {

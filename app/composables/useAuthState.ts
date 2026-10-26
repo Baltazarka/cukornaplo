@@ -5,6 +5,8 @@ export interface AuthState {
   hasPasskey?: boolean
   authed: boolean
   viewer: { expiresAt: number } | null
+  /** Jelszó nélkül, nem a szerver gépéről: az első beállításhoz a szerver naplójában lévő beállító kód kell. */
+  needsSetupCode?: boolean
 }
 export function useAuthState() {
   return useState<AuthState>('auth', () => ({ hasPassword: false, authed: false, viewer: null }))

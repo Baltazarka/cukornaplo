@@ -124,7 +124,11 @@ function resetZoom() {
   zoomRange.value = null
   render()
 }
-watch(() => props.day?.day, () => { zoomRange.value = null })
+watch(() => props.day?.day, () => {
+  zoomRange.value = null
+  // Félbehagyott szenzorhiba-kijelölés nem nyúlhat át másik napra.
+  if (pickMode.value) { pickMode.value = false; pickStart.value = null }
+})
 let rafId: ReturnType<typeof setTimeout> | 0 = 0
 function scheduleRender() {
   if (rafId) return
@@ -709,6 +713,8 @@ onMounted(async () => {
     forecastHours.value = [0, 2, 3, 4].includes(h) ? h : 3
   } catch { /* nincs localStorage */ }
   await render()
+  // A grafikonkönyvtár betöltése alatt a komponens eltűnhetett: ekkor már ne kössünk fel figyelőket.
+  if (unmounted) return
   loadForecast()
   // Átméretezéskor újraszámoljuk az oszlopok eltolását is (pixelben értendő).
   ro = new ResizeObserver(() => {
@@ -729,7 +735,9 @@ onMounted(async () => {
 watch(() => props.day, loadForecast)
 // Témaváltáskor újrarajzol (a színek a CSS-változókból jönnek).
 watch(useState<number>('theme-tick', () => 0), () => { render() })
+let unmounted = false
 onBeforeUnmount(() => {
+  unmounted = true
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseup', onMouseUp)
   if (rafId) clearTimeout(rafId)

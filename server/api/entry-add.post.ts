@@ -6,9 +6,9 @@
 // Ha 30 percen belül már van ugyanilyen típusú bejegyzés, 409-cel visszaszól (force: true-val mégis
 // felveszi). Ha a telefon (Apple Health) később ugyanezt az adagot küldi, a kézi sor beolvad (db.ts storeRows).
 import { markDirty } from '../utils/computed'
-import { autoBasalId } from '../utils/basalAuto'
+import { AUTO_BASAL_SOURCE, removeAutoBasal } from '../utils/basalAuto'
 import { db, MANUAL_SOURCE, MANUAL_MATCH_SEC } from '../utils/db'
-import { hmInTz, ymdInTz, wallToTs } from '../utils/time'
+import { hmInTz, ymdInTz, wallToTs, isValidYmd } from '../utils/time'
 import { therapy, segmentAt, DEFAULT_FPU_PERCENT } from '../utils/therapy'
 import { addFpuReminder } from '../utils/notify'
 import { fpuSuggestion, MACRO_MAX_G } from '#shared/utils/fpu'
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 400)
     return { ok: false, error: 'Ismeretlen bejegyzéstípus.' }
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+  if (!isValidYmd(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
     setResponseStatus(event, 400)
     return { ok: false, error: 'Érvénytelen dátum vagy időpont.' }
   }
@@ -63,15 +63,19 @@ export default defineEventHandler(async (event) => {
     return { ok: false, error: 'Az időpont nem lehet a jövőben.' }
   }
 
-  // Kézzel beírt bázis: az aznapi automatikus bázissor helyére lép (az nem számít hasonló bejegyzésnek).
-  const autoId = type === 'insulin' && sub === 'basal' ? autoBasalId(ymdInTz(ts)) : null
+  const isBasal = type === 'insulin' && sub === 'basal'
 
   // Hasonló bejegyzés a közelben (pl. véletlenül kétszer beírva, vagy a telefon már elküldte): csak rákérdezünk. (Vércukornál nincs ilyen: a szenzor
-  // ötpercenként mér, a kézi mérés külön pont.)
+  // ötpercenként mér, a kézi mérés külön pont.) Inzulinnál csak az azonos fajta számít (bólus a bólushoz, bázis a
+  // bázishoz), és az automatikusan beírt bázis sosem: a reggeli bólus a bázis idején ne kérdezzen rá.
   if (body.force !== true && type !== 'glucose') {
-    const near = db()
-      .prepare('SELECT ts, value FROM entries WHERE type = ? AND ts BETWEEN ? AND ? AND id != ? ORDER BY ABS(ts - ?) LIMIT 1')
-      .get(type, ts - MANUAL_MATCH_SEC, ts + MANUAL_MATCH_SEC, autoId ?? -1, ts) as { ts: number; value: number } | undefined
+    const near = (type === 'insulin'
+      ? db()
+        .prepare("SELECT ts, value FROM entries WHERE type = 'insulin' AND ts BETWEEN ? AND ? AND (COALESCE(subtype, '') = 'basal') = ? AND COALESCE(source, '') != ? ORDER BY ABS(ts - ?) LIMIT 1")
+        .get(ts - MANUAL_MATCH_SEC, ts + MANUAL_MATCH_SEC, isBasal ? 1 : 0, AUTO_BASAL_SOURCE, ts)
+      : db()
+        .prepare('SELECT ts, value FROM entries WHERE type = ? AND ts BETWEEN ? AND ? ORDER BY ABS(ts - ?) LIMIT 1')
+        .get(type, ts - MANUAL_MATCH_SEC, ts + MANUAL_MATCH_SEC, ts)) as { ts: number; value: number } | undefined
     if (near) {
       setResponseStatus(event, 409)
       const v = Number(near.value).toLocaleString('hu-HU', { maximumFractionDigits: 1 })
@@ -84,6 +88,8 @@ export default defineEventHandler(async (event) => {
   }
 
   const now = Math.floor(Date.now() / 1000)
+  // Kézzel beírt bázis: az adott nap automatikus bázissora helyére lép (utólag, másnap beírva is).
+  if (isBasal) removeAutoBasal(ymdInTz(ts))
   // Ha korábban pont ezt töröltük, a kézi felvétel visszaállítja.
   db().prepare('DELETE FROM deleted_entries WHERE type = ? AND ts = ? AND value = ?').run(type, ts, value)
   const info = db()
@@ -93,7 +99,6 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 409)
     return { ok: false, error: 'Pontosan ilyen bejegyzés (időpont és mennyiség) már van.' }
   }
-  if (autoId != null) db().prepare("DELETE FROM entries WHERE id = ? AND type = 'insulin' AND subtype = 'basal'").run(autoId)
   markDirty()
   // Friss zsíros étkezés zsír / fehérje adattal: emlékeztető 1,5 óra múlva (a napszak CH-arányával és a beállított %-kal).
   let fpu = null

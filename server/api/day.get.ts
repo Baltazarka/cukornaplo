@@ -1,5 +1,6 @@
 // Napi nézet adatai: glükózgörbe, inzulin, szénhidrát, napi statisztikák és 14 napos összesítő.
 import { db, MANUAL_SOURCE } from '../utils/db'
+import { AUTO_BASAL_SOURCE } from '../utils/basalAuto'
 import { glucoseStats, RANGE_LOW, RANGE_HIGH, RANGE_VERY_LOW, RANGE_VERY_HIGH } from '../utils/stats'
 import { targetRange } from '../utils/range'
 import { hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/time'
@@ -91,9 +92,10 @@ export default defineEventHandler((event) => {
   // A még aktív gyors hatású inzulin most (csak a mai napon, és ha a terápia be van állítva).
   const iobNow = activeInsulin && day === today ? round2(activeInsulin.at(Math.floor(Date.now() / 1000))) : null
 
-  // Aktív szénhidrát (COB): a tanult felszívódási görbékkel; a nap elejét megelőző 6 óra étkezései is még hathatnak.
+  // Aktív szénhidrát (COB): a tanult felszívódási görbékkel; a nap elejét megelőző 8 óra étkezései is még hathatnak
+  // (a leghosszabb felszívódás 8 óra, mint az előrejelzésben).
   const cobCarbs = rows
-    .filter((e) => e.type === 'carbs' && Number(e.ts) >= dayStart - 6 * 3600)
+    .filter((e) => e.type === 'carbs' && Number(e.ts) >= dayStart - 8 * 3600)
     .map((e) => ({ ts: Number(e.ts), v: Number(e.value), sub: e.subtype ?? null }))
   // A nap előtti és utáni 8 óra vércukra: a grafikon meghosszabbított (átlógó) szakaszaihoz.
   const glucoseExt = (db()
@@ -124,6 +126,7 @@ export default defineEventHandler((event) => {
       id: e.id, ts: e.ts * 1000, time: hmInTz(e.ts), type: e.type, sub: e.sub ?? null, v: e.v, glucose: nearestGlucose(e.ts),
       kind: (e as any).kind ?? null, auto: (e as any).auto ?? false, noCarbs: (e as any).noCarbs ?? false,
       manual: e.src === MANUAL_SOURCE,
+      autoBasal: e.src === AUTO_BASAL_SOURCE,
       ...(e.type === 'carbs' ? { fat: (e as any).fat ?? null, protein: (e as any).protein ?? null } : {}),
     })),
     stats: { day: dayStats, range14: rangeStats },

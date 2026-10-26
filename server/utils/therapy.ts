@@ -176,7 +176,11 @@ const hmMin = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5
 export function activeSegments(t: Therapy, at?: number | string): TherapySegment[] {
   const ymd = typeof at === 'number' ? ymdInTz(at) : at
   const segs = ymd != null && profileOn(t, ymd) === 'alt' && t.altSegments?.length ? t.altSegments : t.segments
-  return t.byTimeOfDay ? segs : [{ ...segs[0], start: '00:00' }]
+  if (t.byTimeOfDay) return segs
+  // Kikapcsolt napszakbeállításnál az első napszak értékei egész nap, a közös hatásidővel (a napszak elrejtett saját
+  // hatásideje nem érvényes).
+  const { actionMinutes: _hidden, ...first } = segs[0]
+  return [{ ...first, start: '00:00' }]
 }
 
 /**

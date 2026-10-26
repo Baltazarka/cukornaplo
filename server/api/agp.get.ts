@@ -59,10 +59,11 @@ export default defineEventHandler((event) => {
     if (skipToday && r.type !== 'glucose' && ymdInTz(Number(r.ts)) >= today) continue
     const v = Number(r.value)
     if (r.type === 'glucose') {
-      bins[Math.floor(m / BIN_MIN)].push(v)
       glucose.push(v)
       hypoPoints.push({ ts: Number(r.ts), v })
       if (r.source !== 'manual') {
+        // A percentilis-sávok (görbe) csak szenzoradatból; a kézi mérés a statisztikába számít.
+        bins[Math.floor(m / BIN_MIN)].push(v)
         gPoints.push({ ts: Number(r.ts), v })
         sensorN++
         if (Number(r.ts) < firstSensorTs) firstSensorTs = Number(r.ts)

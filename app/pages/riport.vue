@@ -58,14 +58,14 @@ function print() {
   window.print()
 }
 
-// Nyomtatáshoz mindig világos téma; távozáskor visszaáll.
-let prevTheme: string | null = null
+// Nyomtatáshoz mindig világos téma; távozáskor a mentett (közben esetleg átállított) téma áll vissza.
 onMounted(() => {
-  prevTheme = document.documentElement.getAttribute('data-theme')
   document.documentElement.setAttribute('data-theme', 'light')
 })
 onBeforeUnmount(() => {
-  if (prevTheme) document.documentElement.setAttribute('data-theme', prevTheme)
+  let saved: string | null = null
+  try { saved = localStorage.getItem('theme') } catch { /* nincs localStorage */ }
+  if (saved) document.documentElement.setAttribute('data-theme', saved)
   else document.documentElement.removeAttribute('data-theme')
 })
 
@@ -343,7 +343,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
               CH {{ fmt(d.totals.carbs, 0) }} g · szenzor {{ d.coverage }}%
             </span>
           </header>
-          <ReportDayChart :glucose="d.glucose" :events="d.events" :low="rep.range.low" :high="rep.range.high" :excluded-glucose="d.excludedGlucose" :excluded="d.excluded" />
+          <ReportDayChart :glucose="d.glucose" :manual="d.manual" :events="d.events" :low="rep.range.low" :high="rep.range.high" :excluded-glucose="d.excludedGlucose" :excluded="d.excluded" />
           <table v-if="d.events.length || d.notes.length || d.excluded?.length" class="table report-events">
             <tbody>
               <tr v-for="(e, i) in rowsOf(d)" :key="i" :class="{ 'report-note': e.type === 'note', 'report-excluded': e.type === 'excluded' }">

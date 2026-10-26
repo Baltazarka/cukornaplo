@@ -33,7 +33,11 @@ async function add() {
 }
 async function remove(r: any) {
   if (!(await askConfirm(`Törlöd a ${dateLabel(r.date)} HbA1c-eredményt (${fmt(r.hba1c)}%)?`, { confirmLabel: 'Törlés', danger: true }))) return
-  await $fetch('/api/lab-delete', { method: 'POST', body: { id: r.id } })
+  try {
+    await $fetch('/api/lab-delete', { method: 'POST', body: { id: r.id } })
+  } catch (e: any) {
+    useToast().error(e?.data?.error ?? 'A törlés nem sikerült.')
+  }
   await refresh()
 }
 </script>

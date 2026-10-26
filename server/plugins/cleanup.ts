@@ -8,7 +8,9 @@
 // Ha bármi változott, a tárolt elemzések a háttérben újraszámolódnak.
 import { db, GLUCOSE_DUP_SEC, MANUAL_SOURCE } from '../utils/db'
 import { markDirty } from '../utils/computed'
+import { ymdInTz } from '../utils/time'
 import { looksBasal } from '../utils/normalize'
+import { AUTO_BASAL_SOURCE } from '../utils/basalAuto'
 
 export default defineNitroPlugin(() => {
   // Az adatbázis a bővítmények betöltésekor még nem nyitható meg: az indulás után futtatjuk.
@@ -70,6 +72,13 @@ function cleanup(): void {
         console.log(`[adattisztítás] ${tagged} típus nélküli bázisadag bázisnak jelölve`)
         markDirty()
       }
+    }
+    // Az első változat az automatikus bázissort kézi forrással és azonosítóval jegyezte meg: a forrás jelöli (egyszer).
+    const st = setting<{ date?: string; id?: number | null } | null>('basal_auto', null)
+    if (st?.id != null) {
+      const row = d.prepare("SELECT ts FROM entries WHERE id = ? AND type = 'insulin' AND subtype = 'basal' AND source = ?").get(st.id, MANUAL_SOURCE) as { ts: number } | undefined
+      if (row && st.date && ymdInTz(Number(row.ts)) === st.date) d.prepare('UPDATE entries SET source = ? WHERE id = ?').run(AUTO_BASAL_SOURCE, st.id)
+      saveSettings({ basal_auto: { date: st.date } })
     }
     const removed = Number(dup.changes) + Number(shifted.changes)
     const relabeled = Number(inpen.changes)
