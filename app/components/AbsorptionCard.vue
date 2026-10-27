@@ -80,9 +80,38 @@ const curve = (c: Cat, learned: boolean) =>
 const HOURS = Array.from({ length: MAX_MIN / 60 }, (_, i) => i)
 const perHour = (c: Cat, h: number) => Math.max(0, fraction(c, 60 * (h + 1)) - fraction(c, 60 * h))
 const lastHour = computed(() => Math.max(...CATS.value.map((c) => HOURS.filter((h) => perHour(c, h) >= 0.005).pop() ?? 0)))
-const cell = (c: Cat, h: number) => (perHour(c, h) < 0.005 ? '–' : `${Math.round(perHour(c, h) * REF_GRAMS)} g`)
-const cellPct = (c: Cat, h: number) => (perHour(c, h) < 0.005 ? '' : `${Math.round(perHour(c, h) * 100)}%`)
+/** Az óra elején már (szinte) teljesen felszívódott: „–”; különben a gramm (a köztes kis érték 0 vagy <1 g is lehet). */
+const done = (c: Cat, h: number) => fraction(c, 60 * h) >= 0.995
+const cell = (c: Cat, h: number) => {
+  if (done(c, h)) return '–'
+  const g = perHour(c, h) * REF_GRAMS
+  return g > 0 && g < 0.5 ? '<1 g' : `${Math.round(g)} g`
+}
+const cellPct = (c: Cat, h: number) => (done(c, h) || perHour(c, h) < 0.005 ? '' : `${Math.round(perHour(c, h) * 100)}%`)
 const min = (v: number | null | undefined) => (v == null ? '–' : `${v} perc`)
+
+/**
+ * A tanult görbének megfelelő ütem (g/óra): az ívelt alapértelmezett alak a teljes idő felénél tart 50%-on és 77,6%-ánál
+ * 90%-on; a tanult fél- és 90%-os időből így két becslés jön a teljes időre, ezek átlagából gramm ÷ idő.
+ */
+const learnedRate = (c: Cat): number | null => {
+  const l = learnedOf(c)
+  if (!l?.t50 || !l?.t90 || !l.refGrams) return null
+  const total = (2 * l.t50 + l.t90 / 0.776) / 2
+  const lo = defs.value?.limits?.min ?? 5
+  const hi = defs.value?.limits?.max ?? 120
+  return Math.min(hi, Math.max(lo, Math.round((l.refGrams * 60) / total)))
+}
+const anyLearned = computed(() => CATS.value.some((c) => learnedRate(c) != null))
+/** A tanult ütemek beírása a mezőkbe (menteni külön kell). */
+function takeLearned() {
+  for (const c of CATS.value) {
+    const r = learnedRate(c)
+    if (r != null) form[c.key] = r
+  }
+  msg.value = ''
+  msg.value = 'Beírtam az adataidból kijött ütemeket. Nézd át, és ha jó, mentsd.'
+}
 const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionDigits: 1 })
 </script>
 
@@ -132,8 +161,11 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
       </div>
     </div>
 
-    <h3 class="absorb-sub">Alapértelmezett felszívódási ütem (g/óra)</h3>
-    <p class="muted small">Ha egy kategóriához még nincs tanult görbe, ezzel az ütemmel számol.</p>
+    <h3 class="absorb-sub">Felszívódási ütem (g/óra)</h3>
+    <p class="muted small">
+      Ahol van tanult görbe, a program azt használja; ahol nincs, a beállított ütemet. A „Tanult” oszlop mutatja, mennyi jött ki
+      az adataidból: ha a tanult görbe elég megbízható, ezt érdemes beállítani is.
+    </p>
     <details class="more">
       <summary>Részletek</summary>
       <p class="muted small">
@@ -142,28 +174,44 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
       Amíg egy kategóriához nincs legalább {{ MIN }} tiszta étkezés, az előrejelzés és az aktív CH ezt használja; ha van tanult görbe, az az érvényes.
       </p>
     </details>
-    <form class="absorb-defaults" @submit.prevent="saveDefs()">
-      <label v-for="c in CATS" :key="c.key">{{ c.label }}
-        <span class="absorb-input"><input v-model.number="form[c.key]" type="number" :min="defs?.limits?.min ?? 5" :max="defs?.limits?.max ?? 120" step="1" required> g/óra</span>
-        <span class="muted small">gyári: {{ defs?.builtin?.[c.key] }} g/óra<template v-if="learnedOf(c)"> · most a tanult érvényes</template></span>
-      </label>
-      <div class="absorb-defaults-btns">
+    <form class="absorb-rates" @submit.prevent="saveDefs()">
+      <div class="absorb-rate-head" aria-hidden="true">
+        <span>Kategória</span><span>Most ezzel számol</span><span>Tanult (adataidból)</span><span>Beállított ütem</span>
+      </div>
+      <div v-for="c in CATS" :key="c.key" class="absorb-rate-row">
+        <b class="ar-name">{{ c.label }}</b>
+        <span class="ar-cell" data-label="Most ezzel számol">
+          <span class="ar-badge" :class="learnedOf(c) ? 'learned' : 'dflt'">{{ learnedOf(c) ? 'tanult görbe' : 'beállított ütem' }}</span>
+        </span>
+        <span class="ar-cell" data-label="Tanult (adataidból)">
+          <template v-if="learnedRate(c) != null"><b>≈ {{ learnedRate(c) }} g/óra</b> <small class="muted">{{ quality(abs[c.key].n) }}</small></template>
+          <small v-else class="muted">{{ quality(abs[c.key].n) }}</small>
+        </span>
+        <label class="ar-cell ar-input" data-label="Beállított ütem">
+          <span class="absorb-input">
+            <input v-model.number="form[c.key]" type="number" :min="defs?.limits?.min ?? 5" :max="defs?.limits?.max ?? 120" step="1" required :aria-label="`${c.label}: beállított ütem, g/óra`"> g/óra
+          </span>
+          <small class="muted">gyári {{ defs?.builtin?.[c.key] }}</small>
+        </label>
+      </div>
+      <div class="btn-row">
         <button type="submit" :disabled="saving">Mentés</button>
+        <button v-if="anyLearned" type="button" class="ghost" :disabled="saving" @click="takeLearned">Tanult értékek beírása</button>
         <button type="button" class="ghost" :disabled="saving" @click="saveDefs(true)">Gyári értékek</button>
       </div>
     </form>
 
     <h3 class="absorb-sub">Mennyi CH szívódik fel óránként?</h3>
     <p class="muted small">
-      {{ REF_GRAMS }} g szénhidrátot véve, az étkezés utáni órákban (a százalék az étkezés összes CH-jának hányada).
-      A „tanult” oszlop a te adataidból készült, az „alapért.” a fenti g/óra beállításból.
+      Szemléltetés egy {{ REF_GRAMS }} g-os étkezésre, azzal, amivel a program most számol (a százalék az étkezés összes CH-jának hányada).
+      Ez nem beírandó érték: a fenti ütemet módosítva a „beállított ütem” oszlopok változnak.
     </p>
     <div class="absorb-table-wrap">
       <table class="absorb-table">
         <thead>
           <tr>
             <th>Óra</th>
-            <th v-for="c in CATS" :key="c.key">{{ c.label }}<small>{{ learnedOf(c) ? 'tanult' : 'alapértelmezett' }}</small></th>
+            <th v-for="c in CATS" :key="c.key">{{ c.label }}<small>{{ learnedOf(c) ? 'tanult görbe' : `beállított ütem (${c.rate} g/óra)` }}</small></th>
           </tr>
         </thead>
         <tbody>
@@ -187,11 +235,29 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
 .absorb-grid-line { stroke: var(--grid); stroke-width: 1; }
 .absorb-default { fill: none; stroke: var(--text-muted); stroke-width: 1.5; stroke-dasharray: 4 3; }
 .absorb-learned { fill: none; stroke: var(--series-carbs, var(--accent)); stroke-width: 2.5; stroke-linejoin: round; }
-.absorb-defaults { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 16px; align-items: start; margin: 8px 0 4px; }
-.absorb-defaults label { display: flex; flex-direction: column; gap: 2px; }
+.absorb-rates { display: flex; flex-direction: column; margin: 4px 0; }
+.absorb-rate-head, .absorb-rate-row {
+  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.3fr); gap: 8px 12px; align-items: center;
+}
+.absorb-rate-head { padding: 0 0 6px; font-size: 12px; color: var(--text-muted); border-bottom: 1px solid var(--grid); }
+.absorb-rate-row { padding: 10px 0; border-bottom: 1px solid var(--grid); }
+.ar-cell { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; font-size: 14px; }
+label.ar-input { flex-direction: row; color: var(--text-primary); }
+.ar-badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; }
+.ar-badge.learned { color: var(--series-carbs, var(--accent)); border-color: color-mix(in srgb, var(--series-carbs, var(--accent)) 50%, transparent); }
+.ar-badge.dflt { color: var(--text-secondary); }
 .absorb-input { display: inline-flex; align-items: center; gap: 6px; }
-.absorb-input input { width: 84px; }
-.absorb-defaults-btns { display: flex; gap: 8px; grid-column: 1 / -1; }
+.absorb-input input { width: 76px; }
+.absorb-rates .btn-row { margin-top: 12px; }
+/* Mobilon kategóriánként kétoszlopos kártya, a cellák fölött a nevük. */
+@media (max-width: 640px) {
+  .absorb-rate-head { display: none; }
+  .absorb-rate-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ar-name { grid-column: 1 / -1; }
+  .ar-cell { flex-direction: column; align-items: flex-start; gap: 2px; }
+  label.ar-input { flex-direction: column; }
+  .ar-cell::before { content: attr(data-label); font-size: 11px; color: var(--text-muted); }
+}
 .absorb-sub { margin: 8px 0 0; padding-top: 14px; border-top: 1px solid var(--grid); font-size: 14px; font-weight: 600; }
 .absorb-table-wrap { overflow-x: auto; margin: 8px 0 12px; }
 .absorb-table { border-collapse: collapse; font-size: 14px; width: 100%; font-variant-numeric: tabular-nums; }
