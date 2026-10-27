@@ -24,12 +24,15 @@ const evaluable = computed(() => (fpu.value?.events ?? []).filter((e: any) => e.
 <template>
   <section v-if="fpu" class="card analysis-card">
     <h2>Zsíros ételek (zsír-fehérje) <GuideLink section="zsiros" label="Mit jelölj zsírosnak? Példák táblázattal" /></h2>
-    <p class="muted small">
-      A „zsíros” jelölésű étkezések, ahol megadtad a zsír és a fehérje grammját (utolsó {{ DAYS }} nap). A program
-      megnézi, mennyit emelt a cukor a végpontig (a zsír-fehérje várt hatásidejének végéig, 4–8 óra) a szénhidrát és a
+    <p class="muted small">A „zsíros” jelölésű étkezések zsír- és fehérjegrammal (utolsó {{ DAYS }} nap): mennyit emelt nálad egy zsír-fehérje egység.</p>
+    <details class="more">
+      <summary>Hogyan számol?</summary>
+      <p class="muted small">
+      A program megnézi, mennyit emelt a cukor a végpontig (a zsír-fehérje várt hatásidejének végéig, 4–8 óra) a szénhidrát és a
       beadott inzulin hatásán felül, és ebből számolja, hogy nálad egy zsír-fehérje egység a varsói érték (10 g CH) hány
       %-ának felelt meg. A beállított CH-arányra és ISF-re épül, tájékoztató; a beállításról a diabetológussal dönts.
-    </p>
+      </p>
+    </details>
 
     <div v-if="est" class="fpu-est">
       <div>

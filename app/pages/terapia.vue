@@ -129,12 +129,12 @@ async function save() {
 </script>
 
 <template>
-  <main>
+  <main class="therapy-page">
     <form class="card therapy-edit" @submit.prevent="save">
       <h1>Terápiás beállítások</h1>
-      <p class="muted small">A diabetológussal egyeztetett terápiás értékek. Ezekből számol a bóluskalkulátor, az aktív inzulin, az előrejelzés és az elemzés; tájékoztató jellegűek, a beadott adagról te döntesz.</p>
+      <p class="muted small">A diabetológussal egyeztetett értékek. Ezekből számol a bóluskalkulátor, az aktív inzulin, az előrejelzés és az elemzés; tájékoztató jellegűek, a beadott adagról te döntesz.</p>
 
-
+      <h2 class="tf-section">Bólus</h2>
       <div class="therapy-fields">
         <div class="tf-row">
           <span class="tf-label">Étkezésalapú terápia</span>
@@ -148,32 +148,6 @@ async function save() {
           </select>
         </label>
         <label class="tf-row">
-          <span class="tf-label">Bázisinzulin</span>
-          <select v-model="basalInsulin">
-            <option value="">Nincs megadva</option>
-            <option v-for="i in basalOptions" :key="i.id" :value="i.id">{{ i.name }} ({{ i.generic }})</option>
-          </select>
-        </label>
-        <label class="tf-row">
-          <span class="tf-label">Bázis automatikus beírása</span>
-          <input v-model="basalAutoOn" type="checkbox" class="switch" role="switch">
-        </label>
-        <template v-if="basalAutoOn">
-          <label class="tf-row">
-            <span class="tf-label">Beadás időpontja</span>
-            <input v-model="basalAutoTime" type="time" required>
-          </label>
-          <label class="tf-row">
-            <span class="tf-label">Bázisadag</span>
-            <span class="tf-input"><input v-model.number="basalAutoUnits" type="number" step="0.5" min="1" max="100" required> E</span>
-          </label>
-          <p class="muted small">
-            Naponta ekkor beírja a naplóba bázisként, és push értesítést küld róla (ha aznap még nincs bázis beírva). Ha más
-            adagot adtál be, vagy kimaradt, a naplóban javíthatod vagy törölheted; ha aznap kézzel írod be a bázist, az
-            automatikus sor helyére lép.
-          </p>
-        </template>
-        <label class="tf-row">
           <span class="tf-label">Kiszámított maximális dózis</span>
           <span class="tf-input"><input v-model.number="maxBolus" type="number" step="0.5" min="0.5" max="50" required> E</span>
         </label>
@@ -185,12 +159,50 @@ async function save() {
         </label>
         <div v-if="bolusInfo?.peakMinutes" class="tf-curve">
           <ClientOnly><InsulinCurve :peak-minutes="bolusInfo.peakMinutes" :duration-minutes="actionMinutes" :height="150" /></ClientOnly>
-          <p class="muted small">
-            A görbe az OpenAPS / Loop exponenciális modelljével készül: a csúcs ideje az inzulin típusától függ
-            ({{ bolusInfo.name }}: {{ actionLabel(bolusInfo.peakMinutes) }}), a hossza a fenti hatásidő.
-            <template v-if="bolusInfo.facts">Alkalmazási előírás: hatáskezdet {{ bolusInfo.facts.onset }}, legerősebb hatás {{ bolusInfo.facts.peak }}, hatástartam {{ bolusInfo.facts.duration }}.</template>
-          </p>
+          <details class="more">
+            <summary>A görbéről</summary>
+            <p class="muted small">
+              Az OpenAPS / Loop exponenciális modelljével készül: a csúcs ideje az inzulin típusától függ
+              ({{ bolusInfo.name }}: {{ actionLabel(bolusInfo.peakMinutes) }}), a hossza a fenti hatásidő.
+              <template v-if="bolusInfo.facts">Alkalmazási előírás: hatáskezdet {{ bolusInfo.facts.onset }}, legerősebb hatás {{ bolusInfo.facts.peak }}, hatástartam {{ bolusInfo.facts.duration }}.</template>
+            </p>
+          </details>
         </div>
+      </div>
+
+      <h2 class="tf-section">Bázis</h2>
+      <div class="therapy-fields">
+        <label class="tf-row">
+          <span class="tf-label">Bázisinzulin</span>
+          <select v-model="basalInsulin">
+            <option value="">Nincs megadva</option>
+            <option v-for="i in basalOptions" :key="i.id" :value="i.id">{{ i.name }} ({{ i.generic }})</option>
+          </select>
+        </label>
+        <p v-if="basalInfo?.facts" class="tf-hint">
+          {{ basalInfo.name }} (alkalmazási előírás): {{ [basalInfo.facts.peak, basalInfo.facts.duration, basalInfo.facts.note].filter(Boolean).join(', ') }}.
+        </p>
+        <label class="tf-row">
+          <span class="tf-label">Automatikus beírás a naplóba</span>
+          <input v-model="basalAutoOn" type="checkbox" class="switch" role="switch">
+        </label>
+        <template v-if="basalAutoOn">
+          <label class="tf-row tf-sub">
+            <span class="tf-label">Beadás időpontja</span>
+            <input v-model="basalAutoTime" type="time" required>
+          </label>
+          <label class="tf-row tf-sub">
+            <span class="tf-label">Bázisadag</span>
+            <span class="tf-input"><input v-model.number="basalAutoUnits" type="number" step="0.5" min="1" max="100" required> E</span>
+          </label>
+          <p class="tf-hint tf-sub">
+            Naponta ekkor beírja, és push értesítést küld róla, ha aznap még nincs bázis. A naplóban javítható; a kézzel beírt bázis a helyére lép.
+          </p>
+        </template>
+      </div>
+
+      <h2 class="tf-section">Zsíros, fehérjedús étel</h2>
+      <div class="therapy-fields">
         <label class="tf-row">
           <span class="tf-label">Zsír-fehérje javaslat</span>
           <select v-model.number="fpuPercent" class="fpu-select">
@@ -200,70 +212,80 @@ async function save() {
         <label class="tf-row">
           <span class="tf-label">A plusz adag ideje</span>
           <select v-model="fpuTiming" :disabled="!fpuPercent">
-            <option value="later">később, ha emelkedik (emlékeztető 1,5 óra múlva)</option>
-            <option value="together">egyben, evéskor az étkezési bólussal</option>
+            <option value="later">később (emlékeztető 1,5 ó múlva)</option>
+            <option value="together">egyben, evéskor</option>
           </select>
         </label>
-        <p class="muted small">
-          Zsíros / fehérjedús étkezésnél a bóluskalkulátor a számolt adag alatt tájékoztatásul kiírja, mennyi plusz inzulin
-          jönne ki a zsír és a fehérje grammjából (1 zsír-fehérje egység = 100 kcal zsírból és fehérjéből ≈ 10 g CH), és
-          mikorra. A teljes érték sokaknál későbbi hipót okoz; a szorzót a diabetológussal egyeztesd.
-          <b>Egyben</b> adva a zsír hatása még nem kezdődött el, amikor az inzulin a legerősebb (1–1,5 óra): korai hipó lehet,
-          ezért ilyenkor 75 perc múlva ellenőrző emlékeztető jön. <b>Később</b> adva 1,5 óra múlva emlékeztet a plusz adagra.
-        </p>
-        <p v-if="basalInfo?.facts" class="muted small tf-note">
-          <b>{{ basalInfo.name }}</b> (alkalmazási előírás): {{ [basalInfo.facts.peak, basalInfo.facts.duration, basalInfo.facts.note].filter(Boolean).join(', ') }}.
-        </p>
+        <details class="more tf-more">
+          <summary>Hogyan működik?</summary>
+          <p class="muted small">
+            Zsíros / fehérjedús étkezésnél a bóluskalkulátor a számolt adag alatt tájékoztatásul kiírja, mennyi plusz inzulin
+            jönne ki a zsír és a fehérje grammjából (1 zsír-fehérje egység = 100 kcal zsírból és fehérjéből ≈ 10 g CH), és
+            mikorra. A teljes érték sokaknál későbbi hipót okoz; a szorzót a diabetológussal egyeztesd.
+            <b>Egyben</b> adva a zsír hatása még nem kezdődött el, amikor az inzulin a legerősebb (1–1,5 óra): korai hipó lehet,
+            ezért ilyenkor 75 perc múlva ellenőrző emlékeztető jön. <b>Később</b> adva 1,5 óra múlva emlékeztet a plusz adagra.
+          </p>
+        </details>
+      </div>
+
+      <h2 class="tf-section">Napszakok</h2>
+      <div class="therapy-fields">
         <label class="tf-row">
-          <span class="tf-label">Napszakbeállítások</span>
+          <span class="tf-label">Napszakonként eltérő értékek</span>
           <input v-model="byTimeOfDay" type="checkbox" class="switch" role="switch">
         </label>
       </div>
-
-      <h3 v-if="altEnabled" class="seg-profile-h">Délelőttös hét és minden más nap</h3>
-      <SegmentsEditor ref="baseEd" :segments="segments" :by-time-of-day="byTimeOfDay" :action-minutes="actionMinutes" :action-options="actionOptions" :new-key="newKey" />
-      <div v-if="byTimeOfDay" class="btn-row">
-        <button type="button" class="ghost sm" :disabled="segments.length >= 12" @click="baseEd?.add()">+ Napszak</button>
+      <div class="seg-block">
+        <div v-if="altEnabled || byTimeOfDay" class="seg-head">
+          <h3 class="seg-profile-h">{{ altEnabled ? 'Délelőttös hét és minden más nap' : 'Napszakok' }}</h3>
+          <button v-if="byTimeOfDay" type="button" class="ghost sm" :disabled="segments.length >= 12" @click="baseEd?.add()">+ Napszak</button>
+        </div>
+        <SegmentsEditor ref="baseEd" :segments="segments" :by-time-of-day="byTimeOfDay" :action-minutes="actionMinutes" :action-options="actionOptions" :new-key="newKey" />
       </div>
-      <p v-if="rule" class="muted small">
-        Tájékoztatásul: a napi összinzulinod átlaga {{ hu(tdd!, 0) }} E (utolsó 30 nap, bázissal). Az ökölszabályok szerinti kiinduló érték ehhez
-        ISF ≈ {{ hu(rule.isf) }} mmol/L/E (100 ÷ TDD) és CH-arány ≈ {{ hu(rule.icr) }} g/E (500 ÷ TDD). Ezek csak kiindulópontok, a saját értékeid ettől eltérhetnek.
-      </p>
       <p v-if="isfOff.length" class="notice small" role="note">
         <b>Egyeztesd:</b> az ISF{{ byTimeOfDay ? ` (${isfOff.join(', ')})` : '' }} több mint kétszeresen eltér a napi összinzulinodból számolt kiinduló értéktől.
         Az előrejelzés és a javaslatok erre épülnek, ezért érdemes a diabetológussal átbeszélni.
       </p>
-      <p v-if="byTimeOfDay" class="muted small">Minden napszak a következő kezdetéig tart, az utolsó éjfélen át az elsőig. Mentéskor időrendbe kerülnek.
-        Ha egy napszakhoz külön inzulinhatás-időt adsz meg, a napi grafikonon az abban beadott bólusok hatásgörbéje ezzel rajzolódik; „közös” esetén a fenti érték érvényes.</p>
-      <p v-else class="muted small">Kikapcsolva ezek az értékek egész nap érvényesek. A többi napszakot megőrzöm, visszakapcsolva újra látszanak.</p>
+      <details class="more">
+        <summary>Tudnivalók a napszakokról</summary>
+        <p v-if="byTimeOfDay" class="muted small">Minden napszak a következő kezdetéig tart, az utolsó éjfélen át az elsőig. Mentéskor időrendbe kerülnek.
+          Ha egy napszakhoz külön inzulinhatás-időt adsz meg, a napi grafikonon az abban beadott bólusok hatásgörbéje ezzel rajzolódik; „közös” esetén a fenti érték érvényes.</p>
+        <p v-else class="muted small">Kikapcsolva ezek az értékek egész nap érvényesek. A többi napszakot megőrzöm, visszakapcsolva újra látszanak.</p>
+        <p v-if="rule" class="muted small">
+          Tájékoztatásul: a napi összinzulinod átlaga {{ hu(tdd!, 0) }} E (utolsó 30 nap, bázissal). Az ökölszabályok szerinti kiinduló érték ehhez
+          ISF ≈ {{ hu(rule.isf) }} mmol/L/E (100 ÷ TDD) és CH-arány ≈ {{ hu(rule.icr) }} g/E (500 ÷ TDD). Ezek csak kiindulópontok, a saját értékeid ettől eltérhetnek.
+        </p>
+      </details>
 
       <!-- Váltott műszak: külön értékek a délutános hétre (a műszakbeosztás lent, a „Váltott műszak” kártyán). -->
       <div class="therapy-fields">
         <label class="tf-row">
-          <span class="tf-label">Külön beállítás a délutános hétre</span>
+          <span class="tf-label">Külön értékek a délutános hétre</span>
           <input v-model="altEnabled" type="checkbox" class="switch" role="switch">
         </label>
       </div>
       <template v-if="altEnabled">
         <p v-if="!shiftOn" class="notice small" role="note">Ehhez add meg lent, a „Váltott műszak” kártyán, milyen műszakos ez a hét; addig az alap beállítás érvényes minden nap.</p>
-        <h3 class="seg-profile-h">Délutános hét</h3>
-        <SegmentsEditor ref="altEd" :segments="altSegments" :by-time-of-day="byTimeOfDay" :action-minutes="actionMinutes" :action-options="actionOptions" :new-key="newKey" />
-        <div v-if="byTimeOfDay" class="btn-row">
-          <button type="button" class="ghost sm" :disabled="altSegments.length >= 12" @click="altEd?.add()">+ Napszak</button>
+        <div class="seg-block">
+          <div class="seg-head">
+            <h3 class="seg-profile-h">Délutános hét</h3>
+            <button v-if="byTimeOfDay" type="button" class="ghost sm" :disabled="altSegments.length >= 12" @click="altEd?.add()">+ Napszak</button>
+          </div>
+          <SegmentsEditor ref="altEd" :segments="altSegments" :by-time-of-day="byTimeOfDay" :action-minutes="actionMinutes" :action-options="actionOptions" :new-key="newKey" />
         </div>
         <div class="therapy-fields">
           <label class="tf-row">
             <span class="tf-label">Szabadnapon érvényes</span>
             <select v-model="freeProfile">
-              <option value="base">a délelőttös hét beállítása</option>
-              <option value="alt">a délutános hét beállítása</option>
+              <option value="base">a délelőttös hét értékei</option>
+              <option value="alt">a délutános hét értékei</option>
             </select>
           </label>
+          <p class="tf-hint">A délutános héten ezek érvényesek a kalkulátorban, az aktív inzulinban, az előrejelzésben és a javaslatokban; az elemzés az alap napszakok szerint csoportosít.</p>
         </div>
-        <p class="muted small">A délutános héten (a műszakbeosztás szerint) ezek az értékek érvényesek a kalkulátorban, az aktív inzulinban, az előrejelzésben és a javaslatokban. Az elemzés napszakonkénti becslései az alap beállítás napszakai szerint csoportosítanak.</p>
       </template>
 
-      <div class="btn-row">
+      <div class="btn-row therapy-save">
         <span class="spacer" />
         <NuxtLink to="/" class="btn ghost">Mégse</NuxtLink>
         <button type="submit" :disabled="saving">Mentés</button>

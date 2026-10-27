@@ -70,12 +70,10 @@ const shifts = computed<any[]>(() => (data.value?.shifts ?? []).filter((x: any) 
   <section class="card analysis-card shift-card">
     <h2>Váltott műszak</h2>
     <p class="muted small">
-      Ha váltott műszakban dolgozol (egyik héten délelőtt, a másikon délután), jelöld meg, milyen ez a hét: onnan a program
-      hetente váltogatja. Ebből mutatja a cukrod műszak szerint, és ha a Terápia beállításoknál megadsz külön értékeket a
-      délutános hétre, a kalkulátor és a többi számolás azokat használja azon a héten. Egyes napokat (szabadság, csere) a
-      főoldalon, a nap fejlécénél állíthatsz át.
+      Jelöld meg, milyen ez a hét: onnan a program hetente váltogatja. Egyes napokat (szabadság, csere) a főoldalon, a nap
+      fejlécénél állíthatsz át. A délutános hét külön értékei fent, a „Napszakok” résznél adhatók meg.
     </p>
-    <form v-if="!props.readOnly" class="shift-form" @submit.prevent="save">
+    <form v-if="!props.readOnly" class="shift-form therapy-fields" @submit.prevent="save">
       <label class="tf-row">
         <span class="tf-label">Váltott műszak</span>
         <input v-model="enabled" type="checkbox" class="switch" role="switch">
@@ -84,8 +82,8 @@ const shifts = computed<any[]>(() => (data.value?.shifts ?? []).filter((x: any) 
         <label class="tf-row">
           <span class="tf-label">Ez a hét <small class="muted">({{ thisWeekRange }})</small></span>
           <select v-model="thisWeek">
-            <option value="morning">délelőttös (pl. 06–14)</option>
-            <option value="afternoon">délutános (pl. 14–22)</option>
+            <option value="morning">délelőttös</option>
+            <option value="afternoon">délutános</option>
           </select>
         </label>
         <label class="tf-row">
@@ -95,12 +93,12 @@ const shifts = computed<any[]>(() => (data.value?.shifts ?? []).filter((x: any) 
             <option :value="false">a hét műszakja szerint</option>
           </select>
         </label>
-        <p v-if="preview.length" class="muted small">
-          <template v-for="(p, i) in preview" :key="i">{{ i ? ' · ' : '' }}{{ p.from }}–{{ p.to }}: <b>{{ SHIFT_LABEL[p.shift].toLowerCase() }}</b></template>
-        </p>
+        <ul v-if="preview.length" class="shift-preview">
+          <li v-for="(p, i) in preview" :key="i">{{ p.from }}–{{ p.to }}: <b>{{ SHIFT_LABEL[p.shift].toLowerCase() }}</b></li>
+        </ul>
       </template>
       <div class="btn-row">
-        <button type="submit" class="sm" :disabled="saving">Mentés</button>
+        <button type="submit" class="sm" :disabled="saving">Műszakbeosztás mentése</button>
       </div>
     </form>
 

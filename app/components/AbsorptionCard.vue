@@ -90,14 +90,21 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
   <section v-if="abs" class="card absorb-card">
     <h2>Szénhidrát-felszívódás az adataidból</h2>
     <RecomputeBar :at="data?.computedAt" kind="analysis" :days="60" @done="refresh()" />
-    <p class="muted">
+    <p class="muted small">Kategóriánként legalább {{ MIN }} tiszta étkezés kell a használathoz, {{ GOOD }} a megbízhatóhoz; addig az alapértelmezett érvényes (utolsó 60 nap).</p>
+    <details class="more">
+      <summary>Hogyan számol?</summary>
+      <p class="muted small">
       A tiszta étkezésekből (étkezés és inzulin, korrekció vagy ráétkezés nélkül) kiszámolja, milyen ütemben szívódik fel a szénhidrát nálad.
       Az inzulin hatását levonja a vércukor-változásból, és ami marad, az a szénhidrát hatása. Az előrejelzés és az aktív CH ezt használja.
-      Kategóriánként legalább {{ MIN }} tiszta étkezés kell a használathoz, {{ GOOD }} a megbízhatóhoz; addig az alapértelmezett érvényes. Az utolsó 60 napot nézi.
       Tiszta az étkezés, ha szénhidrát és inzulin volt, és utána a felszívódás végéig (a várható felszívódási idő másfélszerese, de legalább
       1,5 óra gyorsnál, 2 óra normálnál, 4 óra zsírosnál) nem volt korrekció, ráétkezés vagy más bólus, sport / betegség / alkohol jegyzet,
       és a vércukor nem változott gyorsan az étkezés előtt. A gyors CH-hoz nem kell inzulin, és a hipó kezelésére bevitt (alacsony vércukorról induló) gyors CH is számít.
-    </p>
+      </p>
+    </details>
+    <div class="chart-legend absorb-legend">
+      <span class="k"><span class="sw-line learned" /> tanult</span>
+      <span class="k"><span class="sw-line dflt" /> alapértelmezett</span>
+    </div>
     <div class="absorb-grid">
       <div v-for="c in CATS" :key="c.key" class="absorb-item">
         <div class="absorb-head">
@@ -126,11 +133,15 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
     </div>
 
     <h3 class="absorb-sub">Alapértelmezett felszívódási ütem (g/óra)</h3>
-    <p class="muted small">
+    <p class="muted small">Ha egy kategóriához még nincs tanult görbe, ezzel az ütemmel számol.</p>
+    <details class="more">
+      <summary>Részletek</summary>
+      <p class="muted small">
       Hány gramm szénhidrát szívódik fel óránként. A teljes idő = gramm ÷ g/óra, tehát a nagyobb étkezés tovább tart
       (pl. 20 g/óránál 40 g 2 óra, 60 g 3 óra alatt szívódik fel). Az alak ívelt: lassan indul, középen a leggyorsabb, majd lecseng.
       Amíg egy kategóriához nincs legalább {{ MIN }} tiszta étkezés, az előrejelzés és az aktív CH ezt használja; ha van tanult görbe, az az érvényes.
-    </p>
+      </p>
+    </details>
     <form class="absorb-defaults" @submit.prevent="saveDefs()">
       <label v-for="c in CATS" :key="c.key">{{ c.label }}
         <span class="absorb-input"><input v-model.number="form[c.key]" type="number" :min="defs?.limits?.min ?? 5" :max="defs?.limits?.max ?? 120" step="1" required> g/óra</span>
@@ -152,45 +163,46 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
         <thead>
           <tr>
             <th>Óra</th>
-            <th v-for="c in CATS" :key="c.key">{{ c.label }} <span class="muted small">({{ learnedOf(c) ? 'tanult' : 'alapért.' }})</span></th>
+            <th v-for="c in CATS" :key="c.key">{{ c.label }}<small>{{ learnedOf(c) ? 'tanult' : 'alapértelmezett' }}</small></th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="h in HOURS.filter((x) => x <= lastHour)" :key="h">
             <th>{{ h + 1 }}. óra</th>
-            <td v-for="c in CATS" :key="c.key"><b>{{ cell(c, h) }}</b> <span class="muted small">{{ cellPct(c, h) }}</span></td>
+            <td v-for="c in CATS" :key="c.key"><b>{{ cell(c, h) }}</b><span class="absorb-pct">{{ cellPct(c, h) }}</span></td>
           </tr>
         </tbody>
       </table>
     </div>
-    <p class="muted small">
-      <span class="sw-line learned" /> tanult
-      <span class="sw-line dflt" /> alapértelmezett (ívelt)
-    </p>
   </section>
 </template>
 
 <style scoped>
 .absorb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 12px 0; }
-.absorb-item { display: flex; flex-direction: column; gap: 4px; }
+.absorb-item { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); min-width: 0; }
+.absorb-item .gather { flex-wrap: wrap; white-space: normal; }
+.absorb-legend { margin: 4px 0 0; }
 .absorb-head { display: flex; flex-direction: column; }
 .absorb-svg { width: 100%; height: auto; background: color-mix(in srgb, var(--text-primary) 4%, transparent); border-radius: 6px; }
 .absorb-grid-line { stroke: var(--grid); stroke-width: 1; }
 .absorb-default { fill: none; stroke: var(--text-muted); stroke-width: 1.5; stroke-dasharray: 4 3; }
 .absorb-learned { fill: none; stroke: var(--series-carbs, var(--accent)); stroke-width: 2.5; stroke-linejoin: round; }
-.absorb-defaults { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; margin: 8px 0 4px; }
+.absorb-defaults { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 16px; align-items: start; margin: 8px 0 4px; }
 .absorb-defaults label { display: flex; flex-direction: column; gap: 2px; }
 .absorb-input { display: inline-flex; align-items: center; gap: 6px; }
 .absorb-input input { width: 84px; }
-.absorb-defaults-btns { display: flex; gap: 8px; }
-.absorb-sub { margin: 16px 0 4px; font-size: 14px; font-weight: 600; }
+.absorb-defaults-btns { display: flex; gap: 8px; grid-column: 1 / -1; }
+.absorb-sub { margin: 8px 0 0; padding-top: 14px; border-top: 1px solid var(--grid); font-size: 14px; font-weight: 600; }
 .absorb-table-wrap { overflow-x: auto; margin: 8px 0 12px; }
-.absorb-table { border-collapse: collapse; font-size: 14px; min-width: 420px; width: 100%; }
-.absorb-table th, .absorb-table td { padding: 6px 10px; border-top: 1px solid var(--border); text-align: right; }
+.absorb-table { border-collapse: collapse; font-size: 14px; width: 100%; font-variant-numeric: tabular-nums; }
+.absorb-table th small { display: block; font-size: 11px; font-weight: 400; color: var(--text-muted); }
+.absorb-table td { white-space: nowrap; }
+.absorb-pct { display: inline-block; min-width: 3.2em; margin-left: 6px; text-align: right; font-size: 12px; color: var(--text-muted); }
+.absorb-table th, .absorb-table td { padding: 6px 8px; border-top: 1px solid var(--border); text-align: right; }
 .absorb-table thead th { border-top: 0; font-weight: 600; font-size: 13px; }
 .absorb-table th:first-child { text-align: left; font-weight: 500; }
 .absorb-axis { display: flex; justify-content: space-between; }
 .absorb-stats { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; }
-.sw-line { display: inline-block; width: 22px; height: 0; border-top: 2.5px solid var(--series-carbs, var(--accent)); vertical-align: middle; margin-left: 8px; }
+.sw-line { display: inline-block; width: 22px; height: 0; border-top: 2.5px solid var(--series-carbs, var(--accent)); vertical-align: middle; }
 .sw-line.dflt { border-top: 1.5px dashed var(--text-muted); }
 </style>

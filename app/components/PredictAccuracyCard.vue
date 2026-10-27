@@ -23,7 +23,7 @@ const modeLabel = (m: Mode) => MODES.find((x) => x.id === m)?.label ?? m
 
 const SUBSETS = [
   { id: 'all', label: 'Összes' },
-  { id: 'active', label: 'Aktív inzulin / CH mellett' },
+  { id: 'active', label: 'Aktív inzulin/CH' },
   { id: 'calm', label: 'Nyugodt' },
 ] as const
 const subset = ref<'all' | 'active' | 'calm'>('all')
@@ -53,12 +53,21 @@ const choice = computed(() => data.value?.choice as Record<string, { active: Mod
       </div>
     </div>
     <RecomputeBar v-if="data" :at="data.computedAt" kind="accuracy" :days="days" @done="refresh()" />
-    <p class="muted small">
+    <p class="muted small">Átlagos hiba mmol/L-ben, <b>kisebb a jobb</b>; a legjobb zölddel. A program magától a legjobbat használja.</p>
+    <details class="more">
+      <summary>Hogyan teszteli?</summary>
+      <p class="muted small">
       Visszateszt a saját szenzoradataidon: minden időpontban kiszámolja, mit jósolt volna az előrejelzés, és összeveti a ténylegesen
       mért értékkel. Átlagos abszolút hiba mmol/L-ben, <b>kisebb a jobb</b>. A „változatlan” az összehasonlítási alap: az utolsó érték marad;
       a „trend” a csillapított meredekség (legfeljebb 20 percig). A program a 14 napos teszt alapján <b>magától a legjobbat használja</b>
       (az egyszerűbbet, ha nem rosszabb 3%-nál többel), így a bonyolultabb modell csak akkor számít, ha nálad tényleg pontosabb.
-    </p>
+      </p>
+      <p class="muted small">
+      A hipó-figyelmeztetésnél a program óvatosan a választott módszer és a trend közül a kisebb értéket veszi. A tanult felszívódási görbe
+      az egész időszak étkezéseiből készült, ezért a teszt kissé optimista. Az étkezés előtti órákban, új étkezés vagy adag felvétele előtt
+      a modell nem ismerheti a jövőt, így azok hibája természetes.
+      </p>
+    </details>
     <div class="segmented" role="group" aria-label="Mikor">
       <button v-for="s in SUBSETS" :key="s.id" type="button" :aria-pressed="subset === s.id" @click="subset = s.id">{{ s.label }}</button>
     </div>
@@ -67,14 +76,14 @@ const choice = computed(() => data.value?.choice as Record<string, { active: Mod
       <table class="table">
         <thead>
           <tr>
-            <th>Távolság</th><th class="num">Minta</th>
+            <th>Távolság</th><th class="num">Minta<small>db</small></th>
             <th v-for="m in MODES" :key="m.id" class="num">{{ m.label }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="r in rows" :key="r.minutes">
             <td>{{ r.minutes }} perc</td>
-            <td class="num">{{ r.n }}</td>
+            <td class="num muted">{{ r.n }}</td>
             <td v-for="m in MODES" :key="m.id" class="num" :class="{ 'acc-best': best(r.mae) === m.id }">{{ f(r.mae[m.id]) }}</td>
           </tr>
         </tbody>
@@ -89,15 +98,11 @@ const choice = computed(() => data.value?.choice as Record<string, { active: Mod
         </li>
       </ul>
     </div>
-    <p class="muted small">
-      A hipó-figyelmeztetésnél a program óvatosan a választott módszer és a trend közül a kisebb értéket veszi. A tanult felszívódási görbe
-      az egész időszak étkezéseiből készült, ezért a teszt kissé optimista. Az étkezés előtti órákban, új étkezés vagy adag felvétele előtt
-      a modell nem ismerheti a jövőt, így azok hibája természetes.
-    </p>
   </section>
 </template>
 
 <style scoped>
-.acc-best { font-weight: 700; color: var(--status-good); }
+.acc-best { font-weight: 700; color: var(--status-good); background: color-mix(in srgb, var(--status-good) 12%, transparent); }
+th small { display: block; font-size: 11px; font-weight: 400; }
 .choice-list { margin: 4px 0 0; padding-left: 18px; }
 </style>

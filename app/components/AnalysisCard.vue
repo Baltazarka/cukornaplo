@@ -149,27 +149,30 @@ const actYTicks = computed(() => {
       </div>
     </div>
     <RecomputeBar :at="a.computedAt" kind="analysis" :days="days" @done="refresh()" />
-    <p class="muted small">
+    <p class="muted small">Napszakonként legalább {{ MIN }} tiszta esemény kell a becsléshez, {{ GOOD }} a megbízhatóhoz. Bal oldalt a mostani beállítás, nyíl után a becslés.</p>
+    <details class="more">
+      <summary>Mi számít tisztának?</summary>
+      <p class="muted small">
       <b>Tiszta korrekció:</b> magas vércukorra adott bólus, előtte 1 óráig és utána a napszakra beállított inzulinhatás-időtartamig étel és más bólus nélkül,
       és egy korábbi étkezés CH-ja már felszívódott; ebből látszik az érzékenységi tényező és a valódi hatásidő.
       <b>Tiszta étkezés:</b> beírt CH-val és bólussal; 1 órával előtte és utána a napszak hatásidejéig (legalább 4 óráig) más bólus nélkül,
       utána más étel nélkül, egy korábbi étkezés CH-ja már felszívódott, sport-, betegség- vagy alkohol-jegyzet nélkül, nem hipóból indul, és nem gyorsan változó kezdő vércukorral.
       Csak a szenzor méréseiből számol (a kézi mérés nem keveredik bele).
       A korábbi bólusok még ható részét beszámítja; ebből becsülhető a CH-arány.
-      Napszakonként legalább {{ MIN }} kell a becsléshez, {{ GOOD }} a megbízhatóhoz.
-    </p>
+      </p>
+    </details>
     <p v-if="!a.therapySet" class="alert small">Előbb add meg a terápiás beállításokat: a becslések a napszakokhoz és a jelenlegi értékekhez viszonyítanak.</p>
 
     <div class="table-wrap">
-      <table class="table analysis-table">
+      <table class="table analysis-table est-table">
         <thead>
           <tr>
             <th>Napszak</th>
-            <th>Tiszta korrekció</th>
-            <th>Tiszta étkezés</th>
+            <th>Korrekció<small>tiszta</small></th>
+            <th>Étkezés<small>tiszta</small></th>
             <th class="num">Érzékenység<small>mmol/L/E</small></th>
             <th class="num">CH-arány<small>g/E</small></th>
-            <th class="num">Hatásidő</th>
+            <th class="num">Hatásidő<small>óra</small></th>
           </tr>
         </thead>
         <tbody>
@@ -181,26 +184,26 @@ const actYTicks = computed(() => {
                 title="A böjti időszakokban (étel és ható bólus nélkül) a vércukor ebben a napszakban átlagosan ennyit változik óránként: a bázis nem fedi az alapigényt, ezért a korrekciók esése és az étkezések végpontja torzul, a becslések nem megbízhatók."
               >sodródás {{ s.estimate.drift > 0 ? '+' : '' }}{{ fmt(s.estimate.drift) }}/óra</small>
             </td>
-            <td>
+            <td data-label="Korrekció">
               <div class="gather"><span class="gather-bar"><i :style="{ width: pct(s.counts.cleanCorrections) }" /></span>{{ count(s.counts.cleanCorrections) }}</div>
             </td>
-            <td>
+            <td data-label="Étkezés">
               <div class="gather"><span class="gather-bar"><i :style="{ width: pct(s.counts.cleanMeals) }" /></span>{{ count(s.counts.cleanMeals) }}</div>
               <small v-if="s.counts.truncatedMeals" class="muted" title="Ezeknél az étkezést 3 óra után megzavarta valami (korrekció, ráevés, hipó kezelése): csak a zavarásig számít, a már felszívódott CH-val.">ebből {{ s.counts.truncatedMeals }} rövidített</small>
             </td>
-            <td class="num">
+            <td class="num" data-label="Érzékenység">
               <span class="muted">{{ fmt(s.therapy?.isf) }} →</span>
               <b v-if="s.estimate.isf" :class="{ 'est-bad': s.estimate.isf.unreliable }">{{ fmt(s.estimate.isf.value) }}</b><span v-else class="muted">?</span>
               <small class="est-q">{{ s.estimate.isf?.unreliable ? 'nem megbízható' : quality(s.estimate.isf?.n ?? s.counts.cleanCorrections) }}</small>
             </td>
-            <td class="num">
+            <td class="num" data-label="CH-arány">
               <span class="muted">{{ fmt(s.therapy?.icr) }} →</span>
               <b v-if="s.estimate.icr" :class="{ 'est-bad': s.estimate.icr.unreliable }">{{ fmt(s.estimate.icr.value) }}</b><span v-else class="muted">?</span>
               <small v-if="s.estimate.icr?.unreliable && s.estimate.drifting" class="est-q" title="Jelentős bázis-sodródás ebben a napszakban: a végpont torzul.">nem megbízható</small>
               <small v-else-if="s.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">még emelkedik</small>
               <small class="est-q">{{ quality(s.counts.cleanMeals) }}</small>
             </td>
-            <td class="num">
+            <td class="num" data-label="Hatásidő">
               <span class="muted">{{ s.therapy ? actionLabel(s.therapy.actionMinutes) : '–' }} →</span>
               <b v-if="s.estimate.action" :class="{ 'est-bad': s.estimate.action.unreliable }">{{ s.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(s.estimate.action.dia) }}</b><span v-else class="muted">?</span>
               <small class="est-q">{{ s.estimate.action?.unreliable ? 'nem megbízható' : quality(s.estimate.action?.n ?? s.counts.cleanCorrections) }}</small>
@@ -208,22 +211,22 @@ const actYTicks = computed(() => {
           </tr>
           <tr v-if="showOverall" class="overall-row">
             <td class="seg-time">Egész nap<small class="muted">összevont</small></td>
-            <td>
+            <td data-label="Korrekció">
               <div class="gather"><span class="gather-bar"><i :style="{ width: pct(overall.counts.cleanCorrections) }" /></span>{{ count(overall.counts.cleanCorrections) }}</div>
             </td>
-            <td>
+            <td data-label="Étkezés">
               <div class="gather"><span class="gather-bar"><i :style="{ width: pct(overall.counts.cleanMeals) }" /></span>{{ count(overall.counts.cleanMeals) }}</div>
             </td>
-            <td class="num">
+            <td class="num" data-label="Érzékenység">
               <b v-if="overall.estimate.isf" :class="{ 'est-bad': overall.estimate.isf.unreliable }">{{ fmt(overall.estimate.isf.value) }}</b><span v-else class="muted">?</span>
               <small class="est-q">{{ overall.estimate.isf?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
             </td>
-            <td class="num">
+            <td class="num" data-label="CH-arány">
               <b v-if="overall.estimate.icr" :class="{ 'est-bad': overall.estimate.icr.unreliable }">{{ fmt(overall.estimate.icr.value) }}</b><span v-else class="muted">?</span>
               <small v-if="overall.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">még emelkedik</small>
               <small class="est-q">{{ quality(overall.counts.cleanMeals) }}</small>
             </td>
-            <td class="num">
+            <td class="num" data-label="Hatásidő">
               <b v-if="overall.estimate.action" :class="{ 'est-bad': overall.estimate.action.unreliable }">{{ overall.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(overall.estimate.action.dia) }}</b><span v-else class="muted">?</span>
               <small class="est-q">{{ overall.estimate.action?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
             </td>
@@ -236,8 +239,8 @@ const actYTicks = computed(() => {
       Csak tájékoztató: a napszakok eltérhetnek egymástól, a szerkesztőbe nem kerül be automatikusan.
     </p>
 
-    <div class="btn-row">
-      <button type="button" class="ghost" :disabled="!hasEstimate" @click="apply">Becslések beírása a szerkesztőbe</button>
+    <div class="btn-row apply-row">
+      <button type="button" :disabled="!hasEstimate" @click="apply">Becslések beírása a szerkesztőbe</button>
       <span class="muted small">Csak kitölti a mezőket, mentés előtt átnézheted. Ez csak a Cukornapló beállításait módosítja; a terápia változtatását a diabetológusoddal egyeztesd.</span>
     </div>
 

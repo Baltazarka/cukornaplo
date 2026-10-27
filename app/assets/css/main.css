@@ -296,6 +296,12 @@ code { font: 13px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; }
   background: var(--surface-1); border: 1px solid var(--border);
   border-radius: 12px; padding: 16px; min-width: 0;
 }
+/* Kártyán belüli időszak- és szűrőgombok mobilon kitöltik a sort (különben a csoport vége levágódik). */
+@media (max-width: 560px) {
+  .card .segmented { display: flex; width: 100%; }
+  .card .segmented button { flex: 1 1 0; padding: 8px 4px; font-size: 13px; min-width: 0; }
+  .analysis-period { width: 100%; }
+}
 
 .filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .filters h1 { margin-left: 8px; }
@@ -400,7 +406,14 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 
 /* position: a rejtett (sr-only) feliratok se lógjanak ki a görgethető dobozból. */
-.table-wrap { overflow-x: auto; position: relative; }
+.table-wrap {
+  overflow-x: auto; position: relative;
+  /* Görgetési jelzés: árnyék a szélen, ha a táblázat oldalra görgethető. */
+  background:
+    linear-gradient(to right, var(--surface-1) 30%, transparent), linear-gradient(to left, var(--surface-1) 30%, transparent) 100% 0,
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.25), transparent), radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.25), transparent) 100% 0;
+  background-repeat: no-repeat; background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%; background-attachment: local, local, scroll, scroll;
+}
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th {
   text-align: left; font-weight: 500; color: var(--text-muted); font-size: 12px;
@@ -520,22 +533,62 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .therapy-foot .now-key { width: 3px; height: 12px; border-radius: 2px; background: var(--accent); flex: none; }
 
 /* ---- Terápiás beállítások szerkesztése ---- */
-.therapy-edit { max-width: 760px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+/* Terápia oldal: minden kártya egyforma széles; a beállítások tematikus szakaszokban, címke balra, mező jobbra. */
+.therapy-page { max-width: 900px; }
+.therapy-edit { width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
 .therapy-edit p { margin: 0; }
 .therapy-fields { display: flex; flex-direction: column; }
-.therapy-fields .tf-row {
-  display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px;
+.tf-row {
+  display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px 12px;
   padding: 10px 0; border-bottom: 1px solid var(--grid); font-size: 15px; color: var(--text-primary);
+}
+.tf-row > .tf-label { flex: 1 1 auto; min-width: 0; }
+.tf-row > select { flex: 0 1 auto; min-width: 0; max-width: 60%; text-overflow: ellipsis; }
+.tf-row > input[type=time] { min-width: 112px; }
+.tf-sub { padding-left: 16px; }
+.tf-hint { margin: 0; padding: 6px 0 10px; border-bottom: 1px solid var(--grid); font-size: 12px; color: var(--text-muted); }
+.tf-section {
+  margin: 14px 0 -4px; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted);
 }
 .tf-label { color: var(--text-secondary); }
 .tf-input { display: inline-flex; align-items: center; gap: 6px; }
-.tf-input input { width: 90px; }
-.therapy-edit-table th { vertical-align: bottom; }
+.tf-input input { width: 104px; }
+@media (max-width: 560px) {
+  .tf-row:has(> select) { flex-wrap: wrap; }
+  .tf-row > select { flex: 1 1 100%; max-width: 100%; }
+}
+/* Lenyitható magyarázat a hosszú leírások helyett. */
+details.more > summary { font-weight: 500; font-size: 13px; color: var(--accent); width: fit-content; }
+details.more[open] > summary { margin-bottom: 6px; }
+details.more p + p { margin-top: 6px; }
+.tf-more { padding: 8px 0 10px; border-bottom: 1px solid var(--grid); }
+.seg-block { display: flex; flex-direction: column; gap: 4px; }
+.seg-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+/* A mentés gomb a hosszú űrlap alján végig látszik. */
+.therapy-save {
+  position: sticky; bottom: 0; z-index: 5; margin: 4px -16px -16px; padding: 10px 16px;
+  background: var(--surface-1); border-top: 1px solid var(--grid); border-radius: 0 0 12px 12px;
+}
+.therapy-edit-table th { vertical-align: bottom; white-space: nowrap; }
 .therapy-edit-table th small { display: block; font-size: 11px; font-weight: 400; }
 .therapy-edit-table td { padding: 6px 6px; }
 .therapy-edit-table input { min-width: 72px; }
 .therapy-edit-table select { min-width: 120px; }
-.therapy-edit-table input[type=time] { padding: 7px 8px; }
+.therapy-edit-table input[type=time] { padding: 7px 8px; min-width: 100px; }
+/* Mobilon a napszak-sorok kártyaszerűen: a mezők fölött a nevük. */
+@media (max-width: 560px) {
+  .therapy-edit-table thead { display: none; }
+  .therapy-edit-table, .therapy-edit-table tbody { display: block; }
+  .therapy-edit-table tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px 0; position: relative;
+    border-bottom: 1px solid var(--grid);
+  }
+  .therapy-edit-table td { display: block; padding: 0; border: 0; }
+  .therapy-edit-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 2px; font-size: 12px; color: var(--text-muted); }
+  .therapy-edit-table td.act { display: flex; align-items: flex-end; justify-content: flex-end; }
+  .therapy-save { padding-right: 64px; } /* a „vissza a tetejére” gomb ne takarja */
+  .therapy-edit-table input, .therapy-edit-table select { width: 100%; min-width: 0; }
+}
 .btn-row .spacer { flex: 1; }
 
 /* Kapcsoló (checkbox role="switch") */
@@ -554,7 +607,7 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 
 /* ---- Inzulin-hatásgörbe ---- */
 .insulin-curve { width: 100%; }
-.insulin-curve svg { display: block; touch-action: none; }
+.insulin-curve svg { display: block; touch-action: pan-y; }
 .ic-readout { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; font-variant-numeric: tabular-nums; min-height: 20px; }
 .ic-readout b { color: var(--text-primary); }
 .ic-grid line { stroke: var(--grid); stroke-width: 1; }
@@ -579,11 +632,28 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .shift-select { padding: 4px 8px; font-size: 14px; }
 .shift-chip { margin-right: auto; margin-left: 6px; }
 .seg-profile-h { margin: 10px 0 4px; font-size: 15px; }
-.shift-form { display: flex; flex-direction: column; gap: 6px; }
+.shift-form { display: flex; flex-direction: column; }
+.shift-form .btn-row { margin-top: 12px; }
+.shift-preview { list-style: none; margin: 0; padding: 8px 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--text-secondary); }
 .shift-h { margin: 0; font-size: 15px; }
 .shift-table td small { margin-left: 4px; }
-.analysis-card { max-width: 760px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
-.analysis-card p { margin: 0; }
+.analysis-card, .absorb-card, .accuracy-card { width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.analysis-card p, .absorb-card p, .accuracy-card p { margin: 0; }
+.analysis-action { border-top: 1px solid var(--grid); padding-top: 12px; }
+.apply-row { padding-top: 12px; border-top: 1px solid var(--grid); }
+.apply-row > .muted { flex: 1 1 260px; }
+/* Mobilon a becslés-táblázat sorai kártyaszerűen (a cellák fölött a nevük), oldalra görgetés helyett. */
+@media (max-width: 700px) {
+  .est-table thead { display: none; }
+  .est-table, .est-table tbody { display: block; }
+  .est-table tr {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; padding: 10px 0; border-bottom: 1px solid var(--grid);
+  }
+  .est-table td { display: block; padding: 0; border: 0; text-align: left; }
+  .est-table td.seg-time { grid-column: 1 / -1; font-weight: 600; }
+  .est-table td:nth-child(4) { grid-column: 1; }
+  .est-table td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; color: var(--text-muted); }
+}
 .analysis-table th small { display: block; font-size: 11px; font-weight: 400; }
 .analysis-table td { vertical-align: middle; }
 .analysis-table .seg-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -595,7 +665,10 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 .gather-bar i { display: block; height: 100%; background: var(--status-good); border-radius: 3px; }
 .analysis-action h3, .meal-seg h3 { font-size: 14px; margin: 6px 0 4px; }
 .mini-chart { width: 100%; }
-.mini-chart svg { display: block; touch-action: none; }
+.mini-chart svg { display: block; touch-action: pan-y; }
+.mini-chart .ic-readout { min-height: 2.7em; font-size: 12px; line-height: 1.3; }
+.ic-legend .k { white-space: nowrap; }
+.ic-legend { row-gap: 4px; }
 .mc-ref { stroke: var(--axis); stroke-width: 1; stroke-dasharray: 3 3; }
 .mc-dot { stroke: var(--surface-1); stroke-width: 2; }
 

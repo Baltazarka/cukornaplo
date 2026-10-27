@@ -28,20 +28,20 @@ defineExpose({ add })
       <thead>
         <tr>
           <th v-if="byTimeOfDay">Kezdet</th>
-          <th>Glükóz célértéke <small>mmol/L</small></th>
-          <th>Inzulinérzékenységi tényező <small>mmol/L/E</small></th>
-          <th>Inzulin-szénhidrát arány <small>g/E</small></th>
-          <th v-if="byTimeOfDay">Inzulinhatás időtartama <small>ebben a napszakban</small></th>
+          <th>Cél <small>mmol/L</small></th>
+          <th title="Inzulinérzékenységi tényező: 1 E ennyivel csökkenti a vércukrot">Érzékenység <small>mmol/L/E</small></th>
+          <th title="Inzulin-szénhidrát arány: 1 E ennyi gramm CH-t fedez">CH-arány <small>g/E</small></th>
+          <th v-if="byTimeOfDay">Hatásidő <small>ebben a napszakban</small></th>
           <th v-if="byTimeOfDay"><span class="sr-only">Törlés</span></th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="s in visible" :key="s.key">
-          <td v-if="byTimeOfDay"><input v-model="s.start" type="time" step="900" required aria-label="Kezdő időpont"></td>
-          <td><input v-model.number="s.target" type="number" step="0.1" min="3.9" max="13.9" required aria-label="Glükóz célértéke"></td>
-          <td><input v-model.number="s.isf" type="number" step="0.05" min="0.1" max="20" required aria-label="Inzulinérzékenységi tényező"></td>
-          <td><input v-model.number="s.icr" type="number" step="0.05" min="0.5" max="150" required aria-label="Inzulin-szénhidrát arány"></td>
-          <td v-if="byTimeOfDay">
+          <td v-if="byTimeOfDay" data-label="Kezdet"><input v-model="s.start" type="time" step="900" required aria-label="Kezdő időpont"></td>
+          <td data-label="Cél (mmol/L)"><input v-model.number="s.target" type="number" step="0.1" min="3.9" max="13.9" required aria-label="Glükóz célértéke"></td>
+          <td data-label="Érzékenység (mmol/L/E)"><input v-model.number="s.isf" type="number" step="0.05" min="0.1" max="20" required aria-label="Inzulinérzékenységi tényező"></td>
+          <td data-label="CH-arány (g/E)"><input v-model.number="s.icr" type="number" step="0.05" min="0.5" max="150" required aria-label="Inzulin-szénhidrát arány"></td>
+          <td v-if="byTimeOfDay" data-label="Hatásidő">
             <select v-model.number="s.actionMinutes" aria-label="Inzulinhatás időtartama ebben a napszakban">
               <option value="">közös ({{ actionLabel(actionMinutes) }})</option>
               <option v-for="m in actionOptions" :key="m" :value="m">{{ actionLabel(m) }}</option>
