@@ -36,8 +36,12 @@ function sessionSecret(): string {
   return s
 }
 
-/** „Maradjak bejelentkezve”: ennyi ideig érvényes a munkamenet a böngésző bezárása után is. */
-export const REMEMBER_SEC = 24 * 3600
+/**
+ * „Maradjak bejelentkezve”: tartós süti a böngészők felső határáig (400 nap); minden használatkor (naponta legfeljebb
+ * egyszer) megújul, így amíg használod, nem jár le.
+ */
+export const REMEMBER_SEC = 400 * 86400
+const REMEMBER_RENEW_SEC = 86400
 const REMEMBER_COOKIE = 'cukornaplo_rem'
 
 /** Be van-e kapcsolva a „maradjak bejelentkezve” ezen a böngészőn (a bejelentkezéskor beállított jelölősütiből). */
@@ -45,7 +49,7 @@ function rememberOn(event: H3Event): boolean {
   return getCookie(event, REMEMBER_COOKIE) === '1'
 }
 
-/** Bejelentkezéskor: a „maradjak bejelentkezve” jelölés rögzítése (tartós süti 24 órára), vagy törlése. */
+/** Bejelentkezéskor: a „maradjak bejelentkezve” jelölés rögzítése (tartós süti), vagy törlése. */
 export function setRemember(event: H3Event, on: boolean): void {
   if (on) setCookie(event, REMEMBER_COOKIE, '1', { maxAge: REMEMBER_SEC, sameSite: 'lax', httpOnly: true, path: '/' })
   else deleteCookie(event, REMEMBER_COOKIE, { path: '/' })
@@ -61,7 +65,7 @@ export function authSession(event: H3Event, opts?: { remember?: boolean }) {
   return useSession<{ auth?: boolean; exp?: number; viewer?: { id: number }; challenge?: string }>(event, {
     password: sessionSecret(),
     name: 'cukornaplo_sess',
-    // „Maradjak bejelentkezve”: tartós süti (24 óra); különben a böngésző bezárásáig érvényes (munkamenet-süti).
+    // „Maradjak bejelentkezve”: tartós süti; különben a böngésző bezárásáig érvényes (munkamenet-süti).
     cookie: { sameSite: 'lax', ...(remember ? { maxAge: REMEMBER_SEC } : {}) },
   })
 }
@@ -79,10 +83,17 @@ export async function loginSession(event: H3Event, remember: boolean) {
 }
 
 export async function isAuthed(event: H3Event): Promise<boolean> {
-  const d = (await authSession(event)).data
+  const session = await authSession(event)
+  const d = session.data
   if (!d.auth) return false
-  // A tartós bejelentkezés a szerveroldalon is lejár (a süti elvesztése nélkül sem marad örökké érvényes).
-  return !(d.exp && d.exp < Math.floor(Date.now() / 1000))
+  const now = Math.floor(Date.now() / 1000)
+  if (d.exp && d.exp < now) return false
+  // Megjegyzett bejelentkezés: használatkor megújul (a süti és a lejárat is), így nem jár le, amíg használod.
+  if (rememberOn(event) && (!d.exp || d.exp - now < REMEMBER_SEC - REMEMBER_RENEW_SEC)) {
+    setRemember(event, true)
+    await session.update({ exp: now + REMEMBER_SEC })
+  }
+  return true
 }
 
 export async function requireAuth(event: H3Event): Promise<void> {

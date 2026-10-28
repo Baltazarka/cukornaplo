@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const password = ref('')
-// „Maradjak bejelentkezve”: 24 órán át, a böngésző bezárása után is (a választás megmarad ebben a böngészőben).
+// „Maradjak bejelentkezve”: a böngésző bezárása után is, használatkor megújul (a választás megmarad ebben a böngészőben).
 const remember = ref(true)
 onMounted(() => {
   try { remember.value = localStorage.getItem('cukornaplo.remember') !== '0' } catch { /* nincs tároló */ }
@@ -84,7 +84,7 @@ async function passkeyLogin(autofill = false) {
       <h1>Belépés</h1>
       <p v-if="expired" class="notice">A megtekintési link lejárt. Ha tovább szeretnéd nézni, kérj új linket attól, aki küldte.</p>
       <label class="remember">
-        <input v-model="remember" type="checkbox"> Maradjak bejelentkezve 24 órán át
+        <input v-model="remember" type="checkbox"> Maradjak bejelentkezve
       </label>
       <div v-if="passkeyOk" class="stack">
         <button type="button" :disabled="busy" @click="passkeyLogin()">🔐 Belépés Face ID-val / Touch ID-val</button>
