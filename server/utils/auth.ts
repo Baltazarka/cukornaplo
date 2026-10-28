@@ -62,7 +62,7 @@ export function clearRemember(event: H3Event): void {
 export function authSession(event: H3Event, opts?: { remember?: boolean }) {
   // auth: bejelentkezett tulajdonos (exp: lejárat, unix mp); viewer: ideiglenes, csak olvasható megtekintő (megosztási link).
   const remember = opts?.remember ?? rememberOn(event)
-  return useSession<{ auth?: boolean; exp?: number; viewer?: { id: number }; challenge?: string }>(event, {
+  return useSession<{ auth?: boolean; exp?: number; remember?: boolean; viewer?: { id: number }; challenge?: string }>(event, {
     password: sessionSecret(),
     name: 'cukornaplo_sess',
     // „Maradjak bejelentkezve”: tartós süti; különben a böngésző bezárásáig érvényes (munkamenet-süti).
@@ -78,7 +78,7 @@ export async function loginSession(event: H3Event, remember: boolean) {
   setRemember(event, remember)
   const session = await authSession(event, { remember })
   // Megjegyzés nélkül is lejár a szerveroldalon (12 óra), ha a böngésző nem zárul be és a süti megmarad.
-  await session.update({ auth: true, exp: Math.floor(Date.now() / 1000) + (remember ? REMEMBER_SEC : SESSION_SEC) })
+  await session.update({ auth: true, remember, exp: Math.floor(Date.now() / 1000) + (remember ? REMEMBER_SEC : SESSION_SEC) })
   return session
 }
 
@@ -89,7 +89,8 @@ export async function isAuthed(event: H3Event): Promise<boolean> {
   const now = Math.floor(Date.now() / 1000)
   if (d.exp && d.exp < now) return false
   // Megjegyzett bejelentkezés: használatkor megújul (a süti és a lejárat is), így nem jár le, amíg használod.
-  if (rememberOn(event) && (!d.exp || d.exp - now < REMEMBER_SEC - REMEMBER_RENEW_SEC)) {
+  // A jelölés a lezárt munkamenetből számít (a külön süti csak a süti élettartamát adja, kézzel nem kapcsolható be).
+  if (d.remember && rememberOn(event) && (!d.exp || d.exp - now < REMEMBER_SEC - REMEMBER_RENEW_SEC)) {
     setRemember(event, true)
     await session.update({ exp: now + REMEMBER_SEC })
   }
