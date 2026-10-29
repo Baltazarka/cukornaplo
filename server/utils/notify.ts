@@ -13,6 +13,7 @@ import { db } from './db'
 import { hmInTz } from './time'
 import { insulinGivenAfterMeal } from './fpuRecent'
 import { targetRange } from './range'
+import { RANGE_VERY_LOW } from './stats'
 import { rapidDoses, iobAt } from './iob'
 import { calcBolus } from '#shared/utils/bolus'
 
@@ -37,6 +38,8 @@ export interface NotifySettings {
 
 interface NotifyState {
   lastHypo?: number
+  /** Az utolsó hipó-értesítéskori legrosszabb érték (most vagy a várható mélypont); a hipó elmúltával törlődik. */
+  lastHypoV?: number
   lastCarbs?: number
   lastInsulin?: number
   /** A szenzor lejárata, amelyről már szóltunk (szenzoronként egyszer). */
@@ -302,16 +305,25 @@ export async function checkAlerts(nowTs = Math.floor(Date.now() / 1000)): Promis
     if (!r.sent && r.lastError) errors.push(r.lastError)
   }
 
-  if (p.risk && (wantHypo || wantCarbs)) {
+  // Ugyanarra a hipóra az ismétlés csak akkor jön az időköz után, ha romlott (≥ 0,3-del lejjebb, vagy 3,0 alatt);
+  // változatlan helyzetben ritkábban (az időköz kétszerese, legalább 30 perc).
+  const worst = p.risk ? Math.min(p.now.v, p.nadir) : null
+  const prevV = st.lastHypoV
+  if (worst == null && prevV != null) saveState({ lastHypoV: undefined })
+  const worse = worst != null && (prevV == null || worst <= prevV - 0.3 || p.now.v < RANGE_VERY_LOW)
+  const slowGap = Math.max(2 * s.repeatMin, 30) * 60 - 30
+  const repeatOk = (last?: number) => worse || nowTs - (last ?? 0) >= slowGap
+
+  if (p.risk && ((wantHypo && repeatOk(st.lastHypo)) || (wantCarbs && repeatOk(st.lastCarbs)))) {
     // Ha a hipó- és a szénhidrát-értesítés is be van kapcsolva, egy közös értesítés megy (a szénhidrátmennyiséggel).
     if (wantHypo) {
-      saveState({ lastHypo: nowTs, ...(wantCarbs ? { lastCarbs: nowTs } : {}) })
+      saveState({ lastHypo: nowTs, lastHypoV: worst!, ...(wantCarbs ? { lastCarbs: nowTs } : {}) })
       await send(hypoPayload(p, wantCarbs ? p.carbsNeeded : null), 'high')
     } else if (p.carbsNeeded) {
-      saveState({ lastCarbs: nowTs })
+      saveState({ lastCarbs: nowTs, lastHypoV: worst! })
       await send(carbsPayload(p, p.carbsNeeded), 'high')
     }
-  } else if (wantInsulin && p.insulinNeeded && p.insulinNeeded >= s.insulinMin) {
+  } else if (!p.risk && wantInsulin && p.insulinNeeded && p.insulinNeeded >= s.insulinMin) {
     saveState({ lastInsulin: nowTs })
     await send(insulinPayload(p, p.insulinNeeded), 'normal')
   }

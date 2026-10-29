@@ -163,7 +163,7 @@ const noDevice = computed(() => !push.value?.devices?.length)
       </label>
       <fieldset class="notify-block">
         <label class="check"><input v-model="form.hypoPush" type="checkbox"> Hipó-veszély</label>
-        <p class="muted small">Szól, ha a becsült vércukor a céltartomány alá esne, vagy már alatta van. A fenti időközönként ismétlődik, amíg a helyzet fennáll.</p>
+        <p class="muted small">Szól, ha a becsült vércukor a céltartomány alá esne, vagy már alatta van. Ha romlik (legalább 0,3-del lejjebb, vagy 3,0 alá), a fenti időközönként ismétlődik; ha nem változik, ritkábban (kétszer akkora időközzel, legalább félóránként). Beírt szénhidrát (≥ 10 g) után 30 percig nem szól.</p>
         <label>Előrejelzés távolsága
           <select v-model.number="form.hypoHorizon">
             <option :value="15">15 perc</option>

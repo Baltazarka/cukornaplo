@@ -51,7 +51,7 @@ export function resetPredictChoice(): void {
 }
 /** A távolsághoz legközelebbi tesztelt távolság (15 / 30 / 60 perc). */
 const bucket = (h: number): '15' | '30' | '60' => (h <= 22 ? '15' : h <= 45 ? '30' : '60')
-const RECENT_TREAT_SEC = 20 * 60 // ennyivel előbb bevitt ≥ 10 g CH kezelésnek számít
+const RECENT_TREAT_SEC = 30 * 60 // ennyivel előbb bevitt ≥ 10 g CH kezelésnek számít (közben nincs hipó-értesítés)
 
 export interface Prediction {
   now: Latest
