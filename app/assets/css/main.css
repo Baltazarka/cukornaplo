@@ -141,7 +141,46 @@
 /* A napi görbe jelmagyarázata a zónasávok színeivel (a téma nem sraffoz). */
 :root[data-theme="pastel-night"] .chart-legend .sw.hatched.crit { background: #f2a66b; }
 :root[data-theme="pastel-night"] .chart-legend .sw.hatched.warn { background: var(--status-warning); }
-:root[data-theme="pastel-night"] .last-reading .lr-value { font-weight: 700; letter-spacing: -0.02em; }
+/* „Most” kártya és gyors gombok: csak az „Éjszaka” témában; ott a görbe fölötti régi kiírás helyett. */
+.now-card, .quick-actions { display: none; }
+:root[data-theme="pastel-night"] .now-card {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px;
+  --zone: var(--status-good);
+}
+:root[data-theme="pastel-night"] .now-card.z-low { --zone: #f2a66b; }
+:root[data-theme="pastel-night"] .now-card.z-very-low { --zone: var(--status-critical); }
+:root[data-theme="pastel-night"] .now-card.z-high { --zone: var(--status-warning); }
+:root[data-theme="pastel-night"] .now-card.z-very-high { --zone: var(--status-serious); }
+.now-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.now-label { flex-basis: 100%; font-size: 12px; color: var(--text-muted); }
+.now-value { font-size: 52px; font-weight: 700; line-height: 1; letter-spacing: -0.03em; color: var(--zone); font-variant-numeric: tabular-nums; }
+.now-value small { font-size: 15px; font-weight: 400; letter-spacing: 0; color: var(--text-muted); }
+.now-trend { align-self: center; color: var(--zone); }
+.now-facts { display: flex; gap: 8px; }
+.now-facts > div { display: flex; flex-direction: column; gap: 2px; padding: 8px 14px; border-radius: 12px; background: var(--page); }
+.now-facts span { font-size: 11px; color: var(--text-muted); }
+.now-facts b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.now-ins { color: var(--series-insulin); }
+.now-carbs { color: var(--series-carbs); }
+:root[data-theme="pastel-night"] .day-chart-card .last-reading { display: none; }
+.quick-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.quick-actions button { min-height: 52px; border-radius: 14px; font-weight: 700; font-size: 15px; }
+.quick-actions .qa-calc { background: var(--accent); color: var(--accent-ink); border: 0; }
+.quick-actions .qa-carbs { background: color-mix(in srgb, var(--series-carbs) 14%, var(--surface-1)); color: var(--series-carbs); border: 1px solid color-mix(in srgb, var(--series-carbs) 35%, transparent); }
+.quick-actions .qa-ins { background: color-mix(in srgb, var(--series-insulin) 14%, var(--surface-1)); color: var(--series-insulin); border: 1px solid color-mix(in srgb, var(--series-insulin) 35%, transparent); }
+@media (max-width: 700px) {
+  :root[data-theme="pastel-night"] .quick-actions { display: grid; }
+  :root[data-theme="pastel-night"] .now-value { font-size: 48px; }
+  :root[data-theme="pastel-night"] .now-facts { flex: 1 1 100%; }
+  :root[data-theme="pastel-night"] .now-facts > div { flex: 1 1 0; }
+  /* Sorrend: napválasztó, most-kártya, gyors gombok, napi görbe, kalkulátor, a többi. */
+  :root[data-theme="pastel-night"] .home-main > .now-card,
+  :root[data-theme="pastel-night"] .home-main > .quick-actions { order: 2; }
+  :root[data-theme="pastel-night"] .home-main > .day-chart-card,
+  :root[data-theme="pastel-night"] .home-side > .bolus-calc { order: 3; }
+  :root[data-theme="pastel-night"] .home-right > .sensor-card,
+  :root[data-theme="pastel-night"] .home-right > .notify-log { order: 4; }
+}
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }

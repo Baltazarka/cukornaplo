@@ -274,6 +274,28 @@ function openEntryForm(type: 'insulin' | 'carbs' | 'glucose') {
   entryForm.value = { type, date, time: date === data.value?.today ? defaultTime() : '12:00', value: '', sub: '', fat: '', protein: '' }
   entryError.value = ''
 }
+
+// „Éjszaka” téma: a mostani érték külön kártyán, alatta (telefonon) gyors gombok; a többi témában CSS-sel rejtve.
+const nowReading = computed(() => {
+  const gl = data.value?.glucose
+  if (!gl?.length) return null
+  const [ms, v] = gl[gl.length - 1]
+  const r = data.value.range
+  const zone = v < r.veryLow ? 'very-low' : v < r.low ? 'low' : v > r.veryHigh ? 'very-high' : v > r.high ? 'high' : 'in'
+  return { v, time: new Date(ms).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }), zone }
+})
+async function quickEntry(type: 'insulin' | 'carbs') {
+  openEntryForm(type)
+  await nextTick()
+  const form = document.querySelector('.log-card .note-form')
+  form?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  form?.querySelector<HTMLInputElement>('.entry-amount')?.focus({ preventScroll: true })
+}
+function quickCalc() {
+  const calc = document.querySelector('.bolus-calc')
+  calc?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  calc?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true })
+}
 async function saveEntry(force = false) {
   const f = entryForm.value!
   entrySaving.value = true
@@ -375,6 +397,22 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
     <PeriodView v-if="period > 1 && agp" :data="agp" @day="openDay" />
 
     <template v-if="period === 1">
+    <section v-if="nowReading" class="card now-card" :class="'z-' + nowReading.zone" aria-label="Utolsó vércukor">
+      <div class="now-main">
+        <span class="now-label">{{ data.day === data.today ? 'Most' : 'A nap utolsó értéke' }} · {{ nowReading.time }}</span>
+        <span class="now-value">{{ sgText(nowReading.v) }} <small>mmol/L</small></span>
+        <TrendArrows v-if="data.trend && data.day === data.today" :dir="data.trend.dir" :level="data.trend.level" class="now-trend" />
+      </div>
+      <div class="now-facts">
+        <div v-if="data.iobNow != null"><span>Aktív inzulin</span><b class="now-ins">{{ fmt(data.iobNow) }} E</b></div>
+        <div v-if="data.cobNow != null"><span>Aktív CH</span><b class="now-carbs">{{ fmt(data.cobNow, 0) }} g</b></div>
+      </div>
+    </section>
+    <div v-if="!readOnly" class="quick-actions" role="group" aria-label="Gyors műveletek">
+      <button type="button" class="qa-calc" @click="quickCalc">Kalkulátor</button>
+      <button type="button" class="qa-carbs" @click="quickEntry('carbs')">+ CH</button>
+      <button type="button" class="qa-ins" @click="quickEntry('insulin')">+ Inzulin</button>
+    </div>
     <section v-if="!data.stats.day.n && !data.events.length" class="card">
       <p>Erre a napra nincs adat.</p>
       <p class="muted">Ha még nem állítottad be, a <NuxtLink to="/telefon">Telefon beállítása</NuxtLink> varázsló végigvezet a telefonos küldésen, a szenzorgörbéhez pedig az <NuxtLink to="/adatok">Beállítások</NuxtLink> oldalon kötheted be a CareLinket.</p>
@@ -404,7 +442,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
     </section>
 
     <div class="grid2">
-      <section class="card">
+      <section class="card log-card">
         <div class="card-head">
           <h2>Napló</h2>
           <div v-if="!readOnly && !noteForm && !entryForm" class="log-add">

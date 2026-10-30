@@ -359,7 +359,11 @@ function buildOption() {
   }
   // A zsírosnak jelölt étkezés oszlopa halványabb, keretes; a zsíros és a gyors CH fölött ikon (🧀 / ⚡), mint a naplóban.
   const carryCarbs = ((d.absorption?.carbs ?? []) as [number, number, string | null][]).filter((x) => x[0] < d.dayStartMs)
-  const tagIcon = (tag: string) => ({ show: true, position: 'top', distance: 2, formatter: CARB_TAG_ICON[tag as 'fatty' | 'fast'], fontSize: 12 })
+  const tagIcon = (tag: string) => ({
+    show: true, position: 'top', distance: 2, fontSize: 12,
+    formatter: night ? (p: any) => `${CARB_TAG_ICON[tag as 'fatty' | 'fast']} ${num(p.value[1], 0)} g` : CARB_TAG_ICON[tag as 'fatty' | 'fast'],
+    ...(night ? { fontSize: 10, fontWeight: 600, color: C.carbs } : {}),
+  })
   const carbs = [...carryCarbs, ...d.carbs].map((p: any[]) => (p[2] === 'fatty'
     ? { value: [p[0], p[1]], itemStyle: { color: rgba(C.carbs, 0.35), borderColor: C.carbs, borderWidth: 1.5 }, label: tagIcon('fatty') }
     : p[2] === 'fast' ? { value: [p[0], p[1]], label: tagIcon('fast') }
@@ -557,6 +561,22 @@ function buildOption() {
     itemStyle: { color, borderRadius: [1, 1, 0, 0] },
   })
 
+  // „Éjszaka” téma: a mostani időpont után az aktív inzulin / CH lecsengése halványan, szaggatottan (várható),
+  // az oszlopok fölött a mennyiség.
+  const nowMs = Date.now()
+  const nowLine = night && nowMs > viewMin && nowMs < viewMax ? nowMs : null
+  const splitAtNow = (data: [number, number][]): [number, number][][] => {
+    if (nowLine == null) return [data]
+    const i = data.findIndex((p) => p[0] > nowLine)
+    if (i <= 0) return i === 0 ? [[], data] : [data]
+    const [a, b] = [data[i - 1], data[i]]
+    const mid: [number, number] = [nowLine, a[1] + ((b[1] - a[1]) * (nowLine - a[0])) / (b[0] - a[0])]
+    return [[...data.slice(0, i), mid], [mid, ...data.slice(i)]]
+  }
+  const withLabel = (s: any, color: string, unit: string) => (night
+    ? { ...s, label: { show: true, position: 'top', distance: 2, fontSize: 10, fontWeight: 600, color, formatter: (p: any) => `${num(p.value[1], Number.isInteger(p.value[1]) ? 0 : 1)}${unit}` } }
+    : s)
+
   const option: any = {
     animation: false,
     backgroundColor: 'transparent',
@@ -687,25 +707,36 @@ function buildOption() {
             itemStyle: { color: C.primary, borderColor: C.surface, borderWidth: 2 }, tooltip: { show: false },
           }]
         : []),
-      ...curves.map(({ kind, data }) => {
+      ...curves.flatMap(({ kind, data }) => {
         const color = kind === 'correction' ? C.correction : C.insulin
-        return {
-          name: 'Aktív inzulin', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data, symbol: 'none', silent: true, z: 2,
-          lineStyle: { width: IOB_LINE, color }, areaStyle: { color: rgba(color, 0.12) },
-        }
+        return splitAtNow(data).map((part, future) => ({
+          name: 'Aktív inzulin', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: part, symbol: 'none', silent: true, z: 2,
+          lineStyle: { width: IOB_LINE, color, ...(future ? { type: [4, 3], opacity: 0.7 } : {}) }, areaStyle: { color: rgba(color, future ? 0.05 : 0.12) },
+        }))
       }),
-      bar('Bólus', 1, bolus.filter((p: any[]) => p[3] !== 'correction').map((p: any[]) => [p[0], p[1]]), C.insulin),
-      bar('Korrekció', 1, bolus.filter((p: any[]) => p[3] === 'correction').map((p: any[]) => [p[0], p[1]]), C.correction),
+      withLabel(bar('Bólus', 1, bolus.filter((p: any[]) => p[3] !== 'correction').map((p: any[]) => [p[0], p[1]]), C.insulin), C.insulin, ' E'),
+      withLabel(bar('Korrekció', 1, bolus.filter((p: any[]) => p[3] === 'correction').map((p: any[]) => [p[0], p[1]]), C.correction), C.correction, ' E'),
       // A bázisnak nincs hatásgörbéje: csak egy pont az alapvonalon (a nagy adag nem húzza el a tengelyt).
       {
         name: 'Bázis', type: 'scatter', xAxisIndex: 1, yAxisIndex: 1, data: basal.map((p: number[]) => [p[0], 0]), symbol: 'diamond', symbolSize: 12, z: 6, silent: true,
         itemStyle: { color: C.basal, borderColor: C.surface, borderWidth: 2 }, tooltip: { show: false }, clip: false,
       },
-      ...cobCurves.map((data) => ({
-        name: 'Aktív CH', type: 'line', xAxisIndex: 2, yAxisIndex: 2, data, symbol: 'none', silent: true, z: 2,
-        lineStyle: { width: IOB_LINE, color: C.carbs }, areaStyle: { color: rgba(C.carbs, 0.12) },
-      })),
-      bar('Szénhidrát', 2, carbs, C.carbs),
+      ...cobCurves.flatMap((data) => splitAtNow(data).map((part, future) => ({
+        name: 'Aktív CH', type: 'line', xAxisIndex: 2, yAxisIndex: 2, data: part, symbol: 'none', silent: true, z: 2,
+        lineStyle: { width: IOB_LINE, color: C.carbs, ...(future ? { type: [4, 3], opacity: 0.7 } : {}) }, areaStyle: { color: rgba(C.carbs, future ? 0.05 : 0.12) },
+      }))),
+      withLabel(bar('Szénhidrát', 2, carbs, C.carbs), C.carbs, ' g'),
+      // „Most” vonal mindhárom panelen (csak az „Éjszaka” témában, ha a mostani idő a tengelyen van).
+      ...(night && nowLine
+        ? [0, 1, 2].map((gi) => ({
+            type: 'line', xAxisIndex: gi, yAxisIndex: gi, data: [], silent: true, z: 7, tooltip: { show: false },
+            markLine: {
+              silent: true, symbol: 'none', lineStyle: { color: rgba(C.primary, 0.35), width: 1, type: 'solid' },
+              label: gi === 0 ? { show: true, position: 'end', formatter: 'most', color: C.text, fontSize: 10 } : { show: false },
+              data: [{ xAxis: nowLine }],
+            },
+          }))
+        : []),
     ],
   }
   if (night) {
