@@ -55,13 +55,13 @@ const RATINGS = [
 </script>
 
 <template>
-  <section class="card">
+  <section class="card meal-card">
     <div class="card-head">
       <h2>Étkezések napszakonként <GuideLink section="etkezes" /></h2>
       <span class="muted small">a vércukor változása az étkezéstől, a kezdő értékhez képest</span>
     </div>
     <p v-if="!segs.length" class="muted">Ebben az időszakban nincs elemezhető étkezés (beírt CH vagy étkezési bólus, és utána legalább 4 óra szenzoradat).</p>
-    <div v-else class="meal-grid">
+    <div v-else class="meal-grid" :class="{ n4: segs.length === 4 }">
       <div v-for="s in segs" :key="s.index" class="meal-seg">
         <h3>
           <span>{{ data.therapySet ? `${s.start}–${s.end}` : 'Egész nap' }}</span>

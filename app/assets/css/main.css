@@ -878,9 +878,18 @@ details.more p + p { margin-top: 6px; }
 .mc-dot { stroke: var(--surface-1); stroke-width: 2; }
 
 /* ---- Étkezéselemzés (időszakos nézet) ---- */
-.meal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-.meal-seg { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--surface-2); min-width: 0; }
-.meal-seg h3 { margin-top: 0; display: flex; justify-content: space-between; gap: 8px; }
+/* A napszak-kártyák kitöltik a sort; a fejléc azonos magas, az értékelő sáv alul: a grafikonok és sávok egy vonalban. */
+.meal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+/* Négy napszak: 2×2, széles kártyán egy sorban (nem marad egy kártya egyedül a második sorban). */
+.meal-card { container-type: inline-size; }
+.meal-grid.n4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container (min-width: 1200px) { .meal-grid.n4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@container (max-width: 600px) { .meal-grid.n4 { grid-template-columns: minmax(0, 1fr); } }
+.meal-seg { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--surface-2); min-width: 0; display: flex; flex-direction: column; }
+.meal-seg h3 { margin-top: 0; display: flex; flex-direction: column; gap: 2px; }
+.meal-seg h3 > .small { font-weight: 400; min-height: 3em; line-height: 1.5; }
+.meal-seg .meal-ratings { margin-top: auto; padding-top: 0; }
+.meal-seg .meal-fatty, .meal-seg .meal-stats { margin-bottom: 10px; }
 .meal-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; margin: 8px 0 0; }
 .meal-stats dt { font-size: 11px; color: var(--text-muted); }
 .meal-stats dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
