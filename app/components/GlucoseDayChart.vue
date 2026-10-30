@@ -413,9 +413,11 @@ function buildOption() {
         ...(gi === 0
           ? {
               markLine: {
-                silent: true, symbol: 'none', label: { show: false },
+                silent: true, symbol: 'none',
+                // „Éjszaka” téma: a napszak célértéke felirattal.
+                label: night ? { show: true, position: 'insideStartTop', fontSize: 10, color: C.muted, formatter: '{b}' } : { show: false },
                 lineStyle: { color: C.muted, width: 1, type: [4, 4] },
-                data: segs.map((x) => [{ coord: [x.from, x.target] }, { coord: [x.to, x.target] }]),
+                data: segs.map((x) => [{ coord: [x.from, x.target], name: `cél ${num(x.target, 1)}` }, { coord: [x.to, x.target] }]),
               },
             }
           : {}),
@@ -712,7 +714,7 @@ function buildOption() {
               silent: true, symbol: 'none',
               label: { show: true, position: 'insideEndTop', fontSize: 10, fontWeight: 600, formatter: (p: any) => num(p.value, Number.isInteger(p.value) ? 0 : 1) },
               data: ([[r.veryLow, zoneColors.veryLow], [r.low, zoneColors.low], [r.high, zoneColors.high], [r.veryHigh, zoneColors.veryHigh]] as [number, string][])
-                .map(([v, color]) => ({ yAxis: v, lineStyle: { color: rgba(color, 0.6), width: 1, type: [4, 4] }, label: { color } })),
+                .map(([v, color]) => ({ yAxis: v, lineStyle: { color: rgba(color, 0.6), width: 1, type: [4, 4] }, label: { color, ...(v === r.veryLow ? { position: 'insideEndBottom' } : {}) } })),
             }
           : {
               silent: true, symbol: 'none', label: { show: false },

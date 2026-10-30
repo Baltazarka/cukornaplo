@@ -168,8 +168,10 @@
 .now-carbs { color: var(--series-carbs); }
 :root[data-theme="pastel-night"] .day-chart-card .last-reading { display: none; }
 /* A görbe alatt negyedik sáv: az aktív inzulin és CH együtt. */
-:root[data-theme="pastel-night"] .chart-box { height: 636px; }
-@media (max-width: 560px) { :root[data-theme="pastel-night"] .chart-box { height: 620px; } }
+:root[data-theme="pastel-night"] .chart-box:not(.agp-chart) { height: 636px; }
+@media (max-width: 560px) { :root[data-theme="pastel-night"] .chart-box:not(.agp-chart) { height: 620px; } }
+/* AGP: a jelmagyarázat témánként (az „Éjszaka” témában csíkozás / pontozás nélküli sávok). */
+:root[data-theme="pastel-night"] .agp-legend-classic, :root:not([data-theme="pastel-night"]) .agp-legend-night { display: none; }
 /* Gyors nagyítás-gombok a görbén (a „Teljes nap” gombot kiváltják); a naplóban színes ikonnégyzet a pötty helyett;
    a napi táblázatokban a célban töltött idő kis sávval. */
 .tir-mini { display: none; }

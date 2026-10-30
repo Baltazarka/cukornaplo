@@ -36,7 +36,12 @@ function buildOption() {
     basal: token('--series-basal'),
     correction: token('--series-correction'),
     carbs: token('--series-carbs'),
+    glucose: token('--series-glucose'),
   }
+  // „Éjszaka” téma: a napi görbéhez hasonlóan halvány zónasávok, feliratozott határvonalak, zónánként színezett
+  // folytonos medián, a 25–75% és az 5–95% sáv egyszínű halvány terület (csíkozás / pontozás nélkül).
+  const night = document.documentElement.getAttribute('data-theme') === 'pastel-night'
+  const zoneColors = { veryLow: token('--status-critical'), low: '#f2a66b', inRange: token('--status-good'), high: token('--status-warning'), veryHigh: token('--status-serious') }
 
   const x = a.minutes as number[]
   const pts = (arr: (number | null)[]) => arr.map((v, i) => [x[i], v])
@@ -46,7 +51,14 @@ function buildOption() {
   // A 25–75% sáv tartományonkénti szeletei: minden szeletnél [alap, magasság] halmozott terület.
   const bands: [number, number, any][] = Object.values(rangeFills(r)).map((b) => [b.lo, b.hi, b.color])
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
-  const iqrSeries = bands.flatMap(([lo, hi, color], bi) => {
+  const iqrSeries = night
+    ? [
+        { type: 'line', xAxisIndex: 0, yAxisIndex: 0, stack: 'iqr', data: pts(a.p25), symbol: 'none', silent: true,
+          lineStyle: { width: 0 }, connectNulls: false, smooth: 0.3, z: 2, tooltip: { show: false } },
+        { type: 'line', xAxisIndex: 0, yAxisIndex: 0, stack: 'iqr', data: diff(a.p75, a.p25), symbol: 'none', silent: true,
+          lineStyle: { width: 0 }, areaStyle: { color: rgba(C.glucose, 0.3), opacity: 1 }, connectNulls: false, smooth: 0.3, z: 2, tooltip: { show: false } },
+      ]
+    : bands.flatMap(([lo, hi, color], bi) => {
     const base = a.p25.map((v: number | null, i: number) => (v == null || a.p75[i] == null ? null : clamp(v, lo, hi)))
     const top = a.p75.map((v: number | null, i: number) => (v == null || a.p25[i] == null ? null : clamp(v, lo, hi)))
     return [
@@ -115,7 +127,7 @@ function buildOption() {
     itemStyle: { color, borderRadius: stack ? 0 : [2, 2, 0, 0] },
   })
 
-  return {
+  const option: any = {
     animation: false,
     backgroundColor: 'transparent',
     textStyle: { fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif' },
@@ -147,16 +159,33 @@ function buildOption() {
       { type: 'line', xAxisIndex: 0, yAxisIndex: 0, stack: 'outer', data: pts(a.p5), symbol: 'none', silent: true,
         lineStyle: { width: 0 }, connectNulls: false, smooth: 0.3, z: 1, tooltip: { show: false } },
       { type: 'line', xAxisIndex: 0, yAxisIndex: 0, stack: 'outer', data: diff(a.p95, a.p5), symbol: 'none', silent: true,
-        lineStyle: { width: 0 }, areaStyle: { color: dotPattern(C.muted), opacity: 1 }, connectNulls: false, smooth: 0.3, z: 1, tooltip: { show: false } },
+        lineStyle: { width: 0 }, areaStyle: { color: night ? rgba(C.glucose, 0.1) : dotPattern(C.muted), opacity: 1 }, connectNulls: false, smooth: 0.3, z: 1, tooltip: { show: false } },
+      ...(night
+        ? [{
+            type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: [], silent: true, z: 0, tooltip: { show: false },
+            markArea: {
+              silent: true,
+              data: ([[0, r.veryLow, zoneColors.veryLow, 0.16], [r.veryLow, r.low, zoneColors.low, 0.13], [r.low, r.high, zoneColors.inRange, 0.06], [r.high, r.veryHigh, zoneColors.high, 0.1], [r.veryHigh, 40, zoneColors.veryHigh, 0.12]] as [number, number, string, number][])
+                .map(([lo, hi, color, op]) => [{ yAxis: lo, itemStyle: { color: rgba(color, op) } }, { yAxis: hi }]),
+            },
+          }]
+        : []),
       ...iqrSeries,
       {
         name: 'Medián', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: pts(a.p50), symbol: 'none', z: 4,
-        lineStyle: { width: 2, type: 'dashed', color: C.primary }, connectNulls: false, smooth: 0.3,
-        markLine: {
+        lineStyle: night ? { width: 2.6 } : { width: 2, type: 'dashed', color: C.primary }, connectNulls: false, smooth: 0.3,
+        markLine: night
+          ? {
+              silent: true, symbol: 'none',
+              label: { show: true, position: 'insideEndTop', fontSize: 10, fontWeight: 600, formatter: (p: any) => num(p.value, Number.isInteger(p.value) ? 0 : 1) },
+              data: ([[r.veryLow, zoneColors.veryLow], [r.low, zoneColors.low], [r.high, zoneColors.high], [r.veryHigh, zoneColors.veryHigh]] as [number, string][])
+                .map(([v, color]) => ({ yAxis: v, lineStyle: { color: rgba(color, 0.6), width: 1, type: [4, 4] }, label: { color, ...(v === r.veryLow ? { position: 'insideEndBottom' } : {}) } })),
+            }
+          : {
           silent: true, symbol: 'none', label: { show: false },
           lineStyle: { color: C.primary, width: 1.5, type: 'solid' },
           data: [{ yAxis: r.low }, { yAxis: r.high }],
-        },
+            },
       },
       bar('Étkezési bólus', 1, hourBars(d.hourly.meal), C.insulin, 'ins'),
       bar('Korrekció', 1, hourBars(d.hourly.correction), C.correction, 'ins'),
@@ -164,6 +193,19 @@ function buildOption() {
       bar('Szénhidrát', 2, hourBars(d.hourly.carbs), C.carbs),
     ],
   }
+  if (night) {
+    option.visualMap = {
+      type: 'piecewise', show: false, dimension: 1, seriesIndex: option.series.findIndex((x: any) => x.name === 'Medián'),
+      pieces: [
+        { lt: r.veryLow, color: zoneColors.veryLow },
+        { gte: r.veryLow, lt: r.low, color: zoneColors.low },
+        { gte: r.low, lte: r.high, color: zoneColors.inRange },
+        { gt: r.high, lte: r.veryHigh, color: zoneColors.high },
+        { gt: r.veryHigh, color: zoneColors.veryHigh },
+      ],
+    }
+  }
+  return option
 }
 
 async function render() {
@@ -201,7 +243,7 @@ function f1(v: number): string {
 
 <template>
   <div>
-    <div class="chart-legend agp-legend">
+    <div class="chart-legend agp-legend agp-legend-classic">
       <span class="k"><span class="sw line" style="background: var(--text-primary)" /> céltartomány</span>
       <span class="k"><span class="sw dashed" /> medián</span>
       <span class="k"><span class="sw dotted" /> 5–95%</span>
@@ -215,6 +257,15 @@ function f1(v: number): string {
       <span class="k"><span class="sw" style="background: var(--series-correction)" /> korrekció</span>
       <span class="k"><span class="sw" style="background: var(--series-basal)" /> bázis</span>
     </div>
-    <div ref="el" class="chart-box" />
+    <div class="chart-legend agp-legend agp-legend-night">
+      <span class="k"><span class="sw line" style="background: var(--status-good)" /> medián (zónánként színezve)</span>
+      <span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 30%, transparent)" /> 25–75%</span>
+      <span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 10%, transparent)" /> 5–95%</span>
+      <span class="k"><span class="sw" style="background: var(--series-insulin)" /> étkezési bólus</span>
+      <span class="k"><span class="sw" style="background: var(--series-correction)" /> korrekció</span>
+      <span class="k"><span class="sw" style="background: var(--series-basal)" /> bázis</span>
+      <span class="k"><span class="sw" style="background: var(--series-carbs)" /> szénhidrát</span>
+    </div>
+    <div ref="el" class="chart-box agp-chart" />
   </div>
 </template>
