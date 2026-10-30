@@ -117,6 +117,31 @@
   --series-basal: #bfaaf0; --series-correction: #eea2cc;
   --notice-bg: #1a2a42; --alert-bg: #3b2230;
 }
+/* „Éjszaka (új stílus)”: a többi témától a színeken túl a kártyák, csempék és gombok formája, valamint a napi görbe
+   (zónánként színezett vonal, zónasávok, határfeliratok) is eltér; a többi téma változatlan. */
+:root:where([data-theme="pastel-night"]) {
+  --page: #15131c; --surface-1: #1f1c29; --surface-2: #262233; --tooltip-bg: #262233;
+  --text-primary: #ece8f5; --text-secondary: #c9c3d6; --text-muted: #9a94ab;
+  --grid: #2a2636; --axis: #3a3550; --border: rgba(236, 232, 245, 0.10);
+  --accent: #c9b8ff;
+  --series-glucose: #c9b8ff; --series-insulin: #9cc0ff; --series-carbs: #f5bf8e;
+  --series-basal: #d7a8f0; --series-correction: #7fd0e6;
+  --status-good: #8fe0c2; --status-warning: #f0d48a; --status-serious: #ff8f6b; --status-critical: #ff7a70;
+  --band: rgba(143, 224, 194, 0.10);
+  --notice-bg: #2a2440; --alert-bg: #3a2230;
+}
+:root[data-theme="pastel-night"] .card { border-radius: 16px; }
+:root[data-theme="pastel-night"] .tile { border-radius: 14px; background: var(--surface-1); }
+:root[data-theme="pastel-night"] .tile-value { font-weight: 700; letter-spacing: -0.01em; }
+:root[data-theme="pastel-night"] :is(button, .btn) { border-radius: 10px; }
+:root[data-theme="pastel-night"] .segmented { border-radius: 10px; padding: 3px; gap: 2px; background: var(--page); border-color: var(--border); }
+:root[data-theme="pastel-night"] .segmented button { border: 0; border-radius: 8px; }
+:root[data-theme="pastel-night"] .segmented button[aria-pressed="true"] { background: var(--grid); color: var(--text-primary); }
+:root[data-theme="pastel-night"] :is(input, select, textarea) { border-radius: 10px; }
+/* A napi görbe jelmagyarázata a zónasávok színeivel (a téma nem sraffoz). */
+:root[data-theme="pastel-night"] .chart-legend .sw.hatched.crit { background: #f2a66b; }
+:root[data-theme="pastel-night"] .chart-legend .sw.hatched.warn { background: var(--status-warning); }
+:root[data-theme="pastel-night"] .last-reading .lr-value { font-weight: 700; letter-spacing: -0.02em; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }

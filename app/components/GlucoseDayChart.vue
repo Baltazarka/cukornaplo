@@ -321,7 +321,10 @@ function buildOption() {
   // a céltartomány fölött/benne a határtól a görbéig, alatta a görbétől az alsó határig.
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
   const fills = rangeFills(r)
-  const fillSeries = (Object.entries(fills) as [string, { lo: number; hi: number; color: any }][]).flatMap(([key, b], bi) => {
+  // „Éjszaka” téma: kitöltés helyett halvány zónasávok a háttérben, és a vonal zónánként színezett.
+  const night = document.documentElement.getAttribute('data-theme') === 'pastel-night'
+  const zoneColors = { veryLow: cssToken('--status-critical'), low: '#f2a66b', inRange: cssToken('--status-good'), high: cssToken('--status-warning'), veryHigh: cssToken('--status-serious') }
+  const fillSeries = night ? [] : (Object.entries(fills) as [string, { lo: number; hi: number; color: any }][]).flatMap(([key, b], bi) => {
     const below = key === 'low' || key === 'veryLow'
     const base = g.map(([t, v]) => [t, v == null ? null : below ? clamp(v, b.lo, b.hi) : b.lo])
     const height = g.map(([t, v]) => [t, v == null ? null : below ? b.hi - clamp(v, b.lo, b.hi) : clamp(v, b.lo, b.hi) - b.lo])
@@ -554,7 +557,7 @@ function buildOption() {
     itemStyle: { color, borderRadius: [1, 1, 0, 0] },
   })
 
-  return {
+  const option: any = {
     animation: false,
     backgroundColor: 'transparent',
     textStyle: { fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif' },
@@ -615,9 +618,19 @@ function buildOption() {
           }]
         : []),
       ...fillSeries,
+      ...(night
+        ? [{
+            type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: [], silent: true, z: 1, tooltip: { show: false },
+            markArea: {
+              silent: true,
+              data: ([[0, r.veryLow, zoneColors.veryLow, 0.16], [r.veryLow, r.low, zoneColors.low, 0.13], [r.low, r.high, zoneColors.inRange, 0.06], [r.high, r.veryHigh, zoneColors.high, 0.1], [r.veryHigh, 40, zoneColors.veryHigh, 0.12]] as [number, number, string, number][])
+                .map(([a, b, color, op]) => [{ yAxis: a, itemStyle: { color: rgba(color, op) } }, { yAxis: b }]),
+            },
+          }]
+        : []),
       {
         name: 'Glükóz', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: g, z: 4,
-        lineStyle: { width: 2, color: C.primary }, itemStyle: { color: C.primary },
+        ...(night ? { lineStyle: { width: 2.6 } } : { lineStyle: { width: 2, color: C.primary }, itemStyle: { color: C.primary } }),
         connectNulls: false,
         showSymbol: true,
         // Magányos (pl. bólus kalkulátoros) mérés pontként látszik.
@@ -628,11 +641,18 @@ function buildOption() {
           const isolated = (!prev || prev[1] === null) && (!next || next[1] === null)
           return isolated && g[i][1] !== null ? 6 : 0
         },
-        markLine: {
-          silent: true, symbol: 'none', label: { show: false },
-          lineStyle: { color: C.primary, width: 1.5, type: 'solid' },
-          data: [{ yAxis: r.low }, { yAxis: r.high }],
-        },
+        markLine: night
+          ? {
+              silent: true, symbol: 'none',
+              label: { show: true, position: 'insideEndTop', fontSize: 10, fontWeight: 600, formatter: (p: any) => num(p.value, Number.isInteger(p.value) ? 0 : 1) },
+              data: ([[r.veryLow, zoneColors.veryLow], [r.low, zoneColors.low], [r.high, zoneColors.high], [r.veryHigh, zoneColors.veryHigh]] as [number, string][])
+                .map(([v, color]) => ({ yAxis: v, lineStyle: { color: rgba(color, 0.6), width: 1, type: [4, 4] }, label: { color } })),
+            }
+          : {
+              silent: true, symbol: 'none', label: { show: false },
+              lineStyle: { color: C.primary, width: 1.5, type: 'solid' },
+              data: [{ yAxis: r.low }, { yAxis: r.high }],
+            },
       },
       // Kizárt szenzorértékek (szürke, szaggatott) és a kizárt szakaszok sávja; kijelöléskor a választott kezdőpont.
       ...(excludedG.length
@@ -688,6 +708,19 @@ function buildOption() {
       bar('Szénhidrát', 2, carbs, C.carbs),
     ],
   }
+  if (night) {
+    option.visualMap = {
+      type: 'piecewise', show: false, dimension: 1, seriesIndex: option.series.findIndex((s: any) => s.name === 'Glükóz'),
+      pieces: [
+        { lt: r.veryLow, color: zoneColors.veryLow },
+        { gte: r.veryLow, lt: r.low, color: zoneColors.low },
+        { gte: r.low, lte: r.high, color: zoneColors.inRange },
+        { gt: r.high, lte: r.veryHigh, color: zoneColors.high },
+        { gt: r.veryHigh, color: zoneColors.veryHigh },
+      ],
+    }
+  }
+  return option
 }
 
 async function render() {

@@ -7,6 +7,7 @@ export const THEMES = [
   { id: 'pastel-mint', label: 'Menta (sötét)', icon: '🌿', page: '#111a18' },
   { id: 'pastel-peach', label: 'Barack (sötét)', icon: '🍑', page: '#1c1515' },
   { id: 'pastel-sky', label: 'Éjkék (sötét)', icon: '🌌', page: '#10151d' },
+  { id: 'pastel-night', label: 'Éjszaka (új stílus)', icon: '✨', page: '#15131c' },
 ] as const
 export type ThemeId = (typeof THEMES)[number]['id']
 
