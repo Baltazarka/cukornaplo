@@ -345,7 +345,7 @@ function buildOption() {
       lineStyle: { width: 0 }, connectNulls: false, z: 2, tooltip: { show: false } }
     return [
       { ...common, data: base },
-      { ...common, data: height, areaStyle: { color: night ? dotPattern(rgba(zoneColors[key as keyof typeof zoneColors], 0.9)) : b.color, opacity: 1 } },
+      { ...common, data: height, areaStyle: { color: night ? dotPattern(rgba(zoneColors[key as keyof typeof zoneColors], 0.5)) : b.color, opacity: 1 } },
     ]
   })
 
@@ -416,7 +416,8 @@ function buildOption() {
               markLine: {
                 silent: true, symbol: 'none',
                 // „Éjszaka” téma: a napszak célértéke felirattal.
-                label: night ? { show: true, position: 'insideStartTop', fontSize: 10, color: C.muted, formatter: '{b}' } : { show: false },
+                label: night ? { show: true, position: 'insideStartTop', fontSize: 10, color: C.text, formatter: '{b}', backgroundColor: C.surface, padding: [1, 4], borderRadius: 4 } : { show: false },
+                z: 6,
                 lineStyle: { color: C.muted, width: 1, type: [4, 4] },
                 data: segs.map((x) => [{ coord: [x.from, x.target], name: `cél ${num(x.target, 1)}` }, { coord: [x.to, x.target] }]),
               },
