@@ -333,9 +333,9 @@ function buildOption() {
   // a céltartomány fölött/benne a határtól a görbéig, alatta a görbétől az alsó határig.
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
   const fills = rangeFills(r)
-  // „Éjszaka” téma: kitöltés helyett halvány zónasávok a háttérben, és a vonal zónánként színezett.
+  // „Éjszaka” téma: kitöltés helyett halványan pontozott zónák a háttérben, és a vonal zónánként színezett.
   const night = document.documentElement.getAttribute('data-theme') === 'pastel-night'
-  const zoneColors = { veryLow: cssToken('--status-critical'), low: '#f2a66b', inRange: cssToken('--status-good'), high: cssToken('--status-warning'), veryHigh: cssToken('--status-serious') }
+  const zoneColors = nightZoneColors()
   const fillSeries = night ? [] : (Object.entries(fills) as [string, { lo: number; hi: number; color: any }][]).flatMap(([key, b], bi) => {
     const below = key === 'low' || key === 'veryLow'
     const base = g.map(([t, v]) => [t, v == null ? null : below ? clamp(v, b.lo, b.hi) : b.lo])
@@ -691,8 +691,7 @@ function buildOption() {
             type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: [], silent: true, z: 1, tooltip: { show: false },
             markArea: {
               silent: true,
-              data: ([[0, r.veryLow, zoneColors.veryLow, 0.16], [r.veryLow, r.low, zoneColors.low, 0.13], [r.low, r.high, zoneColors.inRange, 0.06], [r.high, r.veryHigh, zoneColors.high, 0.1], [r.veryHigh, 40, zoneColors.veryHigh, 0.12]] as [number, number, string, number][])
-                .map(([a, b, color, op]) => [{ yAxis: a, itemStyle: { color: rgba(color, op) } }, { yAxis: b }]),
+              data: nightZoneDots(r, 1.8),
             },
           }]
         : []),
