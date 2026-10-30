@@ -156,6 +156,10 @@
 .now-value { font-size: 52px; font-weight: 700; line-height: 1; letter-spacing: -0.03em; color: var(--zone); font-variant-numeric: tabular-nums; }
 .now-value small { font-size: 15px; font-weight: 400; letter-spacing: 0; color: var(--text-muted); }
 .now-trend { align-self: center; color: var(--zone); }
+.now-zone {
+  align-self: center; margin-left: 4px; padding: 3px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; background: var(--zone); color: var(--page);
+}
 .now-facts { display: flex; gap: 8px; }
 .now-facts > div { display: flex; flex-direction: column; gap: 2px; padding: 8px 14px; border-radius: 12px; background: var(--page); }
 .now-facts span { font-size: 11px; color: var(--text-muted); }
@@ -163,6 +167,28 @@
 .now-ins { color: var(--series-insulin); }
 .now-carbs { color: var(--series-carbs); }
 :root[data-theme="pastel-night"] .day-chart-card .last-reading { display: none; }
+/* Gyors nagyítás-gombok a görbén (a „Teljes nap” gombot kiváltják); a naplóban színes ikonnégyzet a pötty helyett;
+   a napi táblázatokban a célban töltött idő kis sávval. */
+.tir-mini { display: none; }
+:root:not([data-theme="pastel-night"]) .zoom-presets { display: none; }
+:root[data-theme="pastel-night"] .zoom-presets { display: inline-flex; }
+:root[data-theme="pastel-night"] .zoom-presets button { padding: 5px 10px; font-size: 13px; }
+:root[data-theme="pastel-night"] .exclude-bar .zoom-reset,
+:root[data-theme="pastel-night"] .exclude-bar .zoom-hint { display: none; }
+:root[data-theme="pastel-night"] .log-table .dot { width: 14px; height: 14px; border-radius: 4px; }
+/* A napló szélesebb, mint a mellette lévő tartomány-kártya, és a „kézi / automatikus” címke az érték fölé kerül:
+   így nem kell oldalra görgetni. */
+@media (min-width: 901px) {
+  :root[data-theme="pastel-night"] .grid2:has(> .log-card) { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+}
+:root[data-theme="pastel-night"] .log-table td.num > .note-chip { display: block; width: fit-content; margin: 0 0 2px auto; }
+:root[data-theme="pastel-night"] .tir-mini {
+  display: inline-block; width: 46px; height: 6px; margin-right: 8px; vertical-align: middle;
+  border-radius: 999px; background: var(--grid); overflow: hidden;
+}
+.tir-mini > span { display: block; height: 100%; background: var(--status-good); }
+.tir-mini.mid > span { background: var(--status-warning); }
+.tir-mini.bad > span { background: var(--status-serious); }
 .quick-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .quick-actions button { min-height: 52px; border-radius: 14px; font-weight: 700; font-size: 15px; }
 .quick-actions .qa-calc { background: var(--accent); color: var(--accent-ink); border: 0; }

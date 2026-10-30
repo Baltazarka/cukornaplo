@@ -86,7 +86,7 @@ const s = computed(() => props.data.stats)
               <tr v-for="row in data.summary" :key="row.date">
                 <td><a href="#" @click.prevent="emit('day', row.date)">{{ row.label }} <span class="muted">{{ row.weekday }}</span></a></td>
                 <td class="num">{{ fmt(row.avg) }}</td>
-                <td class="num">{{ row.inRange != null ? fmt(row.inRange, 0) + '%' : '–' }}</td>
+                <td class="num"><span v-if="row.inRange != null" class="tir-mini" :class="row.inRange >= 70 ? '' : row.inRange >= 50 ? 'mid' : 'bad'"><span :style="{ width: row.inRange + '%' }" /></span>{{ row.inRange != null ? fmt(row.inRange, 0) + '%' : '–' }}</td>
                 <td class="num">{{ row.low != null ? fmt(row.low, 0) + '%' : '–' }}</td>
                 <td class="num">{{ row.insulin ? fmt(row.insulin) + ' E' : '–' }}</td>
                 <td class="num">{{ row.carbs ? fmt(row.carbs, 0) + ' g' : '–' }}</td>

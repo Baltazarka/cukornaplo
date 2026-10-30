@@ -124,6 +124,18 @@ function resetZoom() {
   zoomRange.value = null
   render()
 }
+/** Gyors nagyítás („Éjszaka” téma): az utolsó `hours` óra (ma a mostani időpontig, előtte a nap végéig). */
+function zoomPreset(hours: number) {
+  if (!hours) { resetZoom(); return }
+  const span = hours * 3600000
+  const end = Math.min(fullRange[1], Math.max(fullRange[0] + span, Math.min(Date.now() + 30 * 60000, props.day.dayEndMs)))
+  setView(end - span, span)
+}
+const zoomHours = computed(() => {
+  if (!zoomRange.value) return 0
+  const h = Math.round((zoomRange.value[1] - zoomRange.value[0]) / 3600000)
+  return [12, 6, 3].includes(h) ? h : -1
+})
 watch(() => props.day?.day, () => {
   zoomRange.value = null
   // Félbehagyott szenzorhiba-kijelölés nem nyúlhat át másik napra.
@@ -881,7 +893,10 @@ const actionText = computed(() => {
       <span v-if="forecast.length > 1" class="muted small">A szaggatott vonal becslés a felvett inzulinból, CH-ból és a trendből; új étkezést vagy adagot nem ismer, nem helyettesíti a szenzor riasztását.</span>
     </div>
     <div class="exclude-bar">
-      <button v-if="zoomRange" type="button" class="ghost sm" @click="resetZoom">Teljes nap</button>
+      <div class="segmented zoom-presets" role="group" aria-label="Nagyítás">
+        <button v-for="h in [0, 12, 6, 3]" :key="h" type="button" :aria-pressed="zoomHours === h" @click="zoomPreset(h)">{{ h ? `${h} ó` : 'Teljes' }}</button>
+      </div>
+      <button v-if="zoomRange" type="button" class="ghost sm zoom-reset" @click="resetZoom">Teljes nap</button>
       <span v-else class="muted small zoom-hint">Nagyítás: Ctrl + görgő vagy csippentés</span>
     <template v-if="!readOnly">
       <template v-if="!pickMode">

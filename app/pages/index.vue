@@ -284,6 +284,24 @@ const nowReading = computed(() => {
   const zone = v < r.veryLow ? 'very-low' : v < r.low ? 'low' : v > r.veryHigh ? 'very-high' : v > r.high ? 'high' : 'in'
   return { v, time: new Date(ms).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }), zone }
 })
+const tirClass = (p: number) => (p >= 70 ? '' : p >= 50 ? 'mid' : 'bad')
+const ZONE_LABEL ={ 'very-low': 'nagyon alacsony', low: 'alacsony', in: 'célban', high: 'magas', 'very-high': 'nagyon magas' } as const
+// A várható érték 30 perc múlva (az előrejelzés görbéjéből), csak a mai napon.
+const pred30 = ref<number | null>(null)
+async function loadPred30() {
+  if (unref(readOnly) || !data.value || data.value.day !== data.value.today) { pred30.value = null; return }
+  try {
+    const r = await $fetch<any>('/api/predict', { query: { series: 1 } })
+    const s = (r.series ?? []) as [number, number][]
+    if (!s.length) { pred30.value = null; return }
+    const target = s[0][0] + 30 * 60000
+    const p = s.reduce((b, q) => (Math.abs(q[0] - target) < Math.abs(b[0] - target) ? q : b))
+    pred30.value = Math.abs(p[0] - target) <= 6 * 60000 ? p[1] : null
+  } catch {
+    pred30.value = null
+  }
+}
+watch(() => [data.value?.day, data.value?.glucose?.length], loadPred30, { immediate: true })
 async function quickEntry(type: 'insulin' | 'carbs') {
   openEntryForm(type)
   await nextTick()
@@ -399,13 +417,15 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
     <template v-if="period === 1">
     <section v-if="nowReading" class="card now-card" :class="'z-' + nowReading.zone" aria-label="Utolsó vércukor">
       <div class="now-main">
-        <span class="now-label">{{ data.day === data.today ? 'Most' : 'A nap utolsó értéke' }} · {{ nowReading.time }}</span>
+        <span class="now-label">{{ data.day === data.today ? 'Most' : 'A nap utolsó értéke' }} · {{ nowReading.time }} · Guardian</span>
         <span class="now-value">{{ sgText(nowReading.v) }} <small>mmol/L</small></span>
         <TrendArrows v-if="data.trend && data.day === data.today" :dir="data.trend.dir" :level="data.trend.level" class="now-trend" />
+        <span class="now-zone">{{ ZONE_LABEL[nowReading.zone] }}</span>
       </div>
       <div class="now-facts">
         <div v-if="data.iobNow != null"><span>Aktív inzulin</span><b class="now-ins">{{ fmt(data.iobNow) }} E</b></div>
         <div v-if="data.cobNow != null"><span>Aktív CH</span><b class="now-carbs">{{ fmt(data.cobNow, 0) }} g</b></div>
+        <div v-if="pred30 != null"><span>30 perc múlva</span><b>≈ {{ sgText(pred30) }}</b></div>
       </div>
     </section>
     <div v-if="!readOnly" class="quick-actions" role="group" aria-label="Gyors műveletek">
@@ -629,7 +649,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
             <tr v-for="row in data.summary" :key="row.date" :class="{ current: row.date === data.day }">
               <td><a href="#" @click.prevent="go(row.date)">{{ row.label }} <span class="muted">{{ row.weekday }}</span></a></td>
               <td class="num">{{ fmt(row.avg) }}</td>
-              <td class="num">{{ row.inRange != null ? fmt(row.inRange, 0) + '%' : '–' }}</td>
+              <td class="num"><span v-if="row.inRange != null" class="tir-mini" :class="tirClass(row.inRange)"><span :style="{ width: row.inRange + '%' }" /></span>{{ row.inRange != null ? fmt(row.inRange, 0) + '%' : '–' }}</td>
               <td class="num">{{ row.low != null ? fmt(row.low, 0) + '%' : '–' }}</td>
               <td class="num">{{ row.insulin ? fmt(row.insulin) + ' E' : '–' }}</td>
               <td class="num">{{ row.doses || '–' }}</td>
