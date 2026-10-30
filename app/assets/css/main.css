@@ -167,6 +167,9 @@
 .now-ins { color: var(--series-insulin); }
 .now-carbs { color: var(--series-carbs); }
 :root[data-theme="pastel-night"] .day-chart-card .last-reading { display: none; }
+/* A görbe alatt negyedik sáv: az aktív inzulin és CH együtt. */
+:root[data-theme="pastel-night"] .chart-box { height: 636px; }
+@media (max-width: 560px) { :root[data-theme="pastel-night"] .chart-box { height: 620px; } }
 /* Gyors nagyítás-gombok a görbén (a „Teljes nap” gombot kiváltják); a naplóban színes ikonnégyzet a pötty helyett;
    a napi táblázatokban a célban töltött idő kis sávval. */
 .tir-mini { display: none; }
@@ -187,6 +190,19 @@
 }
 :root[data-theme="pastel-night"] .log-table td.num > .note-chip { display: block; width: fit-content; margin: 0 0 2px auto; font-size: 10px; padding: 0 6px; }
 :root[data-theme="pastel-night"] .log-table .sub-select { max-width: 150px; padding-right: 22px; }
+/* Címkék a név mellett, keretes „pirulaként” a saját színükkel (a mennyiség fölötti példány ilyenkor rejtve). */
+:root:not([data-theme="pastel-night"]) .name-chip { display: none; }
+:root[data-theme="pastel-night"] .log-table .name-chip { display: inline-block; margin-left: 6px; }
+:root[data-theme="pastel-night"] .log-table tr:has(.name-chip) td.num > .note-chip { display: none; }
+:root[data-theme="pastel-night"] .log-table .note-chip,
+:root[data-theme="pastel-night"] .log-table .tag-toggle {
+  background: transparent; border: 1px solid currentColor; border-radius: 999px;
+  padding: 0 7px; font-size: 11px; line-height: 18px; color: var(--text-muted); vertical-align: middle;
+}
+:root[data-theme="pastel-night"] .log-table .chip-auto { color: var(--series-basal); }
+:root[data-theme="pastel-night"] .log-table .tag-fatty { color: var(--series-carbs); }
+:root[data-theme="pastel-night"] .log-table .tag-fast { color: #f2a66b; }
+:root[data-theme="pastel-night"] .log-table .tag-toggle[aria-pressed="false"] { border-style: dashed; opacity: 0.55; }
 :root[data-theme="pastel-night"] .tir-mini {
   display: inline-block; width: 46px; height: 6px; margin-right: 8px; vertical-align: middle;
   border-radius: 999px; background: var(--grid); overflow: hidden;
@@ -274,7 +290,26 @@
 .quick-actions .qa-calc { background: var(--accent); color: var(--accent-ink); border: 0; }
 .quick-actions .qa-carbs { background: color-mix(in srgb, var(--series-carbs) 14%, var(--surface-1)); color: var(--series-carbs); border: 1px solid color-mix(in srgb, var(--series-carbs) 35%, transparent); }
 .quick-actions .qa-ins { background: color-mix(in srgb, var(--series-insulin) 14%, var(--surface-1)); color: var(--series-insulin); border: 1px solid color-mix(in srgb, var(--series-insulin) 35%, transparent); }
+.day-so-far { display: none; }
+.day-so-far { flex-direction: column; gap: 12px; }
+.dsf-head { display: flex; align-items: baseline; justify-content: space-between; }
+.dsf-head h2 { margin: 0; }
+.dsf-bar { display: flex; height: 12px; gap: 2px; border-radius: 999px; overflow: hidden; }
+.dsf-bar .z-low { background: #f2a66b; }
+.dsf-bar .z-in { background: var(--status-good); }
+.dsf-bar .z-high { background: var(--status-warning); }
+.dsf-legend { display: flex; justify-content: space-between; color: var(--text-muted); margin-top: -6px; }
+.dsf-legend .z-in-text { color: var(--status-good); }
+.dsf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dsf-grid.dsf-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dsf-grid > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--inset); min-width: 0; }
+.dsf-grid span { font-size: 11px; color: var(--text-muted); }
+.dsf-grid b { font-size: 20px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dsf-grid b small, .dsf-grid > div > small { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.dsf-grid .dsf-basal { color: var(--series-basal); }
 @media (max-width: 700px) {
+  :root[data-theme="pastel-night"] .day-so-far { display: flex; }
+  :root[data-theme="pastel-night"] .home-main > .day-so-far { order: 2; }
   :root[data-theme="pastel-night"] .quick-actions { display: grid; }
   :root[data-theme="pastel-night"] .now-value { font-size: 48px; }
   :root[data-theme="pastel-night"] .now-facts { flex: 1 1 100%; }

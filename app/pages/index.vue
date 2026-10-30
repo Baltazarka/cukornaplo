@@ -284,6 +284,32 @@ const nowReading = computed(() => {
   const zone = v < r.veryLow ? 'very-low' : v < r.low ? 'low' : v > r.veryHigh ? 'very-high' : v > r.high ? 'high' : 'in'
   return { v, time: new Date(ms).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }), zone }
 })
+// „Ma eddig” (telefonon, „Éjszaka” téma): a nap sávja, átlag / CV, a legalacsonyabb és legmagasabb érték időponttal,
+// bólus / bázis / CH összesen.
+const daySoFar = computed(() => {
+  const d = data.value
+  const s = d?.stats?.day
+  if (!s?.n) return null
+  const gl = (d.glucose ?? []).filter((p: any[]) => p[1] != null) as [number, number][]
+  const hm = (ms: number) => new Date(ms).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' })
+  const lo = gl.reduce<[number, number] | null>((b, p) => (!b || p[1] < b[1] ? p : b), null)
+  const hi = gl.reduce<[number, number] | null>((b, p) => (!b || p[1] > b[1] ? p : b), null)
+  const ins = (d.insulin ?? []) as [number, number, string][]
+  return {
+    low: (s.pct.veryLow ?? 0) + (s.pct.low ?? 0),
+    inRange: s.pct.inRange ?? 0,
+    high: (s.pct.high ?? 0) + (s.pct.veryHigh ?? 0),
+    span: gl.length ? `${hm(gl[0][0])} – ${hm(gl[gl.length - 1][0])}` : '',
+    avg: s.avg, cv: s.cv,
+    lo: lo && { v: lo[1], t: hm(lo[0]) },
+    hi: hi && { v: hi[1], t: hm(hi[0]) },
+    bolus: (d.totals.meal ?? 0) + (d.totals.correction ?? 0),
+    bolusN: ins.filter((p) => p[2] !== 'basal').length,
+    basal: d.totals.basal ?? 0,
+    carbs: d.totals.carbs ?? 0,
+    carbsN: (d.carbs ?? []).length,
+  }
+})
 const tirClass = (p: number) => (p >= 70 ? '' : p >= 50 ? 'mid' : 'bad')
 const ZONE_LABEL ={ 'very-low': 'nagyon alacsony', low: 'alacsony', in: 'célban', high: 'magas', 'very-high': 'nagyon magas' } as const
 // A várható érték 30 perc múlva (az előrejelzés görbéjéből), csak a mai napon.
@@ -433,6 +459,33 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
       <button type="button" class="qa-carbs" @click="quickEntry('carbs')">+ CH</button>
       <button type="button" class="qa-ins" @click="quickEntry('insulin')">+ Inzulin</button>
     </div>
+    <section v-if="daySoFar" class="card day-so-far" aria-label="A nap összesítése">
+      <div class="dsf-head">
+        <h2>{{ data.day === data.today ? 'Ma eddig' : 'A nap' }}</h2>
+        <span class="muted small">{{ daySoFar.span }}</span>
+      </div>
+      <div class="dsf-bar" aria-hidden="true">
+        <span v-if="daySoFar.low" class="z-low" :style="{ flexBasis: daySoFar.low + '%' }" />
+        <span v-if="daySoFar.inRange" class="z-in" :style="{ flexBasis: daySoFar.inRange + '%' }" />
+        <span v-if="daySoFar.high" class="z-high" :style="{ flexBasis: daySoFar.high + '%' }" />
+      </div>
+      <div class="dsf-legend small">
+        <span>alacsony {{ fmt(daySoFar.low, 0) }}%</span>
+        <b class="z-in-text">célban {{ fmt(daySoFar.inRange, 0) }}%</b>
+        <span>magas {{ fmt(daySoFar.high, 0) }}%</span>
+      </div>
+      <div class="dsf-grid">
+        <div><span>Átlag</span><b>{{ fmt(daySoFar.avg) }} <small>mmol/L</small></b></div>
+        <div><span>Ingadozás (CV)</span><b>{{ fmt(daySoFar.cv, 0) }} %</b></div>
+        <div v-if="daySoFar.lo"><span>Legalacsonyabb</span><b>{{ sgText(daySoFar.lo.v) }} <small>{{ daySoFar.lo.t }}</small></b></div>
+        <div v-if="daySoFar.hi"><span>Legmagasabb</span><b>{{ sgText(daySoFar.hi.v) }} <small>{{ daySoFar.hi.t }}</small></b></div>
+      </div>
+      <div class="dsf-grid dsf-3">
+        <div><span>Bólus</span><b class="now-ins">{{ daySoFar.bolus ? fmt(daySoFar.bolus) + ' E' : '–' }}</b><small>{{ daySoFar.bolusN }} adag</small></div>
+        <div><span>Bázis</span><b class="dsf-basal">{{ daySoFar.basal ? fmt(daySoFar.basal, 0) + ' E' : '–' }}</b><small>{{ daySoFar.basal ? 'beadva' : 'még nincs' }}</small></div>
+        <div><span>Szénhidrát</span><b class="now-carbs">{{ daySoFar.carbs ? fmt(daySoFar.carbs, 0) + ' g' : '–' }}</b><small>{{ daySoFar.carbsN }} étkezés</small></div>
+      </div>
+    </section>
     <section v-if="!data.stats.day.n && !data.events.length" class="card">
       <p>Erre a napra nincs adat.</p>
       <p class="muted">Ha még nem állítottad be, a <NuxtLink to="/telefon">Telefon beállítása</NuxtLink> varázsló végigvezet a telefonos küldésen, a szenzorgörbéhez pedig az <NuxtLink to="/adatok">Beállítások</NuxtLink> oldalon kötheted be a CareLinket.</p>
@@ -565,23 +618,25 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                         <option value="basal">Bázis</option>
                       </select>
                       <template v-else>{{ kindLabel(e) }}</template>
+                      <span v-if="e.autoBasal" class="note-chip name-chip chip-auto">automatikus</span>
+                      <span v-else-if="e.manual" class="note-chip name-chip">kézi</span>
                     </template>
                     <template v-else>
                       {{ eventLabel(e) }}
                       <template v-if="!readOnly && e.type === 'carbs'">
                         <button
-                          type="button" class="tag-toggle" :aria-pressed="e.sub === 'fatty'"
+                          type="button" class="tag-toggle tag-fatty" :aria-pressed="e.sub === 'fatty'"
                           :title="CARB_TAG_HINT.fatty"
                           @click="toggleCarbTag(e, 'fatty')"
                         >{{ CARB_TAG_ICON.fatty }} zsíros</button>
                         <button
-                          type="button" class="tag-toggle" :aria-pressed="e.sub === 'fast'"
+                          type="button" class="tag-toggle tag-fast" :aria-pressed="e.sub === 'fast'"
                           :title="CARB_TAG_HINT.fast"
                           @click="toggleCarbTag(e, 'fast')"
                         >{{ CARB_TAG_ICON.fast }} gyors</button>
                       </template>
-                      <span v-else-if="e.type === 'carbs' && e.sub === 'fatty'" class="note-chip">{{ CARB_TAG_ICON.fatty }} zsíros</span>
-                      <span v-else-if="e.type === 'carbs' && e.sub === 'fast'" class="note-chip">{{ CARB_TAG_ICON.fast }} gyors</span>
+                      <span v-else-if="e.type === 'carbs' && e.sub === 'fatty'" class="note-chip tag-fatty">{{ CARB_TAG_ICON.fatty }} zsíros</span>
+                      <span v-else-if="e.type === 'carbs' && e.sub === 'fast'" class="note-chip tag-fast">{{ CARB_TAG_ICON.fast }} gyors</span>
                       <!-- Zsíros CH: zsír / fehérje (megjelenítés, és utólagos beírás / javítás). -->
                       <div v-if="e.type === 'carbs' && e.sub === 'fatty'" class="macro-line small">
                         <template v-if="macroEdit?.id === e.id">

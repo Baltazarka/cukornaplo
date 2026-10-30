@@ -588,6 +588,32 @@ function buildOption() {
   const withLabel = (s: any, color: string, unit: string) => (night
     ? { ...s, label: { show: true, position: 'top', distance: 2, fontSize: 10, fontWeight: 600, color, formatter: (p: any) => `${num(p.value[1], Number.isInteger(p.value[1]) ? 0 : 1)}${unit}` } }
     : s)
+  // „Éjszaka” téma: az aktív inzulin és az aktív CH összesen, egy közös sávban (az oszlopok paneljein nincs görbe).
+  const gridIdx = night ? [0, 1, 2, 3] : [0, 1, 2]
+  const iobSum = iobTotal.filter((p): p is [number, number] => p[1] != null)
+  const cobSum: [number, number][] = []
+  if (night && ab) for (let x = axisMin; x <= axisMax; x += 5 * 60000) cobSum.push([x, Math.round(cobAtMs(x) * 10) / 10])
+  const iobStripMax = niceMax(Math.max(1, ...iobSum.map((p) => p[1])))
+  const cobStripMax = niceMax(Math.max(10, ...cobSum.map((p) => p[1])))
+  const stripSeries = (name: string, yAxisIndex: number, data: [number, number][], color: string) =>
+    splitAtNow(data).map((part, future) => ({
+      name, type: 'line', xAxisIndex: 3, yAxisIndex, data: part, symbol: 'none', silent: true, z: 2,
+      lineStyle: { width: IOB_LINE, color, ...(future ? { type: [4, 3], opacity: 0.7 } : {}) }, areaStyle: { color: rgba(color, future ? 0.08 : 0.3) },
+    }))
+  const stripTitle = {
+    text: [
+      '{a|Aktív inzulin és CH}',
+      d.iobNow != null ? `{i|${num(d.iobNow, 1)} E}` : '',
+      d.cobNow != null ? `{c|${num(d.cobNow, 0)} g}` : '',
+    ].filter(Boolean).join('  '),
+    left: GRID_LEFT - 2,
+    top: 526,
+    textStyle: { rich: {
+      a: { color: C.primary, fontSize: 14, fontWeight: 600 },
+      i: { color: C.insulin, fontSize: 12, fontWeight: 600 },
+      c: { color: C.carbs, fontSize: 12, fontWeight: 600 },
+    } },
+  }
 
   const option: any = {
     animation: false,
@@ -597,11 +623,13 @@ function buildOption() {
       panelTitle('Glükóz', 'mmol/L', 4),
       panelTitle('Inzulin', 'E', 270),
       panelTitle('Szénhidrát', 'g', 398),
+      ...(night ? [stripTitle] : []),
     ],
     grid: [
       { left: GRID_LEFT, right: GRID_RIGHT, top: 30, height: 208, outerBoundsMode: 'none' },
       { left: GRID_LEFT, right: GRID_RIGHT, top: 294, height: INS_HEIGHT, outerBoundsMode: 'none' },
       { left: GRID_LEFT, right: GRID_RIGHT, top: 422, height: 78, outerBoundsMode: 'none' },
+      ...(night ? [{ left: GRID_LEFT, right: GRID_RIGHT, top: 552, height: 64, outerBoundsMode: 'none' }] : []),
     ],
     axisPointer: { link: [{ xAxisIndex: 'all' }], lineStyle: { color: C.axis } },
     tooltip: {
@@ -610,16 +638,22 @@ function buildOption() {
       confine: true,
       extraCssText: narrow ? 'max-width:58vw;white-space:normal;line-height:1.3;' : '',
     },
-    xAxis: [xAxisFor(0), xAxisFor(1), xAxisFor(2)],
+    xAxis: gridIdx.map(xAxisFor),
     yAxis: [
       { type: 'value', gridIndex: 0, min: 2, max: Math.max(16, Math.ceil(Math.max(gMax, ...forecast.value.map((p) => p[1])) + 1)), interval: 2, axisLabel, splitLine, axisLine: { show: false } },
       { type: 'value', gridIndex: 1, min: 0, max: insMax, interval: insMax / 2, axisLabel, splitLine, axisLine: { show: false } },
       { type: 'value', gridIndex: 2, min: 0, max: carbMax, interval: carbMax / 2, axisLabel, splitLine, axisLine: { show: false } },
+      ...(night
+        ? [
+            { type: 'value', gridIndex: 3, min: 0, max: iobStripMax, interval: iobStripMax, axisLabel: { ...axisLabel, color: C.insulin, formatter: (v: number) => (v ? num(v, 0) + ' E' : '') }, splitLine, axisLine: { show: false } },
+            { type: 'value', gridIndex: 3, min: 0, max: cobStripMax, interval: cobStripMax, axisLabel: { ...axisLabel, color: C.carbs, inside: true, verticalAlign: 'top', formatter: (v: number) => (v ? num(v, 0) + ' g' : '') }, splitLine: { show: false }, axisLine: { show: false }, position: 'left' },
+          ]
+        : []),
     ],
     series: [
       ...segmentSeries,
       ...(tailMs || headMs
-        ? [0, 1, 2].map((gi) => ({
+        ? gridIdx.map((gi) => ({
             // Az átlógó (előző / következő napi) szakasz fölé áttetsző réteg kerül: minden adata halványabb.
             type: 'line', xAxisIndex: gi, yAxisIndex: gi, data: [], silent: true, z: 10, tooltip: { show: false },
             markArea: {
@@ -719,7 +753,7 @@ function buildOption() {
             itemStyle: { color: C.primary, borderColor: C.surface, borderWidth: 2 }, tooltip: { show: false },
           }]
         : []),
-      ...curves.flatMap(({ kind, data }) => {
+      ...(night ? [] : curves).flatMap(({ kind, data }) => {
         const color = kind === 'correction' ? C.correction : C.insulin
         return splitAtNow(data).map((part, future) => ({
           name: 'Aktív inzulin', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: part, symbol: 'none', silent: true, z: 2,
@@ -733,14 +767,15 @@ function buildOption() {
         name: 'Bázis', type: 'scatter', xAxisIndex: 1, yAxisIndex: 1, data: basal.map((p: number[]) => [p[0], 0]), symbol: 'diamond', symbolSize: 12, z: 6, silent: true,
         itemStyle: { color: C.basal, borderColor: C.surface, borderWidth: 2 }, tooltip: { show: false }, clip: false,
       },
-      ...cobCurves.flatMap((data) => splitAtNow(data).map((part, future) => ({
+      ...(night ? [] : cobCurves).flatMap((data) => splitAtNow(data).map((part, future) => ({
         name: 'Aktív CH', type: 'line', xAxisIndex: 2, yAxisIndex: 2, data: part, symbol: 'none', silent: true, z: 2,
         lineStyle: { width: IOB_LINE, color: C.carbs, ...(future ? { type: [4, 3], opacity: 0.7 } : {}) }, areaStyle: { color: rgba(C.carbs, future ? 0.05 : 0.12) },
       }))),
       withLabel(bar('Szénhidrát', 2, carbs, C.carbs), C.carbs, ' g'),
+      ...(night ? [...stripSeries('Aktív CH', 4, cobSum, C.carbs), ...stripSeries('Aktív inzulin', 3, iobSum, C.insulin)] : []),
       // „Most” vonal mindhárom panelen (csak az „Éjszaka” témában, ha a mostani idő a tengelyen van).
       ...(night && nowLine
-        ? [0, 1, 2].map((gi) => ({
+        ? gridIdx.map((gi) => ({
             type: 'line', xAxisIndex: gi, yAxisIndex: gi, data: [], silent: true, z: 7, tooltip: { show: false },
             markLine: {
               silent: true, symbol: 'none', lineStyle: { color: rgba(C.primary, 0.35), width: 1, type: 'solid' },
