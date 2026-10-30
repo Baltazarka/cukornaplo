@@ -527,7 +527,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
         <p v-if="!readOnly" class="muted small">A bázis az, amit bázisnak jelölsz, vagy amit a Terápia oldalon beállított automatikus beírás rögzít. A típus nélküli bólus automatikusan: étkezési, ha 60 percen belül utána (előbólus) vagy 30 percen belül előtte szénhidrát is van; különben korrekció. Az „(auto)” sorokat a legördülővel bármikor átállíthatod (pl. korrekcióról étkezési bólusra), a × gombbal törölheted (a telefon sem tölti vissza).</p>
         <div v-if="logRows.length" class="table-wrap">
           <table class="table log-table">
-            <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num">Glükóz</th><th v-if="!readOnly"><span class="sr-only">Törlés</span></th></tr></thead>
+            <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num c-gl">Glükóz</th><th v-if="!readOnly"><span class="sr-only">Törlés</span></th></tr></thead>
             <tbody>
               <tr v-for="e in logRows" :key="e.type + e.id" :class="{ 'note-row': e.type === 'note', 'excluded-row': e.type === 'excluded' }">
                 <td class="num">{{ e.time }}</td>
@@ -544,13 +544,16 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                     </div>
                   </td>
                   <td class="num">{{ e.n }} mérés</td>
-                  <td class="num">{{ e.lo ? sgText(e.lo[1]) : '–' }}</td>
+                  <td class="num c-gl">{{ e.lo ? sgText(e.lo[1]) : '–' }}</td>
                 </template>
-                <td v-else-if="e.type === 'note'" colspan="3">
-                  <span class="dot dot-note" />
-                  <span v-for="tg in e.tags" :key="tg" class="note-chip">{{ noteTagLabel(tg) }}</span>
-                  <span class="note-text">{{ e.text }}</span>
-                </td>
+                <template v-else-if="e.type === 'note'">
+                  <td colspan="2">
+                    <span class="dot dot-note" />
+                    <span v-for="tg in e.tags" :key="tg" class="note-chip">{{ noteTagLabel(tg) }}</span>
+                    <span class="note-text">{{ e.text }}</span>
+                  </td>
+                  <td class="c-gl" />
+                </template>
                 <template v-else>
                   <td>
                     <span class="dot" :class="'dot-' + eventDot(e)" />
@@ -595,7 +598,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                     </template>
                   </td>
                   <td class="num"><span v-if="e.autoBasal" class="note-chip manual-chip" title="A Terápia oldalon beállított időpontban automatikusan beírva">automatikus</span><span v-else-if="e.manual" class="note-chip manual-chip" title="Kézzel felvett bejegyzés">kézi</span>{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : e.type === 'glucose' ? fmt(e.v) + ' mmol/L' : fmt(e.v) + ' E' }}</td>
-                  <td class="num">{{ e.glucose != null ? sgText(e.glucose) : '–' }}</td>
+                  <td class="num c-gl">{{ e.glucose != null ? sgText(e.glucose) : '–' }}</td>
                 </template>
                 <td v-if="!readOnly" class="act">
                   <button
@@ -643,17 +646,17 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
     <section class="card">
       <h2>Utolsó 14 nap</h2>
       <div class="table-wrap">
-        <table class="table">
+        <table class="table days-table">
           <thead><tr><th>Nap</th><th class="num">Átlag</th><th class="num">Célban</th><th class="num">Alacsony</th><th class="num">Inzulin</th><th class="num">Adag</th><th class="num">CH</th></tr></thead>
           <tbody>
             <tr v-for="row in data.summary" :key="row.date" :class="{ current: row.date === data.day }">
               <td><a href="#" @click.prevent="go(row.date)">{{ row.label }} <span class="muted">{{ row.weekday }}</span></a></td>
               <td class="num">{{ fmt(row.avg) }}</td>
-              <td class="num"><span v-if="row.inRange != null" class="tir-mini" :class="tirClass(row.inRange)"><span :style="{ width: row.inRange + '%' }" /></span>{{ row.inRange != null ? fmt(row.inRange, 0) + '%' : '–' }}</td>
-              <td class="num">{{ row.low != null ? fmt(row.low, 0) + '%' : '–' }}</td>
-              <td class="num">{{ row.insulin ? fmt(row.insulin) + ' E' : '–' }}</td>
-              <td class="num">{{ row.doses || '–' }}</td>
-              <td class="num">{{ row.carbs ? fmt(row.carbs, 0) + ' g' : '–' }}</td>
+              <td class="num"><span v-if="row.inRange != null" class="tir-mini" :class="tirClass(row.inRange)"><span :style="{ width: row.inRange + '%' }" /></span><span class="tir-val" :class="row.inRange != null && tirClass(row.inRange)">{{ row.inRange != null ? fmt(row.inRange, 0) + '%' : '–' }}</span></td>
+              <td class="num" :class="{ 'c-low': row.low >= 4 }">{{ row.low != null ? fmt(row.low, 0) + '%' : '–' }}</td>
+              <td class="num c-ins">{{ row.insulin ? fmt(row.insulin) + ' E' : '–' }}</td>
+              <td class="num c-muted">{{ row.doses || '–' }}</td>
+              <td class="num c-carbs">{{ row.carbs ? fmt(row.carbs, 0) + ' g' : '–' }}</td>
             </tr>
           </tbody>
         </table>

@@ -20,6 +20,7 @@ const bandLabels = computed<[string, string, string][]>(() => {
   ]
 })
 const s = computed(() => props.data.stats)
+const tirClass = (p: number) => (p >= 70 ? '' : p >= 50 ? 'mid' : 'bad')
 </script>
 
 <template>
@@ -80,16 +81,16 @@ const s = computed(() => props.data.stats)
       <section class="card">
         <h2>Napok</h2>
         <div class="table-wrap">
-          <table class="table">
+          <table class="table days-table">
             <thead><tr><th>Nap</th><th class="num">Átlag</th><th class="num">Célban</th><th class="num">Alacsony</th><th class="num">Inzulin</th><th class="num">CH</th></tr></thead>
             <tbody>
               <tr v-for="row in data.summary" :key="row.date">
                 <td><a href="#" @click.prevent="emit('day', row.date)">{{ row.label }} <span class="muted">{{ row.weekday }}</span></a></td>
                 <td class="num">{{ fmt(row.avg) }}</td>
-                <td class="num"><span v-if="row.inRange != null" class="tir-mini" :class="row.inRange >= 70 ? '' : row.inRange >= 50 ? 'mid' : 'bad'"><span :style="{ width: row.inRange + '%' }" /></span>{{ row.inRange != null ? fmt(row.inRange, 0) + '%' : '–' }}</td>
-                <td class="num">{{ row.low != null ? fmt(row.low, 0) + '%' : '–' }}</td>
-                <td class="num">{{ row.insulin ? fmt(row.insulin) + ' E' : '–' }}</td>
-                <td class="num">{{ row.carbs ? fmt(row.carbs, 0) + ' g' : '–' }}</td>
+                <td class="num"><span v-if="row.inRange != null" class="tir-mini" :class="tirClass(row.inRange)"><span :style="{ width: row.inRange + '%' }" /></span><span class="tir-val" :class="row.inRange != null && tirClass(row.inRange)">{{ row.inRange != null ? fmt(row.inRange, 0) + '%' : '–' }}</span></td>
+                <td class="num" :class="{ 'c-low': row.low >= 4 }">{{ row.low != null ? fmt(row.low, 0) + '%' : '–' }}</td>
+                <td class="num c-ins">{{ row.insulin ? fmt(row.insulin) + ' E' : '–' }}</td>
+                <td class="num c-carbs">{{ row.carbs ? fmt(row.carbs, 0) + ' g' : '–' }}</td>
               </tr>
             </tbody>
           </table>

@@ -122,7 +122,7 @@
 :root:where([data-theme="pastel-night"]) {
   --page: #15131c; --surface-1: #1f1c29; --surface-2: #262233; --tooltip-bg: #262233;
   --text-primary: #ece8f5; --text-secondary: #c9c3d6; --text-muted: #9a94ab;
-  --grid: #2a2636; --axis: #3a3550; --border: rgba(236, 232, 245, 0.10);
+  --grid: #2a2636; --axis: #3a3550; --border: #2e2a3b; --inset: #191622;
   --accent: #c9b8ff;
   --series-glucose: #c9b8ff; --series-insulin: #9cc0ff; --series-carbs: #f5bf8e;
   --series-basal: #d7a8f0; --series-correction: #7fd0e6;
@@ -178,15 +178,95 @@
 :root[data-theme="pastel-night"] .log-table .dot { width: 14px; height: 14px; border-radius: 4px; }
 /* A napló szélesebb, mint a mellette lévő tartomány-kártya, és a „kézi / automatikus” címke az érték fölé kerül:
    így nem kell oldalra görgetni. */
-@media (min-width: 901px) {
+@media (min-width: 1400px) {
   :root[data-theme="pastel-night"] .grid2:has(> .log-card) { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
 }
-:root[data-theme="pastel-night"] .log-table td.num > .note-chip { display: block; width: fit-content; margin: 0 0 2px auto; }
+/* Keskenyebb asztali ablakban a napló teljes szélességű, a tartomány-kártya alatta. */
+@media (min-width: 901px) and (max-width: 1399px) {
+  :root[data-theme="pastel-night"] .grid2:has(> .log-card) { grid-template-columns: minmax(0, 1fr); }
+}
+:root[data-theme="pastel-night"] .log-table td.num > .note-chip { display: block; width: fit-content; margin: 0 0 2px auto; font-size: 10px; padding: 0 6px; }
+:root[data-theme="pastel-night"] .log-table .sub-select { max-width: 150px; padding-right: 22px; }
 :root[data-theme="pastel-night"] .tir-mini {
   display: inline-block; width: 46px; height: 6px; margin-right: 8px; vertical-align: middle;
   border-radius: 999px; background: var(--grid); overflow: hidden;
 }
 .tir-mini > span { display: block; height: 100%; background: var(--status-good); }
+
+/* ---- „Éjszaka” téma: a terv szerinti részletek ---- */
+/* Csempék: a kártyákkal azonos felület, a fontos értékek a sorozat / zóna színével. */
+:root[data-theme="pastel-night"] .tile { border: 1px solid var(--border); }
+:root[data-theme="pastel-night"] .tile-label { font-size: 12px; color: var(--text-secondary); }
+:root[data-theme="pastel-night"] .tiles > .tile:nth-child(6) .tile-value { color: var(--status-good); }
+:root[data-theme="pastel-night"] .tiles > .tile:nth-child(7) .tile-value { color: var(--status-warning); }
+:root[data-theme="pastel-night"] .tiles > .tile:nth-child(8) .tile-value { color: #f2a66b; }
+:root[data-theme="pastel-night"] .tiles > .tile:nth-child(9) .tile-value { color: var(--series-insulin); }
+:root[data-theme="pastel-night"] .tiles > .tile:nth-child(10) .tile-value { color: var(--series-carbs); }
+:root[data-theme="pastel-night"] .tile-value small { color: var(--text-muted); }
+:root[data-theme="pastel-night"] .now-facts > div,
+:root[data-theme="pastel-night"] .segmented { background: var(--inset); }
+:root[data-theme="pastel-night"] .last-reading { background: var(--inset); }
+
+/* Idő a tartományokban: vízszintes sáv, alatta öt oszlopban a százalékok (színesen) és a nevek. */
+:root[data-theme="pastel-night"] .tir-row { flex-direction: column; gap: 8px; }
+:root[data-theme="pastel-night"] .tir-bar { width: 100%; min-height: 0; height: 14px; flex-direction: row; border-radius: 999px; }
+:root[data-theme="pastel-night"] .tir-bar .seg { min-height: 0; min-width: 3px; }
+:root[data-theme="pastel-night"] .tir-legend { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; font-size: 11px; }
+:root[data-theme="pastel-night"] .tir-legend li { flex-direction: column; align-items: flex-start; gap: 1px; color: var(--text-muted); }
+:root[data-theme="pastel-night"] .tir-legend li .key { display: none; }
+:root[data-theme="pastel-night"] .tir-legend li b { order: -1; margin-left: 0; font-size: 15px; }
+:root[data-theme="pastel-night"] .tir-legend li .muted { display: block; font-size: 10px; }
+:root[data-theme="pastel-night"] .tir-legend li:has(.seg-veryHigh) b { color: var(--status-serious); }
+:root[data-theme="pastel-night"] .tir-legend li:has(.seg-high) b { color: var(--status-warning); }
+:root[data-theme="pastel-night"] .tir-legend li:has(.seg-inRange) b { color: var(--status-good); }
+:root[data-theme="pastel-night"] .tir-legend li:has(.seg-low) b { color: #f2a66b; }
+:root[data-theme="pastel-night"] .tir-legend li:has(.seg-veryLow) b { color: var(--status-critical); }
+:root[data-theme="pastel-night"] .seg-low { background: #f2a66b; opacity: 1; }
+:root[data-theme="pastel-night"] .tir + .facts,
+:root[data-theme="pastel-night"] .tir ~ .facts { padding-top: 12px; border-top: 1px solid var(--border); }
+
+/* Napló: típusonként színes ikonnégyzet betűvel, a mennyiség a típus színével. */
+:root[data-theme="pastel-night"] .log-table td { padding-top: 8px; padding-bottom: 8px; border-color: var(--grid); }
+/* Az ikon a cella bal szélén áll, a név, a típusválasztó és a címkék mellette (több sorban is az ikon mellett). */
+:root[data-theme="pastel-night"] .log-table td:has(> .dot) { position: relative; padding-left: 46px; }
+:root[data-theme="pastel-night"] .log-table td > .dot { position: absolute; left: 6px; top: 7px; margin: 0; }
+:root[data-theme="pastel-night"] .log-table .dot {
+  width: 28px; height: 28px; border-radius: 9px; margin-right: 10px; flex: none; vertical-align: middle;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; font-style: normal;
+}
+:root[data-theme="pastel-night"] .log-table .dot-insulin { background: color-mix(in srgb, var(--series-insulin) 20%, var(--surface-1)); color: var(--series-insulin); }
+:root[data-theme="pastel-night"] .log-table .dot-correction { background: color-mix(in srgb, var(--series-correction) 20%, var(--surface-1)); color: var(--series-correction); }
+:root[data-theme="pastel-night"] .log-table .dot-basal { background: color-mix(in srgb, var(--series-basal) 20%, var(--surface-1)); color: var(--series-basal); }
+:root[data-theme="pastel-night"] .log-table .dot-carbs { background: color-mix(in srgb, var(--series-carbs) 20%, var(--surface-1)); color: var(--series-carbs); }
+:root[data-theme="pastel-night"] .log-table .dot-insulin::before { content: "E"; }
+:root[data-theme="pastel-night"] .log-table .dot-correction::before { content: "K"; }
+:root[data-theme="pastel-night"] .log-table .dot-basal::before { content: "B"; }
+:root[data-theme="pastel-night"] .log-table .dot-carbs::before { content: "CH"; }
+:root[data-theme="pastel-night"] .log-table .dot-glucose { transform: none; border: 0; background: var(--grid); color: var(--text-primary); }
+:root[data-theme="pastel-night"] .log-table .dot-glucose::before { content: "VC"; }
+:root[data-theme="pastel-night"] .log-table tr:has(.dot-insulin) td.num:nth-child(3) { color: var(--series-insulin); font-weight: 700; }
+:root[data-theme="pastel-night"] .log-table tr:has(.dot-correction) td.num:nth-child(3) { color: var(--series-correction); font-weight: 700; }
+:root[data-theme="pastel-night"] .log-table tr:has(.dot-basal) td.num:nth-child(3) { color: var(--series-basal); font-weight: 700; }
+:root[data-theme="pastel-night"] .log-table tr:has(.dot-carbs) td.num:nth-child(3) { color: var(--series-carbs); font-weight: 700; }
+/* A terv naplójában nincs „Glükóz” oszlop (a görbén látszik): így nem kell oldalra görgetni. */
+:root[data-theme="pastel-night"] .log-table .c-gl { display: none; }
+:root[data-theme="pastel-night"] .log-table .sub-select { background: var(--inset); }
+
+/* Napi táblázatok: a nap félkövér, a célban töltött idő színes, alacsony narancs (≥ 4 %), CH és inzulin színes. */
+:root[data-theme="pastel-night"] .days-table td:first-child a { color: var(--text-primary); font-weight: 600; text-decoration: none; }
+:root[data-theme="pastel-night"] .days-table .tir-val { color: var(--status-good); font-weight: 700; }
+:root[data-theme="pastel-night"] .days-table .tir-val.mid { color: var(--status-warning); }
+:root[data-theme="pastel-night"] .days-table .tir-val.bad { color: var(--status-serious); }
+:root[data-theme="pastel-night"] .days-table td.num { color: var(--text-primary); }
+:root[data-theme="pastel-night"] .days-table td.c-low { color: #f2a66b; }
+:root[data-theme="pastel-night"] .days-table td.c-ins { color: var(--series-insulin); }
+:root[data-theme="pastel-night"] .days-table td.c-carbs { color: var(--series-carbs); }
+:root[data-theme="pastel-night"] .days-table td.c-muted { color: var(--text-muted); }
+:root[data-theme="pastel-night"] .days-table tr.current { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+:root[data-theme="pastel-night"] .days-table td { border-color: var(--grid); }
+:root[data-theme="pastel-night"] .days-table td:first-child { white-space: nowrap; }
+/* Időszakos nézet: a tartomány-kártya és a napok táblázata egymás alatt (a sávos táblázat félszélességben nem fér el). */
+:root[data-theme="pastel-night"] .period-view .grid2 { grid-template-columns: minmax(0, 1fr); }
 .tir-mini.mid > span { background: var(--status-warning); }
 .tir-mini.bad > span { background: var(--status-serious); }
 .quick-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
