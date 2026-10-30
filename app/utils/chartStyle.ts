@@ -65,9 +65,3 @@ export function nightZoneColors() {
   return { veryLow: cssToken('--status-critical'), low: '#f2a66b', inRange: cssToken('--status-good'), high: cssToken('--status-warning'), veryHigh: cssToken('--status-serious') }
 }
 
-/** „Éjszaka” téma: zónánként halvány pontozott háttér (fátyol helyett), markArea-adatként. */
-export function nightZoneDots(r: GlucoseRange, alpha = 1) {
-  const z = nightZoneColors()
-  return ([[0, r.veryLow, z.veryLow, 0.5], [r.veryLow, r.low, z.low, 0.45], [r.low, r.high, z.inRange, 0.3], [r.high, r.veryHigh, z.high, 0.35], [r.veryHigh, 40, z.veryHigh, 0.4]] as [number, number, string, number][])
-    .map(([lo, hi, color, op]) => [{ yAxis: lo, itemStyle: { color: dotPattern(rgba(color, Math.min(1, op * alpha))) as any } }, { yAxis: hi }])
-}
