@@ -23,8 +23,8 @@ const evaluable = computed(() => (fpu.value?.events ?? []).filter((e: any) => e.
 
 <template>
   <section v-if="fpu" class="card analysis-card">
-    <h2>Zsíros ételek (zsír-fehérje) <GuideLink section="zsiros" label="Mit jelölj zsírosnak? Példák táblázattal" /></h2>
-    <p class="muted small">A „zsíros” jelölésű étkezések zsír- és fehérjegrammal (utolsó {{ DAYS }} nap): mennyit emelt nálad egy zsír-fehérje egység.</p>
+    <h2>Zsír-fehérje % <GuideLink section="zsiros" label="Mit jelölj zsírosnak? Példák táblázattal" /></h2>
+    <p class="tp-what">Becsüli: mennyit emel nálad egy zsír-fehérje egység (<b>a varsói érték %-a</b>) · Miből: „zsíros” étkezések grammal, {{ DAYS }} nap</p>
     <details class="more">
       <summary>Hogyan számol?</summary>
       <p class="muted small">
@@ -53,7 +53,9 @@ const evaluable = computed(() => (fpu.value?.events ?? []).filter((e: any) => e.
       Jelöld „zsíros”-nak, és add meg a zsír és a fehérje grammját (a bóluskalkulátorban vagy a naplóban, utólag is).
     </p>
 
-    <div v-if="fpu.events.length" class="table-wrap">
+    <details v-if="fpu.events.length" class="more">
+    <summary>Étkezésenként ({{ fpu.events.length }})</summary>
+    <div class="table-wrap">
       <table class="table analysis-table fpu-table">
         <thead>
           <tr>
@@ -83,6 +85,7 @@ const evaluable = computed(() => (fpu.value?.events ?? []).filter((e: any) => e.
         </tbody>
       </table>
     </div>
+    </details>
   </section>
 </template>
 

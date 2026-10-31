@@ -117,9 +117,9 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
 
 <template>
   <section v-if="abs" class="card absorb-card">
-    <h2>Szénhidrát-felszívódás az adataidból</h2>
+    <h2>CH felszívódási sebessége <GuideLink section="felszivodas" /></h2>
     <RecomputeBar :at="data?.computedAt" kind="analysis" :days="60" @done="refresh()" />
-    <p class="muted small">Kategóriánként legalább {{ MIN }} tiszta étkezés kell a használathoz, {{ GOOD }} a megbízhatóhoz; addig az alapértelmezett érvényes (utolsó 60 nap).</p>
+    <p class="tp-what">Becsüli: <b>milyen gyorsan szívódik fel a CH</b> (normál, zsíros, gyors) · Miből: tiszta étkezések, 60 nap ({{ MIN }}-tól használja)</p>
     <details class="more">
       <summary>Hogyan számol?</summary>
       <p class="muted small">

@@ -147,7 +147,7 @@ function actNote(x: any): string {
 <template>
   <section v-if="a" class="card analysis-card">
     <div class="card-head">
-      <h2>Becslés az adataidból <GuideLink section="becsles" /></h2>
+      <h2>Érzékenység, CH-arány, hatásidő <GuideLink section="becsles" /></h2>
       <div class="analysis-period">
         <div class="segmented" role="group" aria-label="Időszak">
           <button v-for="d in PERIODS" :key="d" type="button" :aria-pressed="days === d" @click="setDays(d)">{{ d }} nap</button>
@@ -156,7 +156,7 @@ function actNote(x: any): string {
       </div>
     </div>
     <RecomputeBar :at="a.computedAt" kind="analysis" :days="days" @done="refresh()" />
-    <p class="muted small">Bal oldalt a mostani beállítás, a nyíl után a <span class="calc">becslés</span> ({{ MIN }} tiszta eseménytől, {{ GOOD }}-től megbízható).</p>
+    <p class="tp-what">Becsüli: <b>ISF, CH-arány, hatásidő</b> napszakonként · Miből: tiszta korrekciók és étkezések · <span class="muted">beállított →</span> <span class="calc">becsült</span></p>
     <details class="more">
       <summary>Mi számít tisztának?</summary>
       <p class="muted small">
@@ -251,8 +251,8 @@ function actNote(x: any): string {
     </div>
 
     <div class="analysis-action">
-      <h3>Mért hatásgörbe</h3>
-      <p class="muted small">A tiszta korrekciók utáni esés a teljes esés arányában, a bólustól számítva. A szenzor kb. 10–15 percet késik.</p>
+      <h3>Inzulin hatásideje (mért)</h3>
+      <p class="tp-what">Becsüli: <b>hatásidő, érzékenység</b> · Miből: tiszta korrekciók után a vércukoresés, a teljes esés %-ában</p>
       <template v-if="act?.observed">
         <div class="tile-label">Egész nap <span class="muted">· {{ act.n }} tiszta korrekció</span></div>
         <ClientOnly>
@@ -287,11 +287,8 @@ function actNote(x: any): string {
     </div>
 
     <div class="analysis-action">
-      <h3>Tiszta étkezések görbéje</h3>
-      <p class="muted small">
-        A CH-arány becsléséhez használt étkezések: a vércukor változása a kezdő értékhez képest, 30 perccel előtte kezdve 4 óráig.
-        Ha 4 óra múlva a görbe a kezdő érték fölött marad, a CH-arány gyenge lehet; ha alatta, erős.
-      </p>
+      <h3>CH-arány ellenőrzése (étkezés utáni görbe)</h3>
+      <p class="tp-what">Mutatja: tiszta étkezések után a vércukor a kezdőhöz képest · 4 óra múlva fölötte: kevés inzulin, alatta: sok</p>
       <div v-if="segList.length" class="clean-meals">
         <div v-for="s in segList" :key="s.index" class="clean-meal">
           <div class="tile-label">{{ s.start }}–{{ s.end }} <span class="muted">· {{ s.clean?.n ?? 0 }} tiszta étkezés</span></div>

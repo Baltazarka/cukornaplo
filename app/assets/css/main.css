@@ -773,8 +773,8 @@ details.more p + p { margin-top: 6px; }
 .seg-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
 /* A mentés gomb a hosszú űrlap alján végig látszik. */
 .therapy-save {
-  position: sticky; bottom: 0; z-index: 5; margin: 4px -16px -16px; padding: 10px 16px;
-  background: var(--surface-1); border-top: 1px solid var(--grid); border-radius: 0 0 12px 12px;
+  position: sticky; bottom: 0; z-index: 5; padding: 10px 16px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
 }
 .therapy-edit-table th { vertical-align: bottom; white-space: nowrap; }
 .therapy-edit-table th small { display: block; font-size: 11px; font-weight: 400; }
@@ -797,21 +797,14 @@ details.more p + p { margin-top: 6px; }
   .therapy-edit-table input, .therapy-edit-table select { width: 100%; min-width: 0; }
 }
 .btn-row .spacer { flex: 1; }
-/* Terápia oldal: két jól elváló rész – a beírható beállítások (keretes, kiemelt mezők) és az adatokból számolt
-   eredmények (színes „számolt” értékek); felül jelmagyarázat. */
+/* Terápia oldal: minden beállítás-csoport külön kártyán; a számolt kártyák elején „Becsüli: … · Miből: …” sor;
+   a számolt értékek színes címkében, a beírható mezők akcentszínű kerettel. */
 :root { --calc-ink: color-mix(in srgb, var(--series-correction) 65%, var(--text-primary)); }
-.tp-head { display: flex; flex-direction: column; gap: 6px; }
-.tp-head h1 { margin: 0; }
-.tp-head p { margin: 0; }
-.tp-legend { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 10px; color: var(--text-secondary); }
-.tp-badge {
-  display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
-  text-transform: uppercase; text-decoration: none; width: fit-content;
-}
-.tp-badge.edit { color: var(--accent); border: 1.5px solid var(--accent); }
-.tp-badge.calc { color: var(--calc-ink); background: color-mix(in srgb, var(--series-correction) 16%, transparent); border: 1.5px solid transparent; }
-.tp-group-h { display: flex; align-items: center; gap: 10px; margin: 18px 0 0; font-size: 18px; scroll-margin-top: 70px; }
-.tp-group-p { margin: -6px 0 0; }
+.tp-title { margin: 8px 0 0; font-size: 20px; }
+.tp-card { display: flex; flex-direction: column; gap: 6px; }
+.tp-card > h2 { margin: 0 0 2px; font-size: 16px; }
+.tp-what { margin: 0; font-size: 13px; color: var(--text-secondary); }
+.tp-what b { color: var(--text-primary); }
 .calc {
   color: var(--calc-ink); background: color-mix(in srgb, var(--series-correction) 14%, transparent);
   border-radius: 6px; padding: 0 5px; font-weight: 700; font-variant-numeric: tabular-nums;

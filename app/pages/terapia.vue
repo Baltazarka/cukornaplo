@@ -130,25 +130,13 @@ async function save() {
 
 <template>
   <main class="therapy-page">
-    <header class="tp-head">
-      <h1>Terápia</h1>
-      <p class="muted small">A diabetológussal egyeztetett értékek: ezekből számol a kalkulátor, az előrejelzés és az elemzés.</p>
-      <!-- Jelmagyarázat: mi írható be és mi számolt; ugrás a két részhez. -->
-      <div class="tp-legend small">
-        <a href="#beallitasok" class="tp-badge edit">Beírható</a><span>keretes mező: te adod meg, a „Mentés” után érvényes</span>
-        <a href="#szamolt" class="tp-badge calc">Számolt</a><span><span class="calc">színes szám</span>: az adataidból jön, csak olvasható</span>
-      </div>
-    </header>
+    <h1 class="tp-title">Terápia</h1>
+    <!-- Minden beállítás-csoport külön kártyán; a Mentés közös, alul végig látszik. -->
+    <form class="therapy-edit tp-edit" @submit.prevent="save">
 
-    <h2 id="beallitasok" class="tp-group-h"><span class="tp-badge edit">Beírható</span> Beállítások</h2>
-    <form class="card therapy-edit tp-edit" @submit.prevent="save">
-
-      <h2 class="tf-section">Bólus</h2>
+      <section class="card tp-card">
+      <h2>Bólus</h2>
       <div class="therapy-fields">
-        <div class="tf-row">
-          <span class="tf-label">Étkezésalapú terápia</span>
-          <span>Szénhidrátszámolás</span>
-        </div>
         <label class="tf-row">
           <span class="tf-label">Bólusinzulin</span>
           <select v-model="bolusInsulin">
@@ -179,7 +167,10 @@ async function save() {
         </div>
       </div>
 
-      <h2 class="tf-section">Bázis</h2>
+      </section>
+
+      <section class="card tp-card">
+      <h2>Bázis</h2>
       <div class="therapy-fields">
         <label class="tf-row">
           <span class="tf-label">Bázisinzulin</span>
@@ -208,7 +199,10 @@ async function save() {
         </template>
       </div>
 
-      <h2 class="tf-section">Zsíros, fehérjedús étel</h2>
+      </section>
+
+      <section class="card tp-card">
+      <h2>Zsíros, fehérjedús étel</h2>
       <div class="therapy-fields">
         <label class="tf-row">
           <span class="tf-label">Zsír-fehérje javaslat</span>
@@ -235,7 +229,10 @@ async function save() {
         </details>
       </div>
 
-      <h2 class="tf-section">Napszakok</h2>
+      </section>
+
+      <section class="card tp-card">
+      <h2>Napszakok</h2>
       <div class="therapy-fields">
         <label class="tf-row">
           <span class="tf-label">Napszakonként eltérő értékek</span>
@@ -293,6 +290,8 @@ async function save() {
         </div>
       </template>
 
+      </section>
+
       <div class="btn-row therapy-save">
         <span class="spacer" />
         <NuxtLink to="/" class="btn ghost">Mégse</NuxtLink>
@@ -301,8 +300,7 @@ async function save() {
     </form>
     <ShiftCard />
 
-    <h2 id="szamolt" class="tp-group-h"><span class="tp-badge calc">Számolt</span> Az adataidból</h2>
-    <p class="muted small tp-group-p">Csak olvasható. A „beírás” gombok a fenti mezőkbe teszik át az értéket; mentés előtt átnézheted.</p>
+    <h2 class="tp-title">Az adataidból számolva</h2>
     <AnalysisCard @apply="applyEstimates" />
     <FpuCard @apply="applyFpu" />
     <!-- Üres végdátum: a szerver a mai napig számol. -->

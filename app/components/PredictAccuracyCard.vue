@@ -53,7 +53,7 @@ const choice = computed(() => data.value?.choice as Record<string, { active: Mod
       </div>
     </div>
     <RecomputeBar v-if="data" :at="data.computedAt" kind="accuracy" :days="days" @done="refresh()" />
-    <p class="muted small">Átlagos hiba mmol/L-ben, <b>kisebb a jobb</b>; a legjobb zölddel. A program magától a legjobbat használja.</p>
+    <p class="tp-what">Méri: <b>mennyit tévedett az előrejelzés</b> (mmol/L, kisebb a jobb) · Miből: visszateszt a szenzoradataidon; a legjobbat magától használja</p>
     <details class="more">
       <summary>Hogyan teszteli?</summary>
       <p class="muted small">
