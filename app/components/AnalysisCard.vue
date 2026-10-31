@@ -57,8 +57,9 @@ function apply() {
   })))
 }
 
-// Tiszta étkezések görbéje napszakonként: a vércukor változása a kezdő értékhez képest.
-const cleanSegs = computed(() => (a.value?.segments ?? []).filter((s: any) => s.clean))
+// Tiszta étkezések görbéje napszakonként: a vércukor változása a kezdő értékhez képest (minden napszak látszik,
+// a még üresek is).
+const segList = computed<any[]>(() => a.value?.segments ?? [])
 function cleanChart(s: any) {
   const c = s.clean.curve
   const vals = [...c.p25, ...c.p75, ...c.p50].filter((v: number | null) => v != null) as number[]
@@ -109,32 +110,38 @@ const showOverall = computed(() => {
   return missing && !!(o.isf || o.icr || o.action)
 })
 
-// Mért hatásgörbe: a tiszta korrekciók esése a teljes eséshez viszonyítva, a modellekkel.
+// Mért hatásgörbe: a tiszta korrekciók esése a teljes eséshez viszonyítva, a modellekkel; összevonva és napszakonként.
+// Napszakonként kevés eseménynél is kirajzoljuk (tájékoztatásul); esemény nélkül csak a beállított görbe látszik.
 const act = computed(() => a.value?.action)
-const modelLine = (peak: number, dia: number) => {
-  const m = insulinModel(peak, dia)
-  return act.value.observed.minutes.map((t: number) => Math.round((1 - m.iob(t)) * 100) / 100)
-}
-const actLines = computed(() => {
-  if (!act.value?.observed) return []
-  const lines: any[] = [{ y: act.value.observed.p50, color: 'var(--series-glucose)', label: 'mért (medián)' }]
-  if (act.value.fit) lines.push({ y: modelLine(act.value.fit.peak, act.value.fit.dia), color: 'var(--series-insulin)', label: `illesztett (${actionLabel(act.value.fit.dia)})` })
-  if (act.value.current) lines.push({ y: modelLine(act.value.current.peak, act.value.current.dia), color: 'var(--text-muted)', label: `beállított (${actionLabel(act.value.current.dia)})`, dash: true })
-  return lines
-})
+const ACT_MINUTES = Array.from({ length: 73 }, (_, i) => i * 5) // 0–6 óra
 const pctFmt = (v: number) => `${Math.round(v * 100)}%`
-// A y-tengely a mért értékekhez igazodik (25%-os lépésekben), hogy a 100% fölé vagy 0 alá menő rész
-// (pl. ha a vércukor a hatásidőn túl is esik) ne vágódjon le.
-const actYTicks = computed(() => {
-  const o = act.value?.observed
-  if (!o) return [0, 0.25, 0.5, 0.75, 1]
-  const vals = [...o.p25, ...o.p50, ...o.p75].filter((v: number | null) => v != null) as number[]
-  const lo = Math.min(0, Math.floor(Math.min(...vals) * 4) / 4)
-  const hi = Math.max(1, Math.ceil(Math.max(...vals) * 4) / 4)
-  const ticks: number[] = []
-  for (let v = lo; v <= hi + 1e-9; v += 0.25) ticks.push(Math.round(v * 100) / 100)
-  return ticks
-})
+function actChart(x: any) {
+  const minutes: number[] = x?.observed?.minutes ?? ACT_MINUTES
+  const model = (peak: number, dia: number) => {
+    const m = insulinModel(peak, dia)
+    return minutes.map((t) => Math.round((1 - m.iob(t)) * 100) / 100)
+  }
+  const lines: any[] = []
+  if (x?.observed) lines.push({ y: x.observed.p50, color: 'var(--series-glucose)', label: 'mért (medián)' })
+  if (x?.fit) lines.push({ y: model(x.fit.peak, x.fit.dia), color: 'var(--series-insulin)', label: `illesztett (${actionLabel(x.fit.dia)})` })
+  if (x?.current) lines.push({ y: model(x.current.peak, x.current.dia), color: 'var(--text-muted)', label: `beállított (${actionLabel(x.current.dia)})`, dash: true })
+  // A y-tengely a mért értékekhez igazodik (25%-os lépésekben), hogy a 100% fölé vagy 0 alá menő rész ne vágódjon le.
+  const o = x?.observed
+  const vals = o ? ([...o.p25, ...o.p50, ...o.p75].filter((v: number | null) => v != null) as number[]) : []
+  const lo = Math.min(0, Math.floor(Math.min(0, ...vals) * 4) / 4)
+  const hi = Math.max(1, Math.ceil(Math.max(1, ...vals) * 4) / 4)
+  const yTicks: number[] = []
+  for (let v = lo; v <= hi + 1e-9; v += 0.25) yTicks.push(Math.round(v * 100) / 100)
+  const bands = o && x.n >= 3 ? [{ lo: o.p25, hi: o.p75, color: 'color-mix(in srgb, var(--series-glucose) 18%, transparent)' }] : []
+  return { minutes, lines, yTicks, bands }
+}
+/** Rövid összegzés egy napszak (vagy az összevont) hatásgörbéje alá. */
+function actNote(x: any): string {
+  if (!x?.n) return 'Még nincs tiszta korrekció; a szaggatott a beállított görbe.'
+  if (x.fit?.atLimit) return `${x.n} korrekció: a leghosszabb hatásidőn túl is esett, nem megbízható.`
+  if (x.fit) return `Illesztett: csúcs ${actionLabel(x.fit.peak)}, hatásidő ${actionLabel(x.fit.dia)}, érzékenység ${fmt(x.fit.isf)} mmol/L/E.`
+  return `${x.n} korrekció: az illesztéshez még ${MIN - x.n} kell (tájékoztató).`
+}
 </script>
 
 <template>
@@ -245,31 +252,38 @@ const actYTicks = computed(() => {
 
     <div class="analysis-action">
       <h3>Mért hatásgörbe</h3>
+      <p class="muted small">A tiszta korrekciók utáni esés a teljes esés arányában, a bólustól számítva. A szenzor kb. 10–15 percet késik.</p>
       <template v-if="act?.observed">
+        <div class="tile-label">Egész nap <span class="muted">· {{ act.n }} tiszta korrekció</span></div>
         <ClientOnly>
           <MiniBandChart
-            :x="act.observed.minutes" :lines="actLines"
-            :bands="[{ lo: act.observed.p25, hi: act.observed.p75, color: 'color-mix(in srgb, var(--series-glucose) 18%, transparent)' }]"
+            :x="actChart(act).minutes" :lines="actChart(act).lines" :bands="actChart(act).bands"
             :x-ticks="[0, 60, 120, 180, 240, 300, 360]" :x-format="(v: number) => (v ? actionLabel(v) : '0')"
-            :y-ticks="actYTicks" :y-format="pctFmt" :ref-y="[1]" :height="170"
-            :caption="`${act.n} tiszta korrekció: a vércukor esése a teljes esés arányában, a bólustól számítva`"
+            :y-ticks="actChart(act).yTicks" :y-format="pctFmt" :ref-y="[1]" :height="170" caption=""
           >
             <template v-if="act.n >= 3" #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
           </MiniBandChart>
         </ClientOnly>
         <p v-if="act.fit?.atLimit" class="alert small">
           A vércukor a kiválasztott inzulin leghosszabb hatásidején ({{ actionLabel(act.fit.maxDia) }}) túl is tovább esett, ezt az
-          inzulin már nem magyarázza: valószínűleg más is csökkentette (pl. a bázis abban a napszakban erős, vagy éjszaka a
-          szenzoron feküdtél). Az illesztett hatásidő és érzékenység ezért nem megbízható, a szerkesztőbe nem írjuk be;
-          érdemes a Bázisellenőrzést is megnézni.
+          inzulin már nem magyarázza (pl. erős bázis vagy ráfekvés). Az illesztett érték ezért nem megbízható, a szerkesztőbe nem írjuk be.
         </p>
-        <p v-else-if="act.fit" class="muted small">
-          Illesztett modell: csúcs {{ actionLabel(act.fit.peak) }}, hatásidő {{ actionLabel(act.fit.dia) }}, érzékenység {{ fmt(act.fit.isf) }} mmol/L/E.
-          A szenzor kb. 10–15 percet késik, ezért a valódi csúcs valamivel korábban lehet.
-        </p>
-        <p v-else class="muted small">A görbe illesztéséhez legalább {{ MIN }} tiszta korrekció kell (most {{ act.n }}).</p>
+        <p v-else class="muted small">{{ actNote(act) }}</p>
       </template>
       <p v-else class="muted small">Még nincs tiszta korrekció. Akkor kerül ide, ha magas vércukorra étkezésen kívül adsz bólust, és utána pár óráig nem eszel.</p>
+      <div v-if="segList.length > 1" class="clean-meals">
+        <div v-for="s in segList" :key="s.index" class="clean-meal">
+          <div class="tile-label">{{ s.start }}–{{ s.end }} <span class="muted">· {{ s.action?.n ?? 0 }} tiszta korrekció</span></div>
+          <ClientOnly>
+            <MiniBandChart
+              :x="actChart(s.action).minutes" :lines="actChart(s.action).lines" :bands="actChart(s.action).bands"
+              :x-ticks="[0, 120, 240, 360]" :x-format="(v: number) => (v ? actionLabel(v) : '0')"
+              :y-ticks="actChart(s.action).yTicks" :y-format="pctFmt" :ref-y="[1]" :height="130" caption=""
+            />
+          </ClientOnly>
+          <p class="muted small">{{ actNote(s.action) }}</p>
+        </div>
+      </div>
     </div>
 
     <div class="analysis-action">
@@ -278,10 +292,11 @@ const actYTicks = computed(() => {
         A CH-arány becsléséhez használt étkezések: a vércukor változása a kezdő értékhez képest, 30 perccel előtte kezdve 4 óráig.
         Ha 4 óra múlva a görbe a kezdő érték fölött marad, a CH-arány gyenge lehet; ha alatta, erős.
       </p>
-      <div v-if="cleanSegs.length" class="clean-meals">
-        <div v-for="s in cleanSegs" :key="s.index" class="clean-meal">
-          <div class="tile-label">{{ s.start }}–{{ s.end }} <span class="muted">· {{ s.clean.n }} tiszta étkezés</span></div>
-          <ClientOnly>
+      <div v-if="segList.length" class="clean-meals">
+        <div v-for="s in segList" :key="s.index" class="clean-meal">
+          <div class="tile-label">{{ s.start }}–{{ s.end }} <span class="muted">· {{ s.clean?.n ?? 0 }} tiszta étkezés</span></div>
+          <p v-if="!s.clean" class="muted small clean-empty">Még nincs tiszta étkezés ebben a napszakban.</p>
+          <ClientOnly v-else>
             <MiniBandChart
               :x="cleanChart(s).x" :lines="cleanChart(s).lines" :bands="s.clean.n >= 2 ? cleanChart(s).bands : []"
               :x-ticks="[0, 60, 120, 180, 240]" :x-format="minLabel"
@@ -292,7 +307,7 @@ const actYTicks = computed(() => {
               <template v-if="s.clean.n >= 3" #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
             </MiniBandChart>
           </ClientOnly>
-          <p class="muted small">4 óra múlva {{ signed(s.clean.d4h) }} mmol/L: {{ cleanVerdict(s.clean) }}.</p>
+          <p v-if="s.clean" class="muted small">4 óra múlva {{ signed(s.clean.d4h) }} mmol/L: {{ cleanVerdict(s.clean) }}.</p>
         </div>
       </div>
       <p v-else class="muted small">Még nincs tiszta étkezés. Akkor kerül ide, ha beírt CH-val és bólussal eszel, és utána 4 óráig nem eszel és nem adsz más bólust.</p>

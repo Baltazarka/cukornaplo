@@ -697,6 +697,8 @@ export function analyze(from: number, to: number) {
       fatty: mealSummary(fattyMeals),
       // A CH-arány becsléséhez használt tiszta étkezések görbéje (Terápia oldal).
       clean: mealSummary(usedMeals),
+      // A napszak tiszta korrekcióinak mért hatásgörbéje (kevés eseménynél is, tájékoztatásul), a napszak hatásidejével.
+      action: actionSummary(segCorr, t, maxDia, sg.seg?.actionMinutes ?? undefined),
       estimate: {
         // Ha az illesztés az inzulin leghosszabb hatásidején akadt meg, más is csökkentette a
         // vércukrot (pl. bázis): az érzékenység és a hatásidő ilyenkor nem megbízható.
@@ -906,8 +908,8 @@ function fitAction(events: CorrectionEvent[], maxDia: number) {
  * Az összes tiszta korrekció együtt: az esési görbék a teljes eséshez viszonyítva (0 → 1),
  * medián és sáv, mellette az illesztett és a jelenleg beállított modell.
  */
-function actionSummary(events: CorrectionEvent[], t: Therapy | null, maxDia: number) {
-  const current = t ? { peak: insulinById(t.bolusInsulin)?.peakMinutes ?? 75, dia: t.actionMinutes } : null
+function actionSummary(events: CorrectionEvent[], t: Therapy | null, maxDia: number, dia?: number) {
+  const current = t ? { peak: insulinById(t.bolusInsulin)?.peakMinutes ?? 75, dia: dia ?? t.actionMinutes } : null
   if (!events.length) return { n: 0, observed: null, fit: null, current }
   const fit = events.length >= MIN_EVENTS ? fitAction(events, maxDia) : null
   // Viszonyítás: az illesztett teljes esés, vagy illesztés nélkül az események legnagyobb esése.
