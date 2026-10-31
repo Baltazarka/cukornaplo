@@ -742,19 +742,33 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 /* ---- Terápiás beállítások szerkesztése ---- */
 /* Terápia oldal: minden kártya egyforma széles; a beállítások tematikus szakaszokban, címke balra, mező jobbra. */
 .therapy-page { max-width: 900px; }
-/* Számítógépen teljes szélesség: a beállítás-kártyák egymás mellett, a Napszakok és a nagy számolt kártyák teljes sorban. */
+/* Minden kártya (kártyacsoport) egy sorban a tippjével: mit tegyen, hogy a számolások meglegyenek.
+   Számítógépen teljes szélesség, a tipp jobbra a kártya mellett; keskenyebben lenyitható sor a kártya alatt. */
+.tp-row { display: flex; flex-direction: column; gap: 8px; }
+.tp-cards { display: flex; flex-direction: column; gap: 10px; }
 @media (min-width: 901px) {
-  main.therapy-page { max-width: 1920px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .therapy-page > .tp-title, .therapy-page > .therapy-edit, .therapy-page > .shift-card, .therapy-page > .analysis-card:has(.seg-secs),
-  .therapy-page > .absorb-card, .therapy-page > .accuracy-card { grid-column: 1 / -1; }
-  form.therapy-edit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-  .therapy-edit > .tp-card:has(.seg-block), .therapy-edit > .therapy-save,
-  form.therapy-edit > .tp-card:nth-child(3) { grid-column: 1 / -1; }
+  main.therapy-page { max-width: 1920px; }
+  .tp-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .tp-cards.n3 > :nth-child(3) { grid-column: 1 / -1; }
 }
 @media (min-width: 1200px) {
-  form.therapy-edit { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  form.therapy-edit > .tp-card:nth-child(3) { grid-column: auto; }
+  .tp-row { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
+  .tp-cards.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tp-cards.n3 > :nth-child(3) { grid-column: auto; }
+  .tp-tip { position: sticky; top: 72px; }
+  .tp-tip > summary { list-style: none; pointer-events: none; }
+  .tp-tip > summary::-webkit-details-marker { display: none; }
 }
+.tp-tip {
+  border: 1px dashed color-mix(in srgb, var(--status-good) 50%, var(--border)); border-radius: 12px; padding: 10px 12px;
+  background: color-mix(in srgb, var(--status-good) 6%, transparent); font-size: 13px; color: var(--text-secondary);
+}
+.tp-tip > summary { font-weight: 600; color: var(--status-good); cursor: pointer; }
+.tp-tip[open] > summary { margin-bottom: 6px; }
+.tp-tip ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.tp-tip b { color: var(--text-primary); }
+.tp-tip .tip-need { margin: 0 0 6px; padding: 6px 8px; border-radius: 8px; background: var(--page); font-variant-numeric: tabular-nums; }
+.tp-tip .tip-need li { list-style: none; margin-left: -18px; }
 .therapy-edit { width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
 .therapy-edit p { margin: 0; }
 .therapy-fields { display: flex; flex-direction: column; }

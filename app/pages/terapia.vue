@@ -65,6 +65,17 @@ const isfOff = computed(() => {
 })
 const hu = (v: number, dec = 1) => v.toLocaleString('hu-HU', { maximumFractionDigits: dec })
 
+// A becslés melletti tipphez: napszakonként mennyi tiszta korrekció / étkezés hiányzik még a megbízható (5) becsléshez,
+// az utolsó 14 napból (a becslés kártya alapértelmezett időszaka, ugyanaz a lekérés).
+const { data: ana } = await useFetch<any>('/api/analysis', { query: { days: 14 }, key: 'analysis-14' })
+const need = computed<{ label: string; corr: number; meal: number }[]>(() =>
+  (ana.value?.segments ?? []).map((s: any) => ({
+    label: `${s.start}–${s.end}`,
+    corr: Math.max(0, 5 - s.counts.cleanCorrections),
+    meal: Math.max(0, 5 - s.counts.cleanMeals),
+  })),
+)
+
 
 // A becslések átvétele a szerkesztőbe (napszak-kezdet szerint párosítva); menteni külön kell.
 const applied = ref('')
@@ -133,7 +144,8 @@ async function save() {
     <h1 class="tp-title">Terápia</h1>
     <!-- Minden beállítás-csoport külön kártyán; a Mentés közös, alul végig látszik. -->
     <form class="therapy-edit tp-edit" @submit.prevent="save">
-
+      <div class="tp-row">
+      <div class="tp-cards n3">
       <section class="card tp-card">
       <h2>Bólus</h2>
       <div class="therapy-fields">
@@ -230,7 +242,17 @@ async function save() {
       </div>
 
       </section>
+      </div>
+      <TpTip>
+        <ul>
+          <li>Ezekhez méri a becsléseket: töltsd ki úgy, ahogy a diabetológussal egyeztetted.</li>
+          <li><b>Bázis:</b> kapcsold be az automatikus beírást, vagy írd be minden nap; a napi összinzulin ebből jön.</li>
+          <li><b>Zsíros étel:</b> a naplóban jelöld 🧀 zsírosnak, és írd be a zsír és a fehérje grammját.</li>
+        </ul>
+      </TpTip>
+      </div>
 
+      <div class="tp-row">
       <section class="card tp-card">
       <h2>Napszakok</h2>
       <div class="therapy-fields">
@@ -291,6 +313,14 @@ async function save() {
       </template>
 
       </section>
+      <TpTip>
+        <ul>
+          <li>Az elemzés ezek szerint csoportosít: olyan napszakokat adj meg, amikor tényleg mást kell adnod (pl. reggel, napközben, este, éjjel).</li>
+          <li>A becslés napszakonként külön gyűlik, ezért a túl sok, rövid napszak lassan telik meg.</li>
+          <li>Váltott műszaknál kapcsold be a délutános hetet, és lent jelöld meg a beosztást.</li>
+        </ul>
+      </TpTip>
+      </div>
 
       <div class="btn-row therapy-save">
         <span class="spacer" />
@@ -298,14 +328,65 @@ async function save() {
         <button type="submit" :disabled="saving">Mentés</button>
       </div>
     </form>
-    <ShiftCard />
+    <div class="tp-row">
+      <ShiftCard />
+      <TpTip>
+        <ul>
+          <li>Csak akkor kell, ha hetente váltakozó műszakban dolgozol.</li>
+          <li>Jelöld meg, milyen ez a hét; onnan magától vált. Az eltérő napot a főoldalon, a nap fejlécénél írd át.</li>
+        </ul>
+      </TpTip>
+    </div>
 
     <h2 class="tp-title">Az adataidból számolva</h2>
-    <AnalysisCard @apply="applyEstimates" />
-    <FpuCard @apply="applyFpu" />
-    <!-- Üres végdátum: a szerver a mai napig számol. -->
-    <BasalCheck class="analysis-card" end="" :days="30" selectable />
-    <AbsorptionCard />
-    <PredictAccuracyCard />
+    <div class="tp-row">
+      <AnalysisCard @apply="applyEstimates" />
+      <TpTip>
+        <p v-if="need.some((n) => n.corr || n.meal)" class="muted small">Még kell a megbízható becsléshez (14 nap):</p>
+        <ul v-if="need.length" class="tip-need">
+          <li v-for="n in need" :key="n.label">
+            <b>{{ n.label }}</b>:
+            <template v-if="!n.corr && !n.meal">megvan ✓</template>
+            <template v-else>{{ [n.corr ? `${n.corr} korrekció` : '', n.meal ? `${n.meal} étkezés` : ''].filter(Boolean).join(', ') }}</template>
+          </li>
+        </ul>
+        <ul>
+          <li><b>Tiszta korrekció</b> (érzékenység, hatásidő): ha étkezésen kívül magas vagy, add be és írd be a bólust, utána a hatásidő végéig (kb. 4 óra) ne egyél és ne adj más bólust.</li>
+          <li><b>Tiszta étkezés</b> (CH-arány): írd be a CH-t és a bólust; előtte 1 órával és utána 4 óráig ne egyél, ne adj más bólust, és ne hipóból indulj.</li>
+          <li>Sportnál, betegségnél, alkoholnál írj jegyzetet: ezeket kihagyja. A ráfekvést jelöld kizártnak.</li>
+        </ul>
+      </TpTip>
+    </div>
+    <div class="tp-row">
+      <div class="tp-cards">
+        <FpuCard @apply="applyFpu" />
+        <!-- Üres végdátum: a szerver a mai napig számol. -->
+        <BasalCheck class="analysis-card" end="" :days="30" selectable />
+      </div>
+      <TpTip>
+        <ul>
+          <li><b>Zsír-fehérje %:</b> zsíros ételnél jelöld 🧀 zsírosnak, írd be a CH, a zsír és a fehérje grammját, és utána legalább 3–4 óráig ne egyél mást.</li>
+          <li><b>Bázis:</b> legyenek 3 óránál hosszabb szakaszok étel és bólus nélkül (pl. éjjel, kihagyott étkezésnél); napszakonként legalább 3 napról kell ilyen.</li>
+        </ul>
+      </TpTip>
+    </div>
+    <div class="tp-row">
+      <AbsorptionCard />
+      <TpTip>
+        <ul>
+          <li>A tiszta étkezésekből tanul (lásd a becslésnél): írd be a CH-t, és utána ne egyél mást.</li>
+          <li>Gyors CH-nál (pl. hipókezelés, szőlőcukor) jelöld ⚡ gyorsnak; zsírosnál 🧀-t.</li>
+        </ul>
+      </TpTip>
+    </div>
+    <div class="tp-row">
+      <PredictAccuracyCard />
+      <TpTip>
+        <ul>
+          <li>Ehhez nem kell tenned semmit: a szenzoradatokból magától számol.</li>
+          <li>Minél pontosabban írod be a CH-t és a bólust (időponttal), annál pontosabb az előrejelzés.</li>
+        </ul>
+      </TpTip>
+    </div>
   </main>
 </template>
