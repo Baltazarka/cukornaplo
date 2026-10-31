@@ -745,7 +745,7 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 /* Számítógépen teljes szélesség: a beállítás-kártyák egymás mellett, a Napszakok és a nagy számolt kártyák teljes sorban. */
 @media (min-width: 901px) {
   main.therapy-page { max-width: 1920px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .therapy-page > .tp-title, .therapy-page > .therapy-edit, .therapy-page > .shift-card, .therapy-page > .analysis-card:has(.est-table),
+  .therapy-page > .tp-title, .therapy-page > .therapy-edit, .therapy-page > .shift-card, .therapy-page > .analysis-card:has(.seg-secs),
   .therapy-page > .absorb-card, .therapy-page > .accuracy-card { grid-column: 1 / -1; }
   form.therapy-edit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   .therapy-edit > .tp-card:has(.seg-block), .therapy-edit > .therapy-save,
@@ -883,6 +883,29 @@ details.more p + p { margin-top: 6px; }
 .analysis-card p, .absorb-card p, .accuracy-card p { margin: 0; }
 .analysis-action { border-top: 1px solid var(--grid); padding-top: 12px; }
 .apply-row { padding-top: 12px; border-top: 1px solid var(--grid); }
+/* Becslés napszakonként: egy blokkban a beállított → becsült értékek és a két görbe, amiből számol. */
+.seg-secs { display: flex; flex-direction: column; gap: 12px; }
+.seg-sec { border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.seg-sec-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.seg-sec-head h3 { margin: 0; font-size: 16px; font-variant-numeric: tabular-nums; }
+.seg-sec-head h3 .muted { font-size: 13px; font-weight: 400; }
+.seg-sec .est-drift { font-size: 12px; color: var(--status-serious); }
+.seg-est { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.est-tile { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--page); }
+.est-k { font-size: 12px; color: var(--text-muted); }
+.est-k small { font-size: 11px; }
+.est-v { font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.est-tile .est-q { font-size: 11px; color: var(--text-muted); }
+.seg-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.seg-chart { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.seg-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
+.seg-chart-head .gather { font-size: 12px; color: var(--text-muted); }
+.seg-verdict { color: var(--text-secondary); }
+@media (max-width: 760px) {
+  .seg-charts { grid-template-columns: minmax(0, 1fr); }
+  .est-tile { padding: 6px 8px; }
+  .est-v { font-size: 14px; }
+}
 .apply-row > .muted { flex: 1 1 260px; }
 /* Mobilon a becslés-táblázat sorai kártyaszerűen (a cellák fölött a nevük), oldalra görgetés helyett. */
 @media (max-width: 700px) {

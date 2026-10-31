@@ -111,7 +111,7 @@ const showOverall = computed(() => {
 })
 
 // Mért hatásgörbe: a tiszta korrekciók esése a teljes eséshez viszonyítva, a modellekkel; összevonva és napszakonként.
-// Napszakonként kevés eseménynél is kirajzoljuk (tájékoztatásul); esemény nélkül csak a beállított görbe látszik.
+// Napszakonként kevés eseménynél is kirajzoljuk (tájékoztatásul); esemény nélkül csak egy rövid szöveg.
 const act = computed(() => a.value?.action)
 const ACT_MINUTES = Array.from({ length: 73 }, (_, i) => i * 5) // 0–6 óra
 const pctFmt = (v: number) => `${Math.round(v * 100)}%`
@@ -125,19 +125,19 @@ function actChart(x: any) {
   if (x?.observed) lines.push({ y: x.observed.p50, color: 'var(--series-glucose)', label: 'mért (medián)' })
   if (x?.fit) lines.push({ y: model(x.fit.peak, x.fit.dia), color: 'var(--series-insulin)', label: `illesztett (${actionLabel(x.fit.dia)})` })
   if (x?.current) lines.push({ y: model(x.current.peak, x.current.dia), color: 'var(--text-muted)', label: `beállított (${actionLabel(x.current.dia)})`, dash: true })
-  // A y-tengely a mért értékekhez igazodik (25%-os lépésekben), hogy a 100% fölé vagy 0 alá menő rész ne vágódjon le.
+  // A y-tengely a mért értékekhez igazodik (50%-os lépésekben), hogy a 100% fölé vagy 0 alá menő rész ne vágódjon le.
   const o = x?.observed
   const vals = o ? ([...o.p25, ...o.p50, ...o.p75].filter((v: number | null) => v != null) as number[]) : []
-  const lo = Math.min(0, Math.floor(Math.min(0, ...vals) * 4) / 4)
-  const hi = Math.max(1, Math.ceil(Math.max(1, ...vals) * 4) / 4)
+  const lo = Math.min(0, Math.floor(Math.min(0, ...vals) * 2) / 2)
+  const hi = Math.max(1, Math.ceil(Math.max(1, ...vals) * 2) / 2)
   const yTicks: number[] = []
-  for (let v = lo; v <= hi + 1e-9; v += 0.25) yTicks.push(Math.round(v * 100) / 100)
+  for (let v = lo; v <= hi + 1e-9; v += 0.5) yTicks.push(Math.round(v * 100) / 100)
   const bands = o && x.n >= 3 ? [{ lo: o.p25, hi: o.p75, color: 'color-mix(in srgb, var(--series-glucose) 18%, transparent)' }] : []
   return { minutes, lines, yTicks, bands }
 }
 /** Rövid összegzés egy napszak (vagy az összevont) hatásgörbéje alá. */
 function actNote(x: any): string {
-  if (!x?.n) return 'Még nincs tiszta korrekció; a szaggatott a beállított görbe.'
+  if (!x?.n) return `Még nincs tiszta korrekció (legalább ${MIN} kell).`
   if (x.fit?.atLimit) return `${x.n} korrekció: a leghosszabb hatásidőn túl is esett, nem megbízható.`
   if (x.fit) return `Illesztett: csúcs ${actionLabel(x.fit.peak)}, hatásidő ${actionLabel(x.fit.dia)}, érzékenység ${fmt(x.fit.isf)} mmol/L/E.`
   return `${x.n} korrekció: az illesztéshez még ${MIN - x.n} kell (tájékoztató).`
@@ -170,144 +170,117 @@ function actNote(x: any): string {
     </details>
     <p v-if="!a.therapySet" class="alert small">Előbb add meg a terápiás beállításokat: a becslések a napszakokhoz és a jelenlegi értékekhez viszonyítanak.</p>
 
-    <div class="table-wrap">
-      <table class="table analysis-table est-table">
-        <thead>
-          <tr>
-            <th>Napszak</th>
-            <th>Korrekció<small>tiszta</small></th>
-            <th>Étkezés<small>tiszta</small></th>
-            <th class="num">Érzékenység<small>mmol/L/E</small></th>
-            <th class="num">CH-arány<small>g/E</small></th>
-            <th class="num">Hatásidő<small>óra</small></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="s in a.segments" :key="s.index">
-            <td class="seg-time">
-              {{ s.start }}<span class="muted">–{{ s.end }}</span>
-              <small
-                v-if="s.estimate.drifting" class="est-drift"
-                title="A böjti időszakokban (étel és ható bólus nélkül) a vércukor ebben a napszakban átlagosan ennyit változik óránként: a bázis nem fedi az alapigényt, ezért a korrekciók esése és az étkezések végpontja torzul, a becslések nem megbízhatók."
-              >sodródás {{ s.estimate.drift > 0 ? '+' : '' }}{{ fmt(s.estimate.drift) }}/óra</small>
-            </td>
-            <td data-label="Korrekció">
-              <div class="gather"><span class="gather-bar"><i :style="{ width: pct(s.counts.cleanCorrections) }" /></span>{{ count(s.counts.cleanCorrections) }}</div>
-            </td>
-            <td data-label="Étkezés">
-              <div class="gather"><span class="gather-bar"><i :style="{ width: pct(s.counts.cleanMeals) }" /></span>{{ count(s.counts.cleanMeals) }}</div>
-              <small v-if="s.counts.truncatedMeals" class="muted" title="Ezeknél az étkezést 3 óra után megzavarta valami (korrekció, ráevés, hipó kezelése): csak a zavarásig számít, a már felszívódott CH-val.">ebből {{ s.counts.truncatedMeals }} rövidített</small>
-            </td>
-            <td class="num" data-label="Érzékenység">
-              <span class="muted">{{ fmt(s.therapy?.isf) }} →</span>
-              <b v-if="s.estimate.isf" class="calc" :class="{ 'est-bad': s.estimate.isf.unreliable }">{{ fmt(s.estimate.isf.value) }}</b><span v-else class="muted">?</span>
-              <small class="est-q">{{ s.estimate.isf?.unreliable ? 'nem megbízható' : quality(s.estimate.isf?.n ?? s.counts.cleanCorrections) }}</small>
-            </td>
-            <td class="num" data-label="CH-arány">
-              <span class="muted">{{ fmt(s.therapy?.icr) }} →</span>
-              <b v-if="s.estimate.icr" class="calc" :class="{ 'est-bad': s.estimate.icr.unreliable }">{{ fmt(s.estimate.icr.value) }}</b><span v-else class="muted">?</span>
-              <small v-if="s.estimate.icr?.unreliable && s.estimate.drifting" class="est-q" title="Jelentős bázis-sodródás ebben a napszakban: a végpont torzul.">nem megbízható</small>
-              <small v-else-if="s.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">még emelkedik</small>
-              <small class="est-q">{{ quality(s.counts.cleanMeals) }}</small>
-            </td>
-            <td class="num" data-label="Hatásidő">
-              <span class="muted">{{ s.therapy ? actionLabel(s.therapy.actionMinutes) : '–' }} →</span>
-              <b v-if="s.estimate.action" class="calc" :class="{ 'est-bad': s.estimate.action.unreliable }">{{ s.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(s.estimate.action.dia) }}</b><span v-else class="muted">?</span>
-              <small class="est-q">{{ s.estimate.action?.unreliable ? 'nem megbízható' : quality(s.estimate.action?.n ?? s.counts.cleanCorrections) }}</small>
-            </td>
-          </tr>
-          <tr v-if="showOverall" class="overall-row">
-            <td class="seg-time">Egész nap<small class="muted">összevont</small></td>
-            <td data-label="Korrekció">
-              <div class="gather"><span class="gather-bar"><i :style="{ width: pct(overall.counts.cleanCorrections) }" /></span>{{ count(overall.counts.cleanCorrections) }}</div>
-            </td>
-            <td data-label="Étkezés">
-              <div class="gather"><span class="gather-bar"><i :style="{ width: pct(overall.counts.cleanMeals) }" /></span>{{ count(overall.counts.cleanMeals) }}</div>
-            </td>
-            <td class="num" data-label="Érzékenység">
-              <b v-if="overall.estimate.isf" class="calc" :class="{ 'est-bad': overall.estimate.isf.unreliable }">{{ fmt(overall.estimate.isf.value) }}</b><span v-else class="muted">?</span>
-              <small class="est-q">{{ overall.estimate.isf?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
-            </td>
-            <td class="num" data-label="CH-arány">
-              <b v-if="overall.estimate.icr" class="calc" :class="{ 'est-bad': overall.estimate.icr.unreliable }">{{ fmt(overall.estimate.icr.value) }}</b><span v-else class="muted">?</span>
-              <small v-if="overall.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">még emelkedik</small>
-              <small class="est-q">{{ quality(overall.counts.cleanMeals) }}</small>
-            </td>
-            <td class="num" data-label="Hatásidő">
-              <b v-if="overall.estimate.action" class="calc" :class="{ 'est-bad': overall.estimate.action.unreliable }">{{ overall.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(overall.estimate.action.dia) }}</b><span v-else class="muted">?</span>
-              <small class="est-q">{{ overall.estimate.action?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Napszakonként egy blokk: fent a beállított → becsült értékek, alatta a két görbe, amiből számol. -->
+    <div class="seg-secs">
+      <section v-for="s in a.segments" :key="s.index" class="seg-sec">
+        <header class="seg-sec-head">
+          <h3>{{ s.start }}–{{ s.end }}</h3>
+          <small
+            v-if="s.estimate.drifting" class="est-drift"
+            title="A böjti időszakokban (étel és ható bólus nélkül) a vércukor ebben a napszakban átlagosan ennyit változik óránként: a bázis nem fedi az alapigényt, ezért a korrekciók esése és az étkezések végpontja torzul, a becslések nem megbízhatók."
+          >bázis-sodródás {{ s.estimate.drift > 0 ? '+' : '' }}{{ fmt(s.estimate.drift) }} mmol/L/óra, a becslés nem megbízható</small>
+        </header>
+        <div class="seg-est">
+          <div class="est-tile">
+            <span class="est-k">Érzékenység <small>mmol/L/E</small></span>
+            <span class="est-v"><span class="muted">{{ fmt(s.therapy?.isf) }} →</span> <b v-if="s.estimate.isf" class="calc" :class="{ 'est-bad': s.estimate.isf.unreliable }">{{ fmt(s.estimate.isf.value) }}</b><span v-else class="muted">?</span></span>
+            <small class="est-q">{{ s.estimate.isf?.unreliable ? 'nem megbízható' : quality(s.estimate.isf?.n ?? s.counts.cleanCorrections) }}</small>
+          </div>
+          <div class="est-tile">
+            <span class="est-k">CH-arány <small>g/E</small></span>
+            <span class="est-v"><span class="muted">{{ fmt(s.therapy?.icr) }} →</span> <b v-if="s.estimate.icr" class="calc" :class="{ 'est-bad': s.estimate.icr.unreliable }">{{ fmt(s.estimate.icr.value) }}</b><span v-else class="muted">?</span></span>
+            <small v-if="s.estimate.icr?.unreliable && s.estimate.drifting" class="est-q">nem megbízható</small>
+            <small v-else-if="s.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">még emelkedik</small>
+            <small v-else class="est-q">{{ quality(s.counts.cleanMeals) }}</small>
+          </div>
+          <div class="est-tile">
+            <span class="est-k">Hatásidő</span>
+            <span class="est-v"><span class="muted">{{ s.therapy ? actionLabel(s.therapy.actionMinutes) : '–' }} →</span> <b v-if="s.estimate.action" class="calc" :class="{ 'est-bad': s.estimate.action.unreliable }">{{ s.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(s.estimate.action.dia) }}</b><span v-else class="muted">?</span></span>
+            <small class="est-q">{{ s.estimate.action?.unreliable ? 'nem megbízható' : quality(s.estimate.action?.n ?? s.counts.cleanCorrections) }}</small>
+          </div>
+        </div>
+        <div class="seg-charts">
+          <div class="seg-chart">
+            <div class="seg-chart-head">
+              <b>Korrekció után</b>
+              <span class="gather"><span class="gather-bar"><i :style="{ width: pct(s.counts.cleanCorrections) }" /></span>{{ count(s.counts.cleanCorrections) }} tiszta</span>
+            </div>
+            <p class="muted small">Mennyi ment le a teljes esésből (100% = a teljes hatás) → <b>érzékenység, hatásidő</b></p>
+            <ClientOnly v-if="s.action?.n">
+              <MiniBandChart
+                :x="actChart(s.action).minutes" :lines="actChart(s.action).lines" :bands="actChart(s.action).bands"
+                :x-ticks="[0, 120, 240, 360]" :x-format="(v: number) => (v ? actionLabel(v) : '0')"
+                :y-ticks="actChart(s.action).yTicks" :y-format="pctFmt" :ref-y="[1]" :height="140" caption=""
+              />
+            </ClientOnly>
+            <p class="small seg-verdict">{{ actNote(s.action) }}</p>
+          </div>
+          <div class="seg-chart">
+            <div class="seg-chart-head">
+              <b>Étkezés után</b>
+              <span class="gather"><span class="gather-bar"><i :style="{ width: pct(s.counts.cleanMeals) }" /></span>{{ count(s.counts.cleanMeals) }} tiszta</span>
+            </div>
+            <p class="muted small">A vércukor a kezdőhöz képest; 4 óra múlva 0 körül = jó → <b>CH-arány</b></p>
+            <ClientOnly v-if="s.clean">
+              <MiniBandChart
+                :x="cleanChart(s).x" :lines="cleanChart(s).lines" :bands="s.clean.n >= 2 ? cleanChart(s).bands : []"
+                :x-ticks="[0, 60, 120, 180, 240]" :x-format="minLabel"
+                :y-ticks="cleanChart(s).yTicks" :y-format="(v: number) => signed(v)"
+                :ref-y="[0]" :ref-x="[0]" :height="140" caption=""
+              />
+            </ClientOnly>
+            <p v-if="s.clean" class="small seg-verdict">4 óra múlva <b>{{ signed(s.clean.d4h) }}</b> mmol/L: {{ cleanVerdict(s.clean) }}.</p>
+            <p v-else class="small seg-verdict">Még nincs tiszta étkezés (legalább {{ MIN }} kell).</p>
+            <small v-if="s.counts.truncatedMeals" class="muted" title="Ezeknél az étkezést 3 óra után megzavarta valami (korrekció, ráevés, hipó kezelése): csak a zavarásig számít, a már felszívódott CH-val.">ebből {{ s.counts.truncatedMeals }} rövidített</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- Egész nap: az összes napszak egybevonva (tájékoztató, a szerkesztőbe nem kerül be). -->
+      <section v-if="a.segments.length > 1 && (showOverall || act?.observed)" class="seg-sec">
+        <header class="seg-sec-head">
+          <h3>Egész nap <span class="muted">· összevont, tájékoztató</span></h3>
+        </header>
+        <div v-if="showOverall" class="seg-est">
+          <div class="est-tile">
+            <span class="est-k">Érzékenység <small>mmol/L/E</small></span>
+            <span class="est-v"><b v-if="overall.estimate.isf" class="calc" :class="{ 'est-bad': overall.estimate.isf.unreliable }">{{ fmt(overall.estimate.isf.value) }}</b><span v-else class="muted">?</span></span>
+            <small class="est-q">{{ overall.estimate.isf?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
+          </div>
+          <div class="est-tile">
+            <span class="est-k">CH-arány <small>g/E</small></span>
+            <span class="est-v"><b v-if="overall.estimate.icr" class="calc" :class="{ 'est-bad': overall.estimate.icr.unreliable }">{{ fmt(overall.estimate.icr.value) }}</b><span v-else class="muted">?</span></span>
+            <small class="est-q">{{ overall.estimate.icr?.unreliable ? 'még emelkedik' : quality(overall.counts.cleanMeals) }}</small>
+          </div>
+          <div class="est-tile">
+            <span class="est-k">Hatásidő</span>
+            <span class="est-v"><b v-if="overall.estimate.action" class="calc" :class="{ 'est-bad': overall.estimate.action.unreliable }">{{ overall.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(overall.estimate.action.dia) }}</b><span v-else class="muted">?</span></span>
+            <small class="est-q">{{ overall.estimate.action?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
+          </div>
+        </div>
+        <div v-if="act?.observed" class="seg-charts">
+          <div class="seg-chart">
+            <div class="seg-chart-head"><b>Korrekció után</b><span class="muted small">{{ act.n }} tiszta</span></div>
+            <ClientOnly>
+              <MiniBandChart
+                :x="actChart(act).minutes" :lines="actChart(act).lines" :bands="actChart(act).bands"
+                :x-ticks="[0, 120, 240, 360]" :x-format="(v: number) => (v ? actionLabel(v) : '0')"
+                :y-ticks="actChart(act).yTicks" :y-format="pctFmt" :ref-y="[1]" :height="140" caption=""
+              />
+            </ClientOnly>
+            <p v-if="act.fit?.atLimit" class="alert small">
+              A vércukor a leghosszabb hatásidőn ({{ actionLabel(act.fit.maxDia) }}) túl is esett, ezt az inzulin nem magyarázza
+              (pl. erős bázis vagy ráfekvés); nem megbízható, a szerkesztőbe nem kerül.
+            </p>
+            <p v-else class="small seg-verdict">{{ actNote(act) }}</p>
+          </div>
+        </div>
+      </section>
     </div>
-    <p v-if="showOverall" class="muted small">
-      Az „Egész nap” sor az összes napszakot egybevonja (tájékoztató, a szerkesztőbe nem kerül be).
-    </p>
 
     <div class="btn-row apply-row">
       <button type="button" :disabled="!hasEstimate" @click="apply">Becslések beírása a szerkesztőbe</button>
-      <span class="muted small">Csak kitölti a mezőket, mentés előtt átnézheted; a változtatást a diabetológusoddal egyeztesd.</span>
-    </div>
-
-    <div class="analysis-action">
-      <h3>Inzulin hatásideje (mért)</h3>
-      <p class="tp-what">Becsüli: <b>hatásidő, érzékenység</b> · Miből: tiszta korrekciók után a vércukoresés, a teljes esés %-ában</p>
-      <template v-if="act?.observed">
-        <div class="tile-label">Egész nap <span class="muted">· {{ act.n }} tiszta korrekció</span></div>
-        <ClientOnly>
-          <MiniBandChart
-            :x="actChart(act).minutes" :lines="actChart(act).lines" :bands="actChart(act).bands"
-            :x-ticks="[0, 60, 120, 180, 240, 300, 360]" :x-format="(v: number) => (v ? actionLabel(v) : '0')"
-            :y-ticks="actChart(act).yTicks" :y-format="pctFmt" :ref-y="[1]" :height="170" caption=""
-          >
-            <template v-if="act.n >= 3" #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
-          </MiniBandChart>
-        </ClientOnly>
-        <p v-if="act.fit?.atLimit" class="alert small">
-          A vércukor a kiválasztott inzulin leghosszabb hatásidején ({{ actionLabel(act.fit.maxDia) }}) túl is tovább esett, ezt az
-          inzulin már nem magyarázza (pl. erős bázis vagy ráfekvés). Az illesztett érték ezért nem megbízható, a szerkesztőbe nem írjuk be.
-        </p>
-        <p v-else class="muted small">{{ actNote(act) }}</p>
-      </template>
-      <p v-else class="muted small">Még nincs tiszta korrekció. Akkor kerül ide, ha magas vércukorra étkezésen kívül adsz bólust, és utána pár óráig nem eszel.</p>
-      <div v-if="segList.length > 1" class="clean-meals">
-        <div v-for="s in segList" :key="s.index" class="clean-meal">
-          <div class="tile-label">{{ s.start }}–{{ s.end }} <span class="muted">· {{ s.action?.n ?? 0 }} tiszta korrekció</span></div>
-          <ClientOnly>
-            <MiniBandChart
-              :x="actChart(s.action).minutes" :lines="actChart(s.action).lines" :bands="actChart(s.action).bands"
-              :x-ticks="[0, 120, 240, 360]" :x-format="(v: number) => (v ? actionLabel(v) : '0')"
-              :y-ticks="actChart(s.action).yTicks" :y-format="pctFmt" :ref-y="[1]" :height="130" caption=""
-            />
-          </ClientOnly>
-          <p class="muted small">{{ actNote(s.action) }}</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="analysis-action">
-      <h3>CH-arány ellenőrzése (étkezés utáni görbe)</h3>
-      <p class="tp-what">Mutatja: tiszta étkezések után a vércukor a kezdőhöz képest · 4 óra múlva fölötte: kevés inzulin, alatta: sok</p>
-      <div v-if="segList.length" class="clean-meals">
-        <div v-for="s in segList" :key="s.index" class="clean-meal">
-          <div class="tile-label">{{ s.start }}–{{ s.end }} <span class="muted">· {{ s.clean?.n ?? 0 }} tiszta étkezés</span></div>
-          <p v-if="!s.clean" class="muted small clean-empty">Még nincs tiszta étkezés ebben a napszakban.</p>
-          <ClientOnly v-else>
-            <MiniBandChart
-              :x="cleanChart(s).x" :lines="cleanChart(s).lines" :bands="s.clean.n >= 2 ? cleanChart(s).bands : []"
-              :x-ticks="[0, 60, 120, 180, 240]" :x-format="minLabel"
-              :y-ticks="cleanChart(s).yTicks" :y-format="(v: number) => signed(v)"
-              :ref-y="[0]" :ref-x="[0]" :height="140"
-              :caption="`Emelkedés ${signed(s.clean.rise)} mmol/L, csúcs ${fmt(s.clean.peakMin, 0)} perc után, 4 óra múlva ${signed(s.clean.d4h)}`"
-            >
-              <template v-if="s.clean.n >= 3" #legend><span class="k"><span class="sw" style="background: color-mix(in srgb, var(--series-glucose) 18%, transparent)" /> 25–75%</span></template>
-            </MiniBandChart>
-          </ClientOnly>
-          <p v-if="s.clean" class="muted small">4 óra múlva {{ signed(s.clean.d4h) }} mmol/L: {{ cleanVerdict(s.clean) }}.</p>
-        </div>
-      </div>
-      <p v-else class="muted small">Még nincs tiszta étkezés. Akkor kerül ide, ha beírt CH-val és bólussal eszel, és utána 4 óráig nem eszel és nem adsz más bólust.</p>
+      <span class="muted small">Csak kitölti a fenti mezőket, mentés előtt átnézheted; a változtatást a diabetológusoddal egyeztesd.</span>
     </div>
   </section>
 </template>
