@@ -142,6 +142,21 @@ function actNote(x: any): string {
   if (x.fit) return `Illesztett: csúcs ${actionLabel(x.fit.peak)}, hatásidő ${actionLabel(x.fit.dia)}, érzékenység ${fmt(x.fit.isf)} mmol/L/E.`
   return `${x.n} korrekció: az illesztéshez még ${MIN - x.n} kell (tájékoztató).`
 }
+
+// Minta-grafikon, amíg nincs saját adat: korrekciónál a beállított hatásidőből számolt görbe,
+// étkezésnél egy jó CH-arányú étkezés (kb. +3 mmol/L csúcs 70 perc körül, 4 óra múlva vissza a kezdőre).
+function sampleAct(s: any) {
+  const cur = s.action?.current ?? { peak: 75, dia: s.therapy?.actionMinutes ?? 240 }
+  const m = insulinModel(cur.peak, cur.dia)
+  return {
+    minutes: ACT_MINUTES,
+    lines: [{ y: ACT_MINUTES.map((t) => Math.round((1 - m.iob(t)) * 100) / 100), color: 'var(--text-muted)', label: `beállított hatásidő (${actionLabel(cur.dia)})`, dash: true }],
+    yTicks: [0, 0.5, 1],
+  }
+}
+const SAMPLE_MEAL_X = Array.from({ length: 49 }, (_, i) => i * 5)
+const sampleRise = (t: number) => 3 * (t / 70) * Math.exp(1 - t / 70)
+const SAMPLE_MEAL_Y = SAMPLE_MEAL_X.map((t) => Math.round((sampleRise(t) - (t / 240) * sampleRise(240)) * 10) / 10)
 </script>
 
 <template>
@@ -213,6 +228,16 @@ function actNote(x: any): string {
                 :y-ticks="actChart(s.action).yTicks" :y-format="pctFmt" :ref-y="[1]" :height="140" caption=""
               />
             </ClientOnly>
+            <div v-else class="chart-sample">
+              <ClientOnly>
+                <MiniBandChart
+                  :x="sampleAct(s).minutes" :lines="sampleAct(s).lines"
+                  :x-ticks="[0, 120, 240, 360]" :x-format="(v: number) => (v ? actionLabel(v) : '0')"
+                  :y-ticks="sampleAct(s).yTicks" :y-format="pctFmt" :ref-y="[1]" :height="140" caption=""
+                />
+              </ClientOnly>
+              <span class="sample-badge">Minta · még nincs saját adat</span>
+            </div>
             <p class="small seg-verdict">{{ actNote(s.action) }}</p>
           </div>
           <div class="seg-chart">
@@ -229,6 +254,17 @@ function actNote(x: any): string {
                 :ref-y="[0]" :ref-x="[0]" :height="140" caption=""
               />
             </ClientOnly>
+            <div v-else class="chart-sample">
+              <ClientOnly>
+                <MiniBandChart
+                  :x="SAMPLE_MEAL_X" :lines="[{ y: SAMPLE_MEAL_Y, color: 'var(--text-muted)', label: 'jó CH-arány: 4 óra múlva vissza a kezdőre', dash: true }]"
+                  :x-ticks="[0, 60, 120, 180, 240]" :x-format="minLabel"
+                  :y-ticks="[-2, 0, 2, 4]" :y-format="(v: number) => signed(v)"
+                  :ref-y="[0]" :ref-x="[0]" :height="140" caption=""
+                />
+              </ClientOnly>
+              <span class="sample-badge">Minta · még nincs saját adat</span>
+            </div>
             <p v-if="s.clean" class="small seg-verdict">4 óra múlva <b>{{ signed(s.clean.d4h) }}</b> mmol/L: {{ cleanVerdict(s.clean) }}.</p>
             <p v-else class="small seg-verdict">Még nincs tiszta étkezés (legalább {{ MIN }} kell).</p>
             <small v-if="s.counts.truncatedMeals" class="muted" title="Ezeknél az étkezést 3 óra után megzavarta valami (korrekció, ráevés, hipó kezelése): csak a zavarásig számít, a már felszívódott CH-val.">ebből {{ s.counts.truncatedMeals }} rövidített</small>
