@@ -130,9 +130,18 @@ async function save() {
 
 <template>
   <main class="therapy-page">
-    <form class="card therapy-edit" @submit.prevent="save">
-      <h1>Terápiás beállítások</h1>
-      <p class="muted small">A diabetológussal egyeztetett értékek. Ezekből számol a bóluskalkulátor, az aktív inzulin, az előrejelzés és az elemzés; tájékoztató jellegűek, a beadott adagról te döntesz.</p>
+    <header class="tp-head">
+      <h1>Terápia</h1>
+      <p class="muted small">A diabetológussal egyeztetett értékek: ezekből számol a kalkulátor, az előrejelzés és az elemzés.</p>
+      <!-- Jelmagyarázat: mi írható be és mi számolt; ugrás a két részhez. -->
+      <div class="tp-legend small">
+        <a href="#beallitasok" class="tp-badge edit">Beírható</a><span>keretes mező: te adod meg, a „Mentés” után érvényes</span>
+        <a href="#szamolt" class="tp-badge calc">Számolt</a><span><span class="calc">színes szám</span>: az adataidból jön, csak olvasható</span>
+      </div>
+    </header>
+
+    <h2 id="beallitasok" class="tp-group-h"><span class="tp-badge edit">Beírható</span> Beállítások</h2>
+    <form class="card therapy-edit tp-edit" @submit.prevent="save">
 
       <h2 class="tf-section">Bólus</h2>
       <div class="therapy-fields">
@@ -180,7 +189,7 @@ async function save() {
           </select>
         </label>
         <p v-if="basalInfo?.facts" class="tf-hint">
-          {{ basalInfo.name }} (alkalmazási előírás): {{ [basalInfo.facts.peak, basalInfo.facts.duration, basalInfo.facts.note].filter(Boolean).join(', ') }}.
+          {{ basalInfo.name }}: {{ [basalInfo.facts.peak, basalInfo.facts.duration].filter(Boolean).join(', ') }}.
         </p>
         <label class="tf-row">
           <span class="tf-label">Automatikus beírás a naplóba</span>
@@ -195,9 +204,7 @@ async function save() {
             <span class="tf-label">Bázisadag</span>
             <span class="tf-input"><input v-model.number="basalAutoUnits" type="number" step="0.5" min="1" max="100" required> E</span>
           </label>
-          <p class="tf-hint tf-sub">
-            Naponta ekkor beírja, és push értesítést küld róla, ha aznap még nincs bázis. A naplóban javítható; a kézzel beírt bázis a helyére lép.
-          </p>
+          <p class="tf-hint tf-sub">Ha aznap még nincs bázis, ekkor beírja és értesít; a kézzel beírt a helyére lép.</p>
         </template>
       </div>
 
@@ -242,6 +249,11 @@ async function save() {
         </div>
         <SegmentsEditor ref="baseEd" :segments="segments" :by-time-of-day="byTimeOfDay" :action-minutes="actionMinutes" :action-options="actionOptions" :new-key="newKey" />
       </div>
+      <p v-if="rule" class="tf-calc small">
+        Kiinduló érték a napi összinzulinból (<span class="calc">{{ hu(tdd!, 0) }} E</span>, 30 nap átlaga):
+        ISF ≈ <span class="calc">{{ hu(rule.isf) }}</span> mmol/L/E · CH-arány ≈ <span class="calc">{{ hu(rule.icr) }}</span> g/E
+        <span class="muted">(100 ÷ TDD, 500 ÷ TDD; csak kiindulópont)</span>
+      </p>
       <p v-if="isfOff.length" class="notice small" role="note">
         <b>Egyeztesd:</b> az ISF{{ byTimeOfDay ? ` (${isfOff.join(', ')})` : '' }} több mint kétszeresen eltér a napi összinzulinodból számolt kiinduló értéktől.
         Az előrejelzés és a javaslatok erre épülnek, ezért érdemes a diabetológussal átbeszélni.
@@ -251,10 +263,6 @@ async function save() {
         <p v-if="byTimeOfDay" class="muted small">Minden napszak a következő kezdetéig tart, az utolsó éjfélen át az elsőig. Mentéskor időrendbe kerülnek.
           Ha egy napszakhoz külön inzulinhatás-időt adsz meg, a napi grafikonon az abban beadott bólusok hatásgörbéje ezzel rajzolódik; „közös” esetén a fenti érték érvényes.</p>
         <p v-else class="muted small">Kikapcsolva ezek az értékek egész nap érvényesek. A többi napszakot megőrzöm, visszakapcsolva újra látszanak.</p>
-        <p v-if="rule" class="muted small">
-          Tájékoztatásul: a napi összinzulinod átlaga {{ hu(tdd!, 0) }} E (utolsó 30 nap, bázissal). Az ökölszabályok szerinti kiinduló érték ehhez
-          ISF ≈ {{ hu(rule.isf) }} mmol/L/E (100 ÷ TDD) és CH-arány ≈ {{ hu(rule.icr) }} g/E (500 ÷ TDD). Ezek csak kiindulópontok, a saját értékeid ettől eltérhetnek.
-        </p>
       </details>
 
       <!-- Váltott műszak: külön értékek a délutános hétre (a műszakbeosztás lent, a „Váltott műszak” kártyán). -->
@@ -281,7 +289,7 @@ async function save() {
               <option value="alt">a délutános hét értékei</option>
             </select>
           </label>
-          <p class="tf-hint">A délutános héten ezek érvényesek a kalkulátorban, az aktív inzulinban, az előrejelzésben és a javaslatokban; az elemzés az alap napszakok szerint csoportosít.</p>
+          <p class="tf-hint">A délutános héten ezek érvényesek; az elemzés az alap napszakok szerint csoportosít.</p>
         </div>
       </template>
 
@@ -292,6 +300,9 @@ async function save() {
       </div>
     </form>
     <ShiftCard />
+
+    <h2 id="szamolt" class="tp-group-h"><span class="tp-badge calc">Számolt</span> Az adataidból</h2>
+    <p class="muted small tp-group-p">Csak olvasható. A „beírás” gombok a fenti mezőkbe teszik át az értéket; mentés előtt átnézheted.</p>
     <AnalysisCard @apply="applyEstimates" />
     <FpuCard @apply="applyFpu" />
     <!-- Üres végdátum: a szerver a mai napig számol. -->

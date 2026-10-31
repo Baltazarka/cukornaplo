@@ -797,6 +797,34 @@ details.more p + p { margin-top: 6px; }
   .therapy-edit-table input, .therapy-edit-table select { width: 100%; min-width: 0; }
 }
 .btn-row .spacer { flex: 1; }
+/* Terápia oldal: két jól elváló rész – a beírható beállítások (keretes, kiemelt mezők) és az adatokból számolt
+   eredmények (színes „számolt” értékek); felül jelmagyarázat. */
+:root { --calc-ink: color-mix(in srgb, var(--series-correction) 65%, var(--text-primary)); }
+.tp-head { display: flex; flex-direction: column; gap: 6px; }
+.tp-head h1 { margin: 0; }
+.tp-head p { margin: 0; }
+.tp-legend { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 10px; color: var(--text-secondary); }
+.tp-badge {
+  display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; text-decoration: none; width: fit-content;
+}
+.tp-badge.edit { color: var(--accent); border: 1.5px solid var(--accent); }
+.tp-badge.calc { color: var(--calc-ink); background: color-mix(in srgb, var(--series-correction) 16%, transparent); border: 1.5px solid transparent; }
+.tp-group-h { display: flex; align-items: center; gap: 10px; margin: 18px 0 0; font-size: 18px; scroll-margin-top: 70px; }
+.tp-group-p { margin: -6px 0 0; }
+.calc {
+  color: var(--calc-ink); background: color-mix(in srgb, var(--series-correction) 14%, transparent);
+  border-radius: 6px; padding: 0 5px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.tf-calc { margin: 0; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--series-correction) 7%, transparent); color: var(--text-secondary); }
+/* Beírható mezők: erősebb, az akcentszínű keret, hogy elváljanak a csak kiírt értékektől. */
+.tp-edit input:not([type=checkbox]):not([type=radio]), .tp-edit select,
+.therapy-page .shift-form select, .therapy-page .absorb-input input {
+  border: 1.5px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface-1));
+}
+.tp-edit input:not([type=checkbox]):focus, .tp-edit select:focus { border-color: var(--accent); }
+
 
 /* Kapcsoló (checkbox role="switch") */
 .switch {

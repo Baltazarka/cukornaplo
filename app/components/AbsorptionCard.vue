@@ -162,10 +162,7 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
     </div>
 
     <h3 class="absorb-sub">Felszívódási ütem (g/óra)</h3>
-    <p class="muted small">
-      Ahol van tanult görbe, a program azt használja; ahol nincs, a beállított ütemet. A „Tanult” oszlop mutatja, mennyi jött ki
-      az adataidból: ha a tanult görbe elég megbízható, ezt érdemes beállítani is.
-    </p>
+    <p class="muted small">Ahol van <span class="calc">tanult</span> görbe, azzal számol; ahol nincs, a beírt ütemmel.</p>
     <details class="more">
       <summary>Részletek</summary>
       <p class="muted small">
@@ -184,7 +181,7 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
           <span class="ar-badge" :class="learnedOf(c) ? 'learned' : 'dflt'">{{ learnedOf(c) ? 'tanult görbe' : 'beállított ütem' }}</span>
         </span>
         <span class="ar-cell" data-label="Tanult (adataidból)">
-          <template v-if="learnedRate(c) != null"><b>≈ {{ learnedRate(c) }} g/óra</b> <small class="muted">{{ quality(abs[c.key].n) }}</small></template>
+          <template v-if="learnedRate(c) != null"><b class="calc">≈ {{ learnedRate(c) }} g/óra</b> <small class="muted">{{ quality(abs[c.key].n) }}</small></template>
           <small v-else class="muted">{{ quality(abs[c.key].n) }}</small>
         </span>
         <label class="ar-cell ar-input" data-label="Beállított ütem">
@@ -202,10 +199,7 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
     </form>
 
     <h3 class="absorb-sub">Mennyi CH szívódik fel óránként?</h3>
-    <p class="muted small">
-      Szemléltetés egy {{ REF_GRAMS }} g-os étkezésre, azzal, amivel a program most számol (a százalék az étkezés összes CH-jának hányada).
-      Ez nem beírandó érték: a fenti ütemet módosítva a „beállított ütem” oszlopok változnak.
-    </p>
+    <p class="muted small">Szemléltetés egy {{ REF_GRAMS }} g-os étkezésre (számolt, nem beírandó).</p>
     <div class="absorb-table-wrap">
       <table class="absorb-table">
         <thead>

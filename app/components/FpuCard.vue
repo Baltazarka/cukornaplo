@@ -36,8 +36,8 @@ const evaluable = computed(() => (fpu.value?.events ?? []).filter((e: any) => e.
 
     <div v-if="est" class="fpu-est">
       <div>
-        Nálad egy zsír-fehérje egység kb. <b>{{ fmt(est.pct / 10, 0) }} g CH</b>-nak megfelelően emelt:
-        a varsói érték kb. <b>{{ est.pct }}%</b>-a
+        Nálad egy zsír-fehérje egység kb. <b class="calc">{{ fmt(est.pct / 10, 0) }} g CH</b>-nak megfelelően emelt:
+        a varsói érték kb. <b class="calc">{{ est.pct }}%</b>-a
         <span class="muted">({{ est.n }} étkezésből, {{ est.reliable ? 'megbízható' : 'előzetes' }})</span>.
         <template v-if="fpu.current != null"> Beállítva: {{ fpu.current }}%.</template>
       </div>

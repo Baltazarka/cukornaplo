@@ -149,7 +149,7 @@ const actYTicks = computed(() => {
       </div>
     </div>
     <RecomputeBar :at="a.computedAt" kind="analysis" :days="days" @done="refresh()" />
-    <p class="muted small">Napszakonként legalább {{ MIN }} tiszta esemény kell a becsléshez, {{ GOOD }} a megbízhatóhoz. Bal oldalt a mostani beállítás, nyíl után a becslés.</p>
+    <p class="muted small">Bal oldalt a mostani beállítás, a nyíl után a <span class="calc">becslés</span> ({{ MIN }} tiszta eseménytől, {{ GOOD }}-től megbízható).</p>
     <details class="more">
       <summary>Mi számít tisztának?</summary>
       <p class="muted small">
@@ -193,19 +193,19 @@ const actYTicks = computed(() => {
             </td>
             <td class="num" data-label="Érzékenység">
               <span class="muted">{{ fmt(s.therapy?.isf) }} →</span>
-              <b v-if="s.estimate.isf" :class="{ 'est-bad': s.estimate.isf.unreliable }">{{ fmt(s.estimate.isf.value) }}</b><span v-else class="muted">?</span>
+              <b v-if="s.estimate.isf" class="calc" :class="{ 'est-bad': s.estimate.isf.unreliable }">{{ fmt(s.estimate.isf.value) }}</b><span v-else class="muted">?</span>
               <small class="est-q">{{ s.estimate.isf?.unreliable ? 'nem megbízható' : quality(s.estimate.isf?.n ?? s.counts.cleanCorrections) }}</small>
             </td>
             <td class="num" data-label="CH-arány">
               <span class="muted">{{ fmt(s.therapy?.icr) }} →</span>
-              <b v-if="s.estimate.icr" :class="{ 'est-bad': s.estimate.icr.unreliable }">{{ fmt(s.estimate.icr.value) }}</b><span v-else class="muted">?</span>
+              <b v-if="s.estimate.icr" class="calc" :class="{ 'est-bad': s.estimate.icr.unreliable }">{{ fmt(s.estimate.icr.value) }}</b><span v-else class="muted">?</span>
               <small v-if="s.estimate.icr?.unreliable && s.estimate.drifting" class="est-q" title="Jelentős bázis-sodródás ebben a napszakban: a végpont torzul.">nem megbízható</small>
               <small v-else-if="s.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">még emelkedik</small>
               <small class="est-q">{{ quality(s.counts.cleanMeals) }}</small>
             </td>
             <td class="num" data-label="Hatásidő">
               <span class="muted">{{ s.therapy ? actionLabel(s.therapy.actionMinutes) : '–' }} →</span>
-              <b v-if="s.estimate.action" :class="{ 'est-bad': s.estimate.action.unreliable }">{{ s.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(s.estimate.action.dia) }}</b><span v-else class="muted">?</span>
+              <b v-if="s.estimate.action" class="calc" :class="{ 'est-bad': s.estimate.action.unreliable }">{{ s.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(s.estimate.action.dia) }}</b><span v-else class="muted">?</span>
               <small class="est-q">{{ s.estimate.action?.unreliable ? 'nem megbízható' : quality(s.estimate.action?.n ?? s.counts.cleanCorrections) }}</small>
             </td>
           </tr>
@@ -218,16 +218,16 @@ const actYTicks = computed(() => {
               <div class="gather"><span class="gather-bar"><i :style="{ width: pct(overall.counts.cleanMeals) }" /></span>{{ count(overall.counts.cleanMeals) }}</div>
             </td>
             <td class="num" data-label="Érzékenység">
-              <b v-if="overall.estimate.isf" :class="{ 'est-bad': overall.estimate.isf.unreliable }">{{ fmt(overall.estimate.isf.value) }}</b><span v-else class="muted">?</span>
+              <b v-if="overall.estimate.isf" class="calc" :class="{ 'est-bad': overall.estimate.isf.unreliable }">{{ fmt(overall.estimate.isf.value) }}</b><span v-else class="muted">?</span>
               <small class="est-q">{{ overall.estimate.isf?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
             </td>
             <td class="num" data-label="CH-arány">
-              <b v-if="overall.estimate.icr" :class="{ 'est-bad': overall.estimate.icr.unreliable }">{{ fmt(overall.estimate.icr.value) }}</b><span v-else class="muted">?</span>
+              <b v-if="overall.estimate.icr" class="calc" :class="{ 'est-bad': overall.estimate.icr.unreliable }">{{ fmt(overall.estimate.icr.value) }}</b><span v-else class="muted">?</span>
               <small v-if="overall.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">még emelkedik</small>
               <small class="est-q">{{ quality(overall.counts.cleanMeals) }}</small>
             </td>
             <td class="num" data-label="Hatásidő">
-              <b v-if="overall.estimate.action" :class="{ 'est-bad': overall.estimate.action.unreliable }">{{ overall.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(overall.estimate.action.dia) }}</b><span v-else class="muted">?</span>
+              <b v-if="overall.estimate.action" class="calc" :class="{ 'est-bad': overall.estimate.action.unreliable }">{{ overall.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(overall.estimate.action.dia) }}</b><span v-else class="muted">?</span>
               <small class="est-q">{{ overall.estimate.action?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
             </td>
           </tr>
@@ -235,13 +235,12 @@ const actYTicks = computed(() => {
       </table>
     </div>
     <p v-if="showOverall" class="muted small">
-      Az „Egész nap” sor az összes napszak eseményét egybevonja, ezért akkor is ad becslést, ha napszakonként még kevés az adat.
-      Csak tájékoztató: a napszakok eltérhetnek egymástól, a szerkesztőbe nem kerül be automatikusan.
+      Az „Egész nap” sor az összes napszakot egybevonja (tájékoztató, a szerkesztőbe nem kerül be).
     </p>
 
     <div class="btn-row apply-row">
       <button type="button" :disabled="!hasEstimate" @click="apply">Becslések beírása a szerkesztőbe</button>
-      <span class="muted small">Csak kitölti a mezőket, mentés előtt átnézheted. Ez csak a Cukornapló beállításait módosítja; a terápia változtatását a diabetológusoddal egyeztesd.</span>
+      <span class="muted small">Csak kitölti a mezőket, mentés előtt átnézheted; a változtatást a diabetológusoddal egyeztesd.</span>
     </div>
 
     <div class="analysis-action">

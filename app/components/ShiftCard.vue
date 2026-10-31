@@ -69,10 +69,7 @@ const shifts = computed<any[]>(() => (data.value?.shifts ?? []).filter((x: any) 
 <template>
   <section class="card analysis-card shift-card">
     <h2>Váltott műszak</h2>
-    <p class="muted small">
-      Jelöld meg, milyen ez a hét: onnan a program hetente váltogatja. Egyes napokat (szabadság, csere) a főoldalon, a nap
-      fejlécénél állíthatsz át. A délutános hét külön értékei fent, a „Napszakok” résznél adhatók meg.
-    </p>
+    <p class="muted small">Jelöld meg, milyen ez a hét: onnan hetente váltogat. Egy-egy napot a főoldalon, a nap fejlécénél írhatsz át.</p>
     <form v-if="!props.readOnly" class="shift-form therapy-fields" @submit.prevent="save">
       <label class="tf-row">
         <span class="tf-label">Váltott műszak</span>
