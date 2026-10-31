@@ -742,6 +742,19 @@ button.sm, .btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 /* ---- Terápiás beállítások szerkesztése ---- */
 /* Terápia oldal: minden kártya egyforma széles; a beállítások tematikus szakaszokban, címke balra, mező jobbra. */
 .therapy-page { max-width: 900px; }
+/* Számítógépen teljes szélesség: a beállítás-kártyák egymás mellett, a Napszakok és a nagy számolt kártyák teljes sorban. */
+@media (min-width: 901px) {
+  main.therapy-page { max-width: 1920px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .therapy-page > .tp-title, .therapy-page > .therapy-edit, .therapy-page > .shift-card, .therapy-page > .analysis-card:has(.est-table),
+  .therapy-page > .absorb-card, .therapy-page > .accuracy-card { grid-column: 1 / -1; }
+  form.therapy-edit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .therapy-edit > .tp-card:has(.seg-block), .therapy-edit > .therapy-save,
+  form.therapy-edit > .tp-card:nth-child(3) { grid-column: 1 / -1; }
+}
+@media (min-width: 1200px) {
+  form.therapy-edit { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  form.therapy-edit > .tp-card:nth-child(3) { grid-column: auto; }
+}
 .therapy-edit { width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
 .therapy-edit p { margin: 0; }
 .therapy-fields { display: flex; flex-direction: column; }
@@ -792,7 +805,8 @@ details.more p + p { margin-top: 6px; }
   }
   .therapy-edit-table td { display: block; padding: 0; border: 0; }
   .therapy-edit-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 2px; font-size: 12px; color: var(--text-muted); }
-  .therapy-edit-table td.act { display: flex; align-items: flex-end; justify-content: flex-end; }
+  .therapy-edit-table td.act { display: flex; align-items: flex-end; justify-content: flex-end; width: auto; }
+  .therapy-edit-table .row-del { width: 40px; height: 40px; border-color: var(--border); }
   .therapy-save { padding-right: 64px; } /* a „vissza a tetejére” gomb ne takarja */
   .therapy-edit-table input, .therapy-edit-table select { width: 100%; min-width: 0; }
 }
