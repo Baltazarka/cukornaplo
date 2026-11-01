@@ -17,7 +17,8 @@ const hours = (m: number) => `${Math.round(m / 6) / 10}`.replace('.', ',')
 
 const est = computed(() => fpu.value?.estimate ?? null)
 /** A beállításba átvehető érték: 10%-ra kerekítve, 0–100% között. */
-const applyPct = computed(() => (est.value ? Math.min(100, Math.max(0, Math.round(est.value.pct / 10) * 10)) : null))
+// 100% fölött nem ajánljuk fel (ott inkább a beállított ISF / CH-arány torzít).
+const applyPct = computed(() => (est.value && !est.value.mismatch ? Math.max(0, Math.round(est.value.pct / 10) * 10) : null))
 const evaluable = computed(() => (fpu.value?.events ?? []).filter((e: any) => e.pct != null).length)
 </script>
 
@@ -38,10 +39,10 @@ const evaluable = computed(() => (fpu.value?.events ?? []).filter((e: any) => e.
       <div>
         Nálad egy zsír-fehérje egység kb. <b class="calc">{{ fmt(est.pct / 10, 0) }} g CH</b>-nak megfelelően emelt:
         a varsói érték kb. <b class="calc">{{ est.pct }}%</b>-a
-        <span class="muted">({{ est.n }} étkezésből, {{ est.reliable ? 'megbízható' : 'előzetes' }})</span>.
+        <span class="muted">({{ est.n }} étkezésből, {{ est.reliable ? 'megbízható' : est.n >= 6 ? 'nagy a szórás' : 'előzetes' }}<template v-if="est.iqr != null">, a középső fele ±{{ Math.round(est.iqr / 2) }}%-pont</template>)</span>.
         <template v-if="fpu.current != null"> Beállítva: {{ fpu.current }}%.</template>
       </div>
-      <p v-if="est.pct > 100" class="muted small">Több, mint a varsói érték; a beállítás legfeljebb 100% lehet.</p>
+      <p v-if="est.mismatch" class="notice small" role="note">A varsói értéknél is többet mutat: ez valószínűleg nem a zsír-fehérje hatása, hanem a beállított érzékenység vagy CH-arány eltérése (minden eltérés ide számít). Ezért nem ajánljuk fel; a diabetológussal egyeztesd.</p>
       <p v-else-if="est.pct < 0" class="muted small">A zsíros ételek után nem emelt a cukor a vártnál jobban: plusz adag nem tűnik szükségesnek.</p>
       <div v-if="applyPct != null && applyPct !== fpu.current" class="btn-row">
         <button type="button" class="ghost sm" @click="emit('apply', applyPct)">Beírás a beállításba ({{ applyPct }}%)</button>

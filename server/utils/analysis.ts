@@ -16,6 +16,8 @@ export const MIN_EVENTS = 3
 export const GOOD_EVENTS = 5
 /** A saját zsír-fehérje % becsléséhez ennyi kiértékelhető zsíros étkezés kell a megbízhatóhoz. */
 export const FPU_GOOD_EVENTS = 6
+/** A zsír-fehérje % becslés csak akkor „megbízható”, ha az étkezések középső fele ennél kisebb sávban van (%-pont). */
+const FPU_MAX_IQR = 60
 
 const STEP = 5 // perc
 const MEAL_WINDOW_MIN = 240 // az étkezés utáni 4 óra
@@ -561,6 +563,8 @@ export function analyze(from: number, to: number) {
   // 10 g-hoz (varsói érték) viszonyítva adja a saját %-ot. Kiértékelhető, ha a végpontig nincs más étel, nincs hipó,
   // elég a szenzoradat, és nem gyorsan változó vércukorról indul. A beállított ISF / CH-arányra épül.
   const fpuEvents: FpuEvent[] = []
+  // A % számolásához (a bázis-sodródás levonása után, lent): a napszak ISF / CH-aránya és a mért hatás.
+  const fpuRaw = new Map<FpuEvent, { isf: number; icr: number; effect: number; from: number; to: number; units: number }>()
   for (const g of groups) {
     if (g.ts < from || g.ts >= to || !g.fatty || g.carbs == null || (g.fat == null && g.protein == null)) continue
     const units = fpuUnits(g.fat, g.protein)
@@ -609,7 +613,7 @@ export function analyze(from: number, to: number) {
       effect = vEnd! - startBG - (g.carbs * s.isf) / s.icr + acted * s.isf
       pct = Math.round(((effect * s.icr) / s.isf / (units * FPU_CARB_G)) * 100)
     }
-    fpuEvents.push({
+    const ev: FpuEvent = {
       ts: g.ts, seg: segIndexAt(t, g.ts), carbs: g.carbs, fat: g.fat, protein: g.protein, units, hours, endMin,
       startBG: r1(startBG),
       peakRise: Number.isFinite(peak) ? r1(peak - startBG) : null,
@@ -620,13 +624,46 @@ export function analyze(from: number, to: number) {
       ...(truncated ? { truncated: true } : {}),
       effect: effect != null ? r1(effect) : null,
       pct,
-    })
+    }
+    fpuEvents.push(ev)
+    if (effect != null && t) {
+      const s = segmentAt(t, g.ts)
+      fpuRaw.set(ev, { isf: s.isf, icr: s.icr, effect, from: g.ts, to: end, units })
+    }
   }
-  const fpuPcts = fpuEvents.filter((e) => e.pct != null).map((e) => e.pct!)
+
+  // Bázisellenőrzés (böjti időszakok sodródása), és ebből napszakonként az átlagos sodródás a becslések megbízhatóságához.
+  const basal = basalCheck(sensorGlucose, glucose, carbs, boluses, diaAt, low, disturbTs, segmentGroups(t), from, Math.min(to, Math.floor(Date.now() / 1000)))
+  // Zsír-fehérje %: a 4–8 órás ablakban a bázis-sodródás (az órák mért böjti változása, ahol legalább 1 óra adat van)
+  // nem a zsír-fehérje hatása: levonjuk, mielőtt %-ra váltjuk.
+  const driftBetween = (t0: number, t1: number) => {
+    let d = 0
+    for (let ts = t0; ts < t1; ts += 300) {
+      const x = basal.hours[Math.floor(minuteOfDayInTz(ts) / 60)]
+      if (x.slope != null && x.hours >= 1) d += x.slope / 12
+    }
+    return d
+  }
+  for (const [ev, r] of fpuRaw) {
+    const eff = r.effect - driftBetween(r.from, r.to)
+    ev.effect = r1(eff)
+    ev.pct = Math.round(((eff * r.icr) / r.isf / (r.units * FPU_CARB_G)) * 100)
+  }
+  const fpuPcts = fpuEvents.filter((e) => e.pct != null).map((e) => e.pct!).sort((a, b) => a - b)
+  const fpuIqr = fpuPcts.length >= MIN_EVENTS ? Math.round(quantile(fpuPcts, 0.75) - quantile(fpuPcts, 0.25)) : null
+  const fpuMedian = fpuPcts.length >= MIN_EVENTS ? Math.round(median(fpuPcts)!) : null
   const fpu = {
     events: [...fpuEvents].reverse(),
-    estimate: fpuPcts.length >= MIN_EVENTS
-      ? { pct: Math.round(median(fpuPcts)!), n: fpuPcts.length, reliable: fpuPcts.length >= FPU_GOOD_EVENTS }
+    estimate: fpuMedian != null
+      ? {
+          pct: fpuMedian,
+          n: fpuPcts.length,
+          /** Az étkezések középső felének szélessége (%-pont): nagy szórásnál nem megbízható. */
+          iqr: fpuIqr,
+          reliable: fpuPcts.length >= FPU_GOOD_EVENTS && fpuIqr! <= FPU_MAX_IQR,
+          // Tartósan a varsói érték fölött: inkább a beállított ISF / CH-arány torzít (minden modellhiba ide kerül).
+          mismatch: fpuMedian > 100,
+        }
       : null,
     current: t?.fpuPercent ?? null,
   }
@@ -634,8 +671,6 @@ export function analyze(from: number, to: number) {
   // --- Napszakonkénti összesítés és becslés.
   const allIcr: number[] = [] // az összes napszak CH-arány értékei az „egész nap” becsléshez
   const allIcrMeals: MealEvent[] = []
-  // Bázisellenőrzés (böjti időszakok sodródása), és ebből napszakonként az átlagos sodródás a becslések megbízhatóságához.
-  const basal = basalCheck(sensorGlucose, glucose, carbs, boluses, diaAt, low, disturbTs, segmentGroups(t), from, Math.min(to, Math.floor(Date.now() / 1000)))
   // A napszak óráinak súlyozott átlaga; a határon levő óra csak a napszakba eső perceivel számít (05:30 → az 5 óra fele).
   const driftOf = (start: string, end: string): number | null => {
     const m0 = hmToMin(start)
