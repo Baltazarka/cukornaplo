@@ -5,20 +5,8 @@
 // Az „Átvétel” csak a szerkesztő mezőit tölti ki; menteni a felhasználó ment.
 const emit = defineEmits<{ (e: 'apply', values: { start: string; alt?: boolean; isf?: number; icr?: number; actionMinutes?: number }[]): void }>()
 
-// Időszak: alapból 14 nap; a választás ebben a böngészőben megmarad.
-const PERIODS = [7, 14, 30, 60, 90]
-const DAYS_KEY = 'cukornaplo.analysisDays'
-const days = ref(14)
-onMounted(() => {
-  try {
-    const v = Number(localStorage.getItem(DAYS_KEY))
-    if (PERIODS.includes(v)) days.value = v
-  } catch { /* nincs tároló */ }
-})
-function setDays(d: number) {
-  days.value = d
-  try { localStorage.setItem(DAYS_KEY, String(d)) } catch { /* nincs tároló */ }
-}
+// Időszak: a Terápia oldal közös választója (alapból 14 nap).
+const { days } = useAnalysisDays()
 const { data, refresh } = await useFetch<any>('/api/analysis', {
   query: computed(() => ({ days: days.value })),
   key: computed(() => `analysis-${days.value}`),
@@ -187,12 +175,7 @@ const SAMPLE_MEAL_Y = SAMPLE_MEAL_X.map((t) => Math.round((sampleRise(t) - (t / 
   <section v-if="a" class="card analysis-card">
     <div class="card-head">
       <h2>Érzékenység, CH-arány, hatásidő <GuideLink section="becsles" /></h2>
-      <div class="analysis-period">
-        <div class="segmented" role="group" aria-label="Időszak">
-          <button v-for="d in PERIODS" :key="d" type="button" :aria-pressed="days === d" @click="setDays(d)">{{ d }} nap</button>
-        </div>
-        <span class="muted small">szenzoradat az időszak {{ fmt(a.coverage, 0) }}%-ában</span>
-      </div>
+      <span class="muted small">{{ days }} nap · szenzoradat az időszak {{ fmt(a.coverage, 0) }}%-ában</span>
     </div>
     <RecomputeBar :at="a.computedAt" kind="analysis" :days="days" @done="refresh()" />
     <p class="tp-what">Becsüli: <b>ISF, CH-arány, hatásidő</b> napszakonként · Miből: tiszta korrekciók és étkezések · <span class="muted">beállított →</span> <span class="calc">becsült</span></p>
@@ -216,6 +199,7 @@ const SAMPLE_MEAL_Y = SAMPLE_MEAL_X.map((t) => Math.round((sampleRise(t) - (t / 
       <section v-for="s in g.segs" :key="g.key + s.index" class="seg-sec">
         <header class="seg-sec-head">
           <h3>{{ s.start }}–{{ s.end }}</h3>
+          <small v-if="s.outcome" class="muted seg-outcome">céltartományban {{ s.outcome.tir }}% · alatta {{ fmt(s.outcome.below) }}% · átlag {{ fmt(s.outcome.avg) }}</small>
           <small
             v-if="s.estimate.drifting" class="est-drift"
             title="A böjti időszakokban (étel és ható bólus nélkül) a vércukor ebben a napszakban átlagosan ennyit változik óránként: a bázis nem fedi az alapigényt, ezért a korrekciók esése és az étkezések végpontja torzul, a becslések nem megbízhatók."

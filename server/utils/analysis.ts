@@ -692,6 +692,25 @@ export function analyze(from: number, to: number) {
 
   // Váltott műszaknál a becslés profilonként: az alap napszakokhoz csak az alap profil napjai, a délutános héthez a
   // délutános napok (más a beállítás); az étkezés-összesítő (meals / fatty) az alap napszakoknál minden napot mutat.
+  // Napszakonkénti eredmény a szenzoradatból (céltartományban, alatta, átlag): az alap napszakoknál minden nap,
+  // a délutános hétnél csak a délutános napok.
+  const outAcc = new Map<string, { n: number; inR: number; below: number; sum: number }>()
+  for (const p of sensorGlucose) {
+    if (p.ts < from || p.ts >= to) continue
+    const ai = altIndexAt(t, p.ts)
+    for (const k of ai >= 0 ? [`b${segIndexAt(t, p.ts)}`, `a${ai}`] : [`b${segIndexAt(t, p.ts)}`]) {
+      const o = outAcc.get(k) ?? { n: 0, inR: 0, below: 0, sum: 0 }
+      o.n++
+      if (p.v < low) o.below++
+      else if (p.v <= high) o.inR++
+      o.sum += p.v
+      outAcc.set(k, o)
+    }
+  }
+  const outcomeOf = (k: string) => {
+    const o = outAcc.get(k)
+    return o && o.n >= 12 ? { tir: Math.round((100 * o.inR) / o.n), below: r1((100 * o.below) / o.n), avg: r1(o.sum / o.n), hours: r1(o.n / 12) } : null
+  }
   const buildSeg = (sg: ReturnType<typeof segmentGroups>[number], alt: boolean) => {
     const segAll = meals.filter((m) => (alt ? m.altSeg === sg.index : m.seg === sg.index))
     const segMeals = segAll.filter((m) => !m.fatty)
@@ -751,6 +770,8 @@ export function analyze(from: number, to: number) {
       },
       meals: mealSummary(segMeals),
       fatty: mealSummary(fattyMeals),
+      /** Eredmény a szenzoradatból: céltartományban (%), alatta (%), átlag (mmol/L). */
+      outcome: outcomeOf(`${alt ? 'a' : 'b'}${sg.index}`),
       // A CH-arány becsléséhez használt tiszta étkezések görbéje (Terápia oldal).
       clean: mealSummary(usedMeals),
       // A napszak tiszta korrekcióinak mért hatásgörbéje (kevés eseménynél is, tájékoztatásul), a napszak hatásidejével.

@@ -4,9 +4,9 @@
 // egy napszakban (pl. hajnalban) a bázis vagy a napszak beállításának jele lehet.
 // `selectable`: saját időszakválasztó (Terápia oldal); különben a megadott időszak (főoldali időszakos nézet).
 const props = defineProps<{ end: string; days: number; selectable?: boolean }>()
-const PERIODS = [14, 30, 60, 90]
-const days = ref(props.days)
-watch(() => props.days, (v) => { days.value = v })
+// A Terápia oldalon (selectable) a közös időszakválasztó szerint, a főoldalon a megadott időszakra.
+const shared = useAnalysisDays().days
+const days = computed(() => (props.selectable ? shared.value : props.days))
 const { data } = await useFetch<any>('/api/analysis', {
   query: computed(() => ({ end: props.end, days: days.value })),
   key: computed(() => `analysis-${props.end}-${days.value}`),
@@ -45,9 +45,6 @@ const hover = ref<number | null>(null)
   <section v-if="b" class="card basal-check">
     <div class="card-head">
       <h2>Bázisellenőrzés <GuideLink section="bazis" /></h2>
-      <div v-if="selectable" class="segmented" role="group" aria-label="Időszak">
-        <button v-for="d in PERIODS" :key="d" type="button" :aria-pressed="days === d" @click="days = d">{{ d }} nap</button>
-      </div>
     </div>
     <p v-if="selectable" class="tp-what basal-sub">Becsüli: <b>elég-e a bázis</b> napszakonként · Miből: étel és ható bólus nélküli szakaszok vércukor-változása, {{ days }} nap</p>
     <p v-else class="muted small basal-sub">a vércukor változása étel és bólus nélküli időszakokban</p>

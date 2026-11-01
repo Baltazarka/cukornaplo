@@ -65,9 +65,15 @@ const isfOff = computed(() => {
 })
 const hu = (v: number, dec = 1) => v.toLocaleString('hu-HU', { maximumFractionDigits: dec })
 
+// A számolt rész közös időszaka (becslés, bázis, tipp).
+const { days: anaDays, setDays: setAnaDays } = useAnalysisDays()
+const periods = ANALYSIS_PERIODS
 // A becslés melletti tipphez: napszakonként mennyi tiszta korrekció / étkezés hiányzik még a megbízható (5) becsléshez,
-// az utolsó 14 napból (a becslés kártya alapértelmezett időszaka, ugyanaz a lekérés).
-const { data: ana } = await useFetch<any>('/api/analysis', { query: { days: 14 }, key: 'analysis-14' })
+// a választott időszakból (ugyanaz a lekérés, mint a becslés kártyáé).
+const { data: ana } = await useFetch<any>('/api/analysis', {
+  query: computed(() => ({ days: anaDays.value })),
+  key: computed(() => `analysis-${anaDays.value}`),
+})
 const need = computed<{ label: string; corr: number; meal: number }[]>(() =>
   (ana.value?.segments ?? []).map((s: any) => ({
     label: `${s.start}–${s.end}`,
@@ -345,11 +351,17 @@ async function save() {
       </TpTip>
     </div>
 
-    <h2 class="tp-title">Az adataidból számolva</h2>
+    <div class="tp-title tp-title-row">
+      <h2>Az adataidból számolva</h2>
+      <div class="segmented" role="group" aria-label="Időszak">
+        <button v-for="d in periods" :key="d" type="button" :aria-pressed="anaDays === d" @click="setAnaDays(d)">{{ d }} nap</button>
+      </div>
+      <span class="muted small">A becslés, a bázisellenőrzés és a tippek erre az időszakra számolnak.</span>
+    </div>
     <div class="tp-row">
       <AnalysisCard @apply="applyEstimates" />
       <TpTip>
-        <p v-if="need.some((n) => n.corr || n.meal)" class="muted small">Még kell a megbízható becsléshez (14 nap):</p>
+        <p v-if="need.some((n) => n.corr || n.meal)" class="muted small">Még kell a megbízható becsléshez ({{ anaDays }} nap):</p>
         <ul v-if="need.length" class="tip-need">
           <li v-for="n in need" :key="n.label">
             <b>{{ n.label }}</b>:
