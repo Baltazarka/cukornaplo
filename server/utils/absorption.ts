@@ -7,7 +7,8 @@
 //    legalább 45 perc. Amíg egy kategóriához kevés a tiszta étkezés, ez érvényes.
 // Az előrejelzés és az aktív CH használja.
 import { ABSORB_STEP, type AbsorbCategory, type AbsorptionProfile } from './analysis'
-import { analysisCached } from './analysisCache'
+import { analysisCached, analysisKey } from './analysisCache'
+import { readComputed } from './computed'
 import { todayYmd } from './time'
 
 /** Gyári alapértelmezett felszívódási ütem, gramm / óra. */
@@ -63,9 +64,18 @@ export function resetAbsorptionCache(): void {
   cache = null
 }
 
-function learnedOf(cat: AbsorbCategory): { prof: number[]; ref: number } | null {
-  const p = learnedAbsorption()?.[cat]
+function learnedOf(cat: AbsorbCategory, stored = false): { prof: number[]; ref: number } | null {
+  const p = (stored ? storedAbsorption() : learnedAbsorption())?.[cat]
   return p?.usable && p.profile && p.refGrams ? { prof: p.profile, ref: p.refGrams } : null
+}
+
+/**
+ * A tanult profilok csak a már tárolt 60 napos elemzésből, számolás nélkül. Az elemzés ezt használja (a CH-arányhoz):
+ * így a 60 napos elemzés nem indítja el önmagát, és a görbe az előző számolásé (egy lépéssel késve, körbe nem hat).
+ */
+function storedAbsorption(): Record<AbsorbCategory, AbsorptionProfile> | null {
+  if (cache) return cache.data
+  return readComputed<{ absorption: Record<AbsorbCategory, AbsorptionProfile> }>(analysisKey(LEARN_DAYS, todayYmd()))?.data?.absorption ?? null
 }
 
 /**
@@ -87,9 +97,9 @@ export function defaultTotalMin(cat: AbsorbCategory, grams: number): number {
 export const scaleFor = (grams: number, ref: number) => Math.min(SCALE_LIMITS[1], Math.max(SCALE_LIMITS[0], grams / ref))
 
 /** A felszívódott CH aránya (0 … 1) egy `grams` grammos étkezés után `minutes` perccel. */
-export function absorbedFraction(cat: AbsorbCategory, minutes: number, grams: number): number {
+export function absorbedFraction(cat: AbsorbCategory, minutes: number, grams: number, stored = false): number {
   if (minutes <= 0) return 0
-  const l = learnedOf(cat)
+  const l = learnedOf(cat, stored)
   if (!l) return defaultFraction(minutes / defaultTotalMin(cat, grams))
   const x = minutes / scaleFor(grams, l.ref) / ABSORB_STEP
   if (x >= l.prof.length - 1) return 1

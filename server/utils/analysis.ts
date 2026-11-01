@@ -8,7 +8,7 @@ import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from './insulinKind'
 import { notesBetween } from './notes'
 import { targetRange } from './range'
 import { minuteOfDayInTz, ymdInTz } from './time'
-import { defaultFraction, defaultTotalMin, scaleFor } from './absorption'
+import { defaultTotalMin, scaleFor, absorbedFraction } from './absorption'
 import { fpuUnits, fpuHours, FPU_CARB_G } from '#shared/utils/fpu'
 
 /** Ennyi tiszta esemény kell egy napszakban a becsléshez, illetve a megbízható becsléshez. */
@@ -48,6 +48,12 @@ const ICR_RISING = 0.6
 const TRUNC_MIN = 180
 /** Egymás utáni korrekciók összevonása: a következő korrekció legfeljebb ennyivel az előző után jöhet. */
 const CHAIN_GAP_SEC = 3 * 3600
+/** Érzékenység minden adatból: legalább ennyi 5 perces lépés (3 óra) kell, legalább 3 különböző napról. */
+const ALL_ISF_MIN_STEPS = 36
+/** Ennyi inzulinnak (E) kell hatnia 5 perc alatt, hogy a lépés számítson (különben a zaj dominál). */
+const ALL_ISF_MIN_ACTED = 0.03
+/** A szenzor késése: a vércukor-változást ennyivel később nézzük, mint az inzulin hatását. */
+const SENSOR_LAG_SEC = 10 * 60
 /** Egy étkezés CH-bejegyzései legfeljebb ennyi idő alatt fűződhetnek össze (a láncolás ne nyúljon végtelenre). */
 const MEAL_SPAN_MAX_SEC = 60 * 60
 /**
@@ -480,7 +486,8 @@ export function analyze(from: number, to: number) {
       fatty: g.fatty,
       endMin,
       truncated,
-      absorbed: g.carbs ? r2(defaultFraction(endMin / defaultTotalMin(g.fatty ? 'fatty' : g.fast ? 'fast' : 'normal', g.carbs))) : 1,
+      // A végpontig felszívódott rész: a tanult görbéből (a tárolt 60 napos elemzésé), ha van, különben az alapértelmezett.
+      absorbed: g.carbs ? r2(absorbedFraction(g.fatty ? 'fatty' : g.fast ? 'fast' : 'normal', endMin, g.carbs, true)) : 1,
       dEnd: vEnd != null ? r2(vEnd - startBG) : null,
       endRise: endRise != null ? r2(endRise) : null,
       acted: r2(acted),
@@ -693,6 +700,37 @@ export function analyze(from: number, to: number) {
     ev.effect = r1(eff)
     ev.pct = Math.round(((eff * r.icr) / r.isf / (r.units * FPU_CARB_G)) * 100)
   }
+  // --- Érzékenység minden adatból (az autotune módszere szerint): 5 percenként, ahol étel nem hat (a CH a mérete
+  // szerinti felszívódási időn túl van), nincs hipó és zavaró jegyzet, és az inzulin érdemben hat, a mért változást
+  // (a szenzor késésével eltolva, a böjti órákban mért bázis-sodródást levonva) elosztjuk az 5 perc alatt hatott
+  // inzulinnal. Napszakonként a hatott inzulinnal súlyozott medián: így a tiszta korrekciók hiánya nem akadály.
+  const allIsf = new Map<string, { items: { v: number; w: number }[]; days: Set<string> }>()
+  const nowSec = Math.floor(Date.now() / 1000)
+  for (let ts = Math.ceil(from / 300) * 300; ts < Math.min(to, nowSec) - SENSOR_LAG_SEC - 300; ts += 300) {
+    const a = sample(ts + SENSOR_LAG_SEC)
+    const b = sample(ts + SENSOR_LAG_SEC + 300)
+    if (a == null || b == null || a < low || b < low) continue
+    if (carbsAbsorbingAt(ts + 300) || disturbed(ts - 6 * 3600, ts + 300)) continue
+    let acted = 0
+    for (const x of bolusesBetween(ts - LOOKBACK_SEC, ts + 300)) if (x.ts > ts - diaAt(x.ts) * 60) acted += actedIn(x, Math.max(ts, x.ts), ts + 300)
+    if (acted < ALL_ISF_MIN_ACTED) continue
+    const hr = basal.hours[Math.floor(minuteOfDayInTz(ts) / 60)]
+    const drift = hr.slope != null && hr.hours >= 1 ? hr.slope / 12 : 0
+    const v = Math.max(-5, Math.min(10, (a - b + drift) / acted))
+    const ai = altIndexAt(t, ts)
+    const key = ai >= 0 ? `a${ai}` : `b${segIndexAt(t, ts)}`
+    const o = allIsf.get(key) ?? { items: [], days: new Set<string>() }
+    o.items.push({ v, w: acted })
+    o.days.add(ymdInTz(ts))
+    allIsf.set(key, o)
+  }
+  const allIsfOf = (key: string, drifting: boolean) => {
+    const o = allIsf.get(key)
+    if (!o || o.items.length < ALL_ISF_MIN_STEPS || o.days.size < MIN_DRIFT_DAYS) return null
+    const v = weightedMedian(o.items)
+    return v == null || v <= 0 ? null : { value: r1(v), n: o.items.length, hours: r1(o.items.length / 12), days: o.days.size, all: true, unreliable: drifting }
+  }
+
   const fpuPcts = fpuEvents.filter((e) => e.pct != null).map((e) => e.pct!).sort((a, b) => a - b)
   const fpuIqr = fpuPcts.length >= MIN_EVENTS ? Math.round(quantile(fpuPcts, 0.75) - quantile(fpuPcts, 0.25)) : null
   const fpuMedian = fpuPcts.length >= MIN_EVENTS ? Math.round(median(fpuPcts)!) : null
@@ -830,7 +868,7 @@ export function analyze(from: number, to: number) {
         // Kevés tiszta korrekciónál az összevont korrekciókkal együtt (adaggal súlyozott medián, tájékoztató).
         isf: actionFit
           ? { value: actionFit.isf, n: actionFit.n, unreliable: actionFit.unreliable || drifting }
-          : chainIsf(segCorr, segChains, drifting),
+          : chainIsf(segCorr, segChains, drifting) ?? allIsfOf(`${alt ? 'a' : 'b'}${sg.index}`, drifting),
         icr: icrEst != null ? { value: icrEst, n: icrValues.length, unreliable: icrRising || drifting, rising: risingN } : null,
         action: actionFit ? { ...actionFit, unreliable: actionFit.unreliable || drifting } : null,
         /** A napszak böjti időszakainak átlagos vércukor-változása (mmol/L/óra), ha van rá elég adat. */

@@ -34,7 +34,7 @@ function capped(v: number, cur: number | null | undefined, step: number): number
 }
 const reliableIsf = (s: any) => {
   const e = s.estimate.isf
-  if (!e || e.unreliable || e.chained || (e.n ?? s.counts.cleanCorrections) < GOOD) return undefined
+  if (!e || e.unreliable || e.chained || e.all || (e.n ?? s.counts.cleanCorrections) < GOOD) return undefined
   return capped(e.value, s.therapy?.isf, 0.05)
 }
 const reliableDia = (s: any) => {
@@ -213,7 +213,7 @@ const SAMPLE_MEAL_Y = SAMPLE_MEAL_X.map((t) => Math.round((sampleRise(t) - (t / 
           <div class="est-tile">
             <span class="est-k">Érzékenység <small>mmol/L/E</small></span>
             <span class="est-v"><span class="muted">{{ fmt(s.therapy?.isf) }} →</span> <b v-if="s.estimate.isf" class="calc" :class="{ 'est-bad': s.estimate.isf.unreliable }">{{ fmt(s.estimate.isf.value) }}</b><span v-else class="muted">?</span></span>
-            <small class="est-q">{{ s.estimate.isf?.unreliable ? 'nem megbízható' : quality(s.estimate.isf?.n ?? s.counts.cleanCorrections) }}<template v-if="s.estimate.isf?.chained"> · {{ s.estimate.isf.chained }} összevont</template></small>
+            <small class="est-q">{{ s.estimate.isf?.unreliable ? 'nem megbízható' : quality(s.estimate.isf?.n ?? s.counts.cleanCorrections) }}<template v-if="s.estimate.isf?.chained"> · {{ s.estimate.isf.chained }} összevont</template><template v-if="s.estimate.isf?.all"> · minden adatból ({{ fmt(s.estimate.isf.hours, 0) }} óra, {{ s.estimate.isf.days }} nap)</template></small>
           </div>
           <div class="est-tile">
             <span class="est-k">CH-arány <small>g/E</small></span>
