@@ -832,6 +832,7 @@ details.more p + p { margin-top: 6px; }
 .tp-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: inherit; }
 .tp-title-row h2 { margin: 0; font-size: 20px; }
 .seg-outcome { font-variant-numeric: tabular-nums; }
+.plaus-list { margin: 4px 0; padding-left: 18px; }
 .tp-card { display: flex; flex-direction: column; gap: 6px; }
 .tp-card > h2 { margin: 0 0 2px; font-size: 16px; }
 .tp-what { margin: 0; font-size: 13px; color: var(--text-secondary); }

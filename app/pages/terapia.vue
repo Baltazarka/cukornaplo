@@ -57,6 +57,40 @@ const tdd = computed(() => {
   return t && t.penDays >= 3 && t.insulinPerDay > 0 ? (t.insulinPerDay as number) : null
 })
 const rule = computed(() => (tdd.value ? { isf: 100 / tdd.value, icr: 500 / tdd.value } : null))
+// Tájékoztató figyelmeztetések a szokatlan értékekre (a mentést nem tiltják): túl alacsony / magas cél, két szomszédos
+// napszak között több mint kétszeres ugrás, és a mentett értékhez képest 30%-nál nagyobb változás.
+const savedByStart = new Map((t?.segments ?? []).map((s) => [s.start, s]))
+const plausibility = computed(() => {
+  const out: string[] = []
+  const rows = [...visible.value].sort((a, b) => hmToMinutes(a.start) - hmToMinutes(b.start))
+  const lowTargets = rows.filter((s) => s.target !== '' && Number(s.target) < 4.5).map((s) => s.start)
+  const highTargets = rows.filter((s) => s.target !== '' && Number(s.target) > 10).map((s) => s.start)
+  if (lowTargets.length) out.push(`A cél 4,5 alatt van (${lowTargets.join(', ')}): közel a hipó határához.`)
+  if (highTargets.length) out.push(`A cél 10 fölött van (${highTargets.join(', ')}).`)
+  if (rows.length > 1) {
+    for (const k of ['isf', 'icr'] as const) {
+      const jumps: string[] = []
+      rows.forEach((s, i) => {
+        const n = rows[(i + 1) % rows.length]
+        const a = Number(s[k])
+        const b = Number(n[k])
+        if (a > 0 && b > 0 && Math.max(a, b) / Math.min(a, b) > 2) jumps.push(`${s.start} → ${n.start}`)
+      })
+      if (jumps.length) out.push(`${k === 'isf' ? 'Az ISF' : 'A CH-arány'} több mint kétszeresére ugrik két napszak között (${jumps.join(', ')}).`)
+    }
+  }
+  const changed: string[] = []
+  for (const s of visible.value) {
+    const old = savedByStart.get(s.start)
+    if (!old) continue
+    for (const [k, label] of [['isf', 'ISF'], ['icr', 'CH-arány']] as const) {
+      const v = Number(s[k])
+      if (v > 0 && old[k] > 0 && Math.abs(v - old[k]) / old[k] > 0.3) changed.push(`${s.start} ${label}`)
+    }
+  }
+  if (changed.length) out.push(`30%-nál nagyobb változás a mentetthez képest: ${changed.join(', ')}.`)
+  return out
+})
 const isfOff = computed(() => {
   if (!rule.value) return []
   return visible.value
@@ -286,6 +320,11 @@ async function save() {
         ISF ≈ <span class="calc">{{ hu(rule.isf) }}</span> mmol/L/E · CH-arány ≈ <span class="calc">{{ hu(rule.icr) }}</span> g/E
         <span class="muted">(100 ÷ TDD, 500 ÷ TDD; csak kiindulópont)</span>
       </p>
+      <div v-if="plausibility.length" class="notice small" role="note">
+        <b>Ellenőrizd:</b>
+        <ul class="plaus-list"><li v-for="p in plausibility" :key="p">{{ p }}</li></ul>
+        A mentést nem tiltja; a változtatást a diabetológussal egyeztesd.
+      </div>
       <p v-if="isfOff.length" class="notice small" role="note">
         <b>Egyeztesd:</b> az ISF{{ byTimeOfDay ? ` (${isfOff.join(', ')})` : '' }} több mint kétszeresen eltér a napi összinzulinodból számolt kiinduló értéktől.
         Az előrejelzés és a javaslatok erre épülnek, ezért érdemes a diabetológussal átbeszélni.
