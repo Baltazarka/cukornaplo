@@ -119,7 +119,7 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
   }
   const carbRows = db()
     .prepare("SELECT ts, value, subtype FROM entries WHERE type = 'carbs' AND ts >= ? AND ts <= ? ORDER BY ts")
-    .all(nowTs - 8 * 3600, nowTs) as { ts: number; value: number; subtype: string | null }[]
+    .all(nowTs - 12 * 3600, nowTs) as { ts: number; value: number; subtype: string | null }[] // a tanult felszívódás nagy étkezésnél 12 óráig is tarthat
   const doses = rapidDoses(t, nowTs, nowTs + 1, carbRows.map((c) => Number(c.ts)))
 
   let insulinRate = 0
@@ -191,6 +191,7 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
   // (a mérés időpontjától: ami a mérés óta már hatott, az még nincs benne a mért értékben)
   for (const d of doses) eventual -= d.v * d.model.iob((latest.ts - d.ts) / 60) * isfAt(d.ts)
   for (const c of meals) eventual += c.grams * (1 - absorbed(c, -lagMin)) * c.perG
+  eventual = Math.min(MAX_GLUCOSE, Math.max(1.5, eventual))
   const range = targetRange()
   return { latest, low: range.low, high: range.high, target: seg.target, isf: seg.isf, perG, maxBolus: t.maxBolus, eventual, iob: iobNow, cob, treated, active, at, atMode, lastBolusTs }
 }
