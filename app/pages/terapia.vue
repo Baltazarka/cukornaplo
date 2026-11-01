@@ -79,11 +79,13 @@ const need = computed<{ label: string; corr: number; meal: number }[]>(() =>
 
 // A becslések átvétele a szerkesztőbe (napszak-kezdet szerint párosítva); menteni külön kell.
 const applied = ref('')
-function applyEstimates(values: { start: string; isf?: number; icr?: number; actionMinutes?: number }[]) {
+function applyEstimates(values: { start: string; alt?: boolean; isf?: number; icr?: number; actionMinutes?: number }[]) {
   const sorted = [...segments.value].sort((a, b) => hmToMinutes(a.start) - hmToMinutes(b.start))
   const changed: string[] = []
   for (const v of values) {
-    const row = byTimeOfDay.value ? segments.value.find((s) => s.start === v.start) : sorted[0]
+    // A délutános hét becslései a délutános napszakokba kerülnek.
+    const list = v.alt ? altSegments.value : segments.value
+    const row = byTimeOfDay.value ? list.find((s) => s.start === v.start) : v.alt ? undefined : sorted[0]
     if (!row) continue
     const parts: string[] = []
     if (v.isf != null) { row.isf = v.isf; parts.push('ISF') }
@@ -94,7 +96,7 @@ function applyEstimates(values: { start: string; isf?: number; icr?: number; act
       else actionMinutes.value = v.actionMinutes
       parts.push('hatásidő')
     }
-    if (parts.length) changed.push(`${row.start}: ${parts.join(', ')}`)
+    if (parts.length) changed.push(`${v.alt ? 'délutános hét ' : ''}${row.start}: ${parts.join(', ')}`)
   }
   applied.value = '' // az ismételt, azonos üzenet is jelenjen meg
   applied.value = changed.length ? `Beírtam a becsléseket (${changed.join('; ')}). Nézd át, és ha jó, mentsd.` : ''

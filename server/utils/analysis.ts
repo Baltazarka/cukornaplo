@@ -3,7 +3,7 @@
 // hatásidejére, napszakonként. Minden becslés javaslat: a terápia módosítása orvosi döntés.
 import type { Therapy, TherapySegment } from '#shared/types/therapy'
 import { db } from './db'
-import { therapy, activeSegments, segmentAt, actionMinutesAt, hmToMin } from './therapy'
+import { therapy, activeSegments, segmentAt, actionMinutesAt, hmToMin, profileOn } from './therapy'
 import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from './insulinKind'
 import { notesBetween } from './notes'
 import { targetRange } from './range'
@@ -118,10 +118,24 @@ function segIndexAt(t: Therapy | null, ts: number): number {
   if (!t || !t.byTimeOfDay) return 0
   return t.segments.indexOf(segmentAt(t, ts, true))
 }
+/** Van-e külön (délutános heti) profil, amire becslés készül. */
+const altOn = (t: Therapy | null): t is Therapy => !!t && !!t.altEnabled && !!t.altSegments?.length && t.byTimeOfDay
+/** Délutános heti napon a délutános profil napszakának indexe, különben -1. */
+function altIndexAt(t: Therapy | null, ts: number): number {
+  if (!altOn(t) || profileOn(t, ymdInTz(ts)) !== 'alt') return -1
+  return t.altSegments!.indexOf(segmentAt(t, ts))
+}
+function altSegmentGroups(t: Therapy | null) {
+  if (!altOn(t)) return []
+  const segs = t.altSegments!
+  return segs.map((s, i) => ({ index: i, start: s.start, end: segs[(i + 1) % segs.length].start, seg: s as TherapySegment | null }))
+}
 
 export interface MealEvent {
   ts: number
   seg: number
+  /** Délutános heti napon a délutános profil napszaka, különben -1. */
+  altSeg: number
   carbs: number | null
   bolus: number
   preBolusMin: number | null
@@ -190,6 +204,7 @@ export interface FpuEvent {
 export interface CorrectionEvent {
   ts: number
   seg: number
+  altSeg: number
   dose: number
   startBG: number
   drop: number
@@ -441,6 +456,7 @@ export function analyze(from: number, to: number) {
     meals.push({
       ts: g.ts,
       seg: segIndexAt(t, g.ts),
+      altSeg: altIndexAt(t, g.ts),
       carbs: g.carbs,
       bolus: r2(g.boluses.reduce((a, b) => a + b.v, 0)),
       preBolusMin: firstBolus != null ? Math.round((firstBolus - g.ts) / 60) : null,
@@ -528,6 +544,7 @@ export function analyze(from: number, to: number) {
     corrections.push({
       ts: b.ts,
       seg: segIndexAt(t, b.ts),
+      altSeg: altIndexAt(t, b.ts),
       dose: b.v,
       startBG: r1(startBG),
       drop: r1(best),
@@ -638,13 +655,15 @@ export function analyze(from: number, to: number) {
     return hours >= MIN_DRIFT_HOURS && days.size >= MIN_DRIFT_DAYS ? r2(sum / hours) : null
   }
 
-  const segments = segmentGroups(t).map((sg) => {
-    const segAll = meals.filter((m) => m.seg === sg.index)
+  // Váltott műszaknál a becslés profilonként: az alap napszakokhoz csak az alap profil napjai, a délutános héthez a
+  // délutános napok (más a beállítás); az étkezés-összesítő (meals / fatty) az alap napszakoknál minden napot mutat.
+  const buildSeg = (sg: ReturnType<typeof segmentGroups>[number], alt: boolean) => {
+    const segAll = meals.filter((m) => (alt ? m.altSeg === sg.index : m.seg === sg.index))
     const segMeals = segAll.filter((m) => !m.fatty)
     const fattyMeals = segAll.filter((m) => m.fatty)
     // A zsíros / fehérjedús étkezések kimaradnak a CH-arány becsléséből (a késői emelkedés torzítana).
-    const cleanCarbMeals = segMeals.filter((m) => m.clean && m.carbs && m.bolus > 0 && m.dEnd != null)
-    const segCorr = corrections.filter((c) => c.seg === sg.index)
+    const cleanCarbMeals = segMeals.filter((m) => (alt || m.altSeg < 0) && m.clean && m.carbs && m.bolus > 0 && m.dEnd != null)
+    const segCorr = corrections.filter((c) => (alt ? c.altSeg === sg.index : c.seg === sg.index && c.altSeg < 0))
 
     // ISF és hatásidő: a tiszta korrekciók egységnyi esési görbéjére illesztett modellből.
     const actionFit = segCorr.length >= MIN_EVENTS ? fitAction(segCorr, maxDia) : null
@@ -712,7 +731,9 @@ export function analyze(from: number, to: number) {
         drifting,
       },
     }
-  })
+  }
+  const segments = segmentGroups(t).map((sg) => buildSeg(sg, false))
+  const altSegments = altSegmentGroups(t).map((sg) => buildSeg(sg, true))
 
   // Egész nap (összevont) becslés: ha napszakonként kevés az esemény, de összesen elég, ez tájékoztatásul szolgál.
   // Az érzékenység és a hatásidő a mért eseményekből jön (napszaktól függetlenül); a CH-arány az étkezéseket a saját
@@ -734,6 +755,8 @@ export function analyze(from: number, to: number) {
     coverage: glucoseCoverage(sensorGlucose, from, Math.min(to, Math.floor(Date.now() / 1000))),
     counts: { meals: meals.length, corrections: correctionCount, cleanCorrections: corrections.length },
     segments,
+    /** A délutános hét napszakai (külön profil), ha be van kapcsolva. */
+    altSegments,
     action: actionSummary(corrections, t, maxDia),
     absorption: {
       normal: absorptionProfile(absorbSamples.filter((x) => x.cat === 'normal')),

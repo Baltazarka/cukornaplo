@@ -3,7 +3,7 @@
 // alapból az utolsó 14 napban),
 // és ha elég, becslés az érzékenységi tényezőre, a CH-arányra és a hatásidőre, a mért hatásgörbével.
 // Az „Átvétel” csak a szerkesztő mezőit tölti ki; menteni a felhasználó ment.
-const emit = defineEmits<{ (e: 'apply', values: { start: string; isf?: number; icr?: number; actionMinutes?: number }[]): void }>()
+const emit = defineEmits<{ (e: 'apply', values: { start: string; alt?: boolean; isf?: number; icr?: number; actionMinutes?: number }[]): void }>()
 
 // Időszak: alapból 14 nap; a választás ebben a böngészőben megmarad.
 const PERIODS = [7, 14, 30, 60, 90]
@@ -63,14 +63,22 @@ const reliableIcr = (s: any) => {
   if (newIsf != null && cur && Math.abs(newIsf - cur) / cur > 0.01) return undefined
   return capped(s.estimate.icr.value, s.therapy?.icr, 0.05)
 }
-const hasEstimate = computed(() => a.value?.segments.some((s: any) => reliableIsf(s) != null || reliableIcr(s) != null || reliableDia(s) != null))
+// Váltott műszaknál két csoport: az alap (délelőttös hét és minden más nap) és a délutános hét napszakai.
+const profGroups = computed(() => {
+  const alt: any[] = a.value?.altSegments ?? []
+  return alt.length
+    ? [{ key: 'base', title: 'Délelőttös hét és minden más nap', segs: a.value.segments, alt: false }, { key: 'alt', title: 'Délutános hét', segs: alt, alt: true }]
+    : [{ key: 'base', title: '', segs: a.value?.segments ?? [], alt: false }]
+})
+const hasEstimate = computed(() => profGroups.value.some((g) => g.segs.some((s: any) => reliableIsf(s) != null || reliableIcr(s) != null || reliableDia(s) != null)))
 function apply() {
-  emit('apply', a.value.segments.map((s: any) => ({
+  emit('apply', profGroups.value.flatMap((g) => g.segs.map((s: any) => ({
     start: s.start,
+    alt: g.alt,
     isf: reliableIsf(s),
     icr: reliableIcr(s),
     actionMinutes: reliableDia(s),
-  })))
+  }))))
 }
 
 // Tiszta étkezések görbéje napszakonként: a vércukor változása a kezdő értékhez képest (minden napszak látszik,
@@ -203,7 +211,9 @@ const SAMPLE_MEAL_Y = SAMPLE_MEAL_X.map((t) => Math.round((sampleRise(t) - (t / 
 
     <!-- Napszakonként egy blokk: fent a beállított → becsült értékek, alatta a két görbe, amiből számol. -->
     <div class="seg-secs">
-      <section v-for="s in a.segments" :key="s.index" class="seg-sec">
+      <template v-for="g in profGroups" :key="g.key">
+      <h3 v-if="g.title" class="seg-prof-h">{{ g.title }}</h3>
+      <section v-for="s in g.segs" :key="g.key + s.index" class="seg-sec">
         <header class="seg-sec-head">
           <h3>{{ s.start }}–{{ s.end }}</h3>
           <small
@@ -291,6 +301,8 @@ const SAMPLE_MEAL_Y = SAMPLE_MEAL_X.map((t) => Math.round((sampleRise(t) - (t / 
           </div>
         </div>
       </section>
+
+      </template>
 
       <!-- Egész nap: az összes napszak egybevonva (tájékoztató, a szerkesztőbe nem kerül be). -->
       <section v-if="a.segments.length > 1 && (showOverall || act?.observed)" class="seg-sec">

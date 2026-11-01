@@ -899,6 +899,7 @@ details.more p + p { margin-top: 6px; }
 .apply-row { padding-top: 12px; border-top: 1px solid var(--grid); }
 /* Becslés napszakonként: egy blokkban a beállított → becsült értékek és a két görbe, amiből számol. */
 .seg-secs { display: flex; flex-direction: column; gap: 12px; }
+.seg-prof-h { margin: 6px 0 -4px; font-size: 15px; }
 .seg-sec { border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .seg-sec-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
 .seg-sec-head h3 { margin: 0; font-size: 16px; font-variant-numeric: tabular-nums; }
