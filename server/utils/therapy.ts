@@ -36,6 +36,38 @@ export function profileOn(t: Therapy, ymd: string): 'base' | 'alt' {
   return profileFor(t, shiftOn(ymd))
 }
 
+/** A terápiás beállítás egy korábbi állapota: `from`-tól (unix mp) érvényes. */
+export interface TherapyVersion { from: number; therapy: Therapy }
+const HISTORY_MAX = 100
+
+/** A beállítások előzménye időrendben (settings `therapy_history`). */
+export function therapyHistory(): TherapyVersion[] {
+  return setting<TherapyVersion[]>('therapy_history', []) ?? []
+}
+
+/**
+ * Mentéskor az új beállítás bekerül az előzménybe. Az első mentéskor a korábbi (addig érvényes) beállítás is,
+ * kezdettől érvényesként: így a régebbi események a régi értékekkel számolhatók.
+ */
+export function recordTherapy(next: Therapy, prev: Therapy | null): void {
+  const list = [...therapyHistory()]
+  if (!list.length && prev) list.push({ from: 0, therapy: prev })
+  list.push({ from: Math.floor(Date.now() / 1000), therapy: next })
+  saveSettings({ therapy_history: list.slice(-HISTORY_MAX) })
+}
+
+/**
+ * Az adott időpontban érvényes beállítás az előzményből (előzmény nélkül a mostani). Az elemzés ezzel számol, hogy
+ * egy módosítás után a régi események ne az új értékekkel értékelődjenek.
+ */
+export function therapyAt(ts: number): Therapy | null {
+  const list = therapyHistory()
+  if (!list.length) return therapy()
+  let v = list[0].therapy
+  for (const x of list) if (x.from <= ts) v = x.therapy
+  return v
+}
+
 export function therapy(): Therapy | null {
   const t = setting<Therapy>('therapy', null)
   return t && Array.isArray(t.segments) && t.segments.length ? t : null

@@ -3,7 +3,7 @@
 // hatásidejére, napszakonként. Minden becslés javaslat: a terápia módosítása orvosi döntés.
 import type { Therapy, TherapySegment } from '#shared/types/therapy'
 import { db } from './db'
-import { therapy, activeSegments, segmentAt, actionMinutesAt, hmToMin, profileOn } from './therapy'
+import { therapy, therapyAt, activeSegments, segmentAt, actionMinutesAt, hmToMin, profileOn } from './therapy'
 import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from './insulinKind'
 import { notesBetween } from './notes'
 import { targetRange } from './range'
@@ -262,11 +262,14 @@ export function analyze(from: number, to: number) {
   const sample = sampler(sensorGlucose)
   // A beadás napszakának hatásideje bólusonként egyszer számolódik: az időzóna-számítás drága, és a ciklusok
   // (étkezésenként, pontonként, bólusonként) különben milliószor hívnák 90 napnál.
+  // Az esemény idején érvényes beállítás (az előzményből): a régi események a régi értékekkel számolnak.
+  const tAt = (ts: number): Therapy | null => (t ? (therapyAt(ts) ?? t) : null)
+  const segAt = (ts: number) => segmentAt(tAt(ts)!, ts)
   const diaCache = new Map<number, number>()
   const diaAt = (ts: number) => {
     let v = diaCache.get(ts)
     if (v === undefined) {
-      v = t ? actionMinutesAt(t, ts) : 240
+      v = t ? actionMinutesAt(tAt(ts)!, ts) : 240
       diaCache.set(ts, v)
     }
     return v
@@ -289,7 +292,7 @@ export function analyze(from: number, to: number) {
   // A mért hatásgörbe illesztésének felső határa: a terápiában kiválasztott bólusinzulin alkalmazási
   // előírás szerinti leghosszabb hatásideje (ha nincs megadva inzulin vagy adat, 5 óra).
   const maxDia = insulinById(t?.bolusInsulin)?.maxDurationMinutes ?? 300
-  const targetAt = (ts: number) => (t ? segmentAt(t, ts).target : 6)
+  const targetAt = (ts: number) => (t ? segAt(ts).target : 6)
   // Bólusonkénti hatásmodell (a beadás napszakának hatásidejével) az ablakban hatott inzulinhoz.
   const insulinPeakMin = insulinById(t?.bolusInsulin)?.peakMinutes ?? 75
   const models = new Map<number, ReturnType<typeof insulinModel>>()
@@ -381,7 +384,7 @@ export function analyze(from: number, to: number) {
         || disturbTs.some((ts) => ts > g.ts && ts <= learnEnd)
       const win = values.slice(MEAL_PRE_MIN / STEP, (MEAL_PRE_MIN + learnMin) / STEP + 1)
       if (!learnDisturbed && win.filter((v) => v != null).length / win.length >= MIN_COVERAGE) {
-        const isf = segmentAt(t, g.ts).isf
+        const isf = segAt(g.ts).isf
         const near = bolusesBetween(g.ts - LOOKBACK_SEC, learnEnd).filter((b) => b.ts > g.ts - diaAt(b.ts) * 60)
         const effectAt = (m: number): number | null => {
           const v = values[(MEAL_PRE_MIN + m) / STEP]
@@ -542,7 +545,7 @@ export function analyze(from: number, to: number) {
     if (win.filter((v) => v != null).length / win.length < MIN_COVERAGE) continue
     const drops = values.map((v) => (v == null ? null : startBG - v))
     const best = Math.max(...drops.map((d) => d ?? 0))
-    const expected = t ? b.v * segmentAt(t, b.ts).isf : null
+    const expected = t ? b.v * segAt(b.ts).isf : null
     const minDrop = expected != null ? Math.min(MIN_DROP, Math.max(MIN_DROP_FLOOR, MIN_DROP_FRAC * expected)) : MIN_DROP
     if (best < minDrop) continue
     corrections.push({
@@ -591,7 +594,7 @@ export function analyze(from: number, to: number) {
     if (vals.filter((v) => v != null).length / vals.length < MIN_COVERAGE) continue
     const dose = chain.reduce((a, x) => a + x.v, 0)
     const best = Math.max(...vals.map((v) => (v == null ? 0 : startBG - v)))
-    const expected = t ? dose * segmentAt(t, b.ts).isf : null
+    const expected = t ? dose * segAt(b.ts).isf : null
     const minDrop = expected != null ? Math.min(MIN_DROP, Math.max(MIN_DROP_FLOOR, MIN_DROP_FRAC * expected)) : MIN_DROP
     if (best < minDrop) continue
     chains.push({ ts: b.ts, seg: segIndexAt(t, b.ts), altSeg: altIndexAt(t, b.ts), dose: r2(dose), isf: r2(best / dose) })
@@ -647,7 +650,7 @@ export function analyze(from: number, to: number) {
     let effect: number | null = null
     let pct: number | null = null
     if (clean && t) {
-      const s = segmentAt(t, g.ts)
+      const s = segAt(g.ts)
       const acted = bolusesBetween(g.ts - LOOKBACK_SEC, end)
         .filter((b) => b.ts > g.ts - diaAt(b.ts) * 60)
         .reduce((a, b) => a + actedIn(b, g.ts, end), 0)
@@ -668,7 +671,7 @@ export function analyze(from: number, to: number) {
     }
     fpuEvents.push(ev)
     if (effect != null && t) {
-      const s = segmentAt(t, g.ts)
+      const s = segAt(g.ts)
       fpuRaw.set(ev, { isf: s.isf, icr: s.icr, effect, from: g.ts, to: end, units })
     }
   }
@@ -776,7 +779,8 @@ export function analyze(from: number, to: number) {
     const icrMeals: MealEvent[] = []
     if (isfForIcr) {
       for (const m of cleanCarbMeals) {
-        const mealNeeded = m.acted + m.dEnd! / isfForIcr
+        // Az étkezés idején érvényes ISF-fel (egy későbbi módosítás ne írja át a régi étkezéseket).
+        const mealNeeded = m.acted + m.dEnd! / segAt(m.ts).isf
         // Csak a végpontig felszívódott CH számít (rövidített ablaknál, vagy nagy étkezésnél még nem szívódott fel minden).
         if (mealNeeded > 0.2) {
           icrValues.push((m.carbs! * m.absorbed) / mealNeeded)

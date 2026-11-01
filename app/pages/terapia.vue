@@ -438,6 +438,15 @@ async function save() {
       </TpTip>
     </div>
     <div class="tp-row">
+      <TherapyHistoryCard />
+      <TpTip>
+        <ul>
+          <li>Minden mentés ide kerül dátummal; a becslés a régi eseményeket a régi beállítással számolja.</li>
+          <li>Egy változás hatását 1–2 hét után érdemes megnézni; egyszerre lehetőleg egy dolgot változtass, hogy látsszon, mi segített.</li>
+        </ul>
+      </TpTip>
+    </div>
+    <div class="tp-row">
       <PredictAccuracyCard />
       <TpTip>
         <ul>

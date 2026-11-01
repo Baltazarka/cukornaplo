@@ -833,6 +833,10 @@ details.more p + p { margin-top: 6px; }
 .tp-title-row h2 { margin: 0; font-size: 20px; }
 .seg-outcome { font-variant-numeric: tabular-nums; }
 .plaus-list { margin: 4px 0; padding-left: 18px; }
+.history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.history-list > li { padding: 8px 10px; border-radius: 10px; background: var(--page); }
+.history-changes { margin: 4px 0; padding-left: 18px; font-size: 14px; }
+.history-out { display: flex; flex-wrap: wrap; gap: 2px 18px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .tp-card { display: flex; flex-direction: column; gap: 6px; }
 .tp-card > h2 { margin: 0 0 2px; font-size: 16px; }
 .tp-what { margin: 0; font-size: 13px; color: var(--text-secondary); }
