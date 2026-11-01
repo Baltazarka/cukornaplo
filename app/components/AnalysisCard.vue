@@ -210,6 +210,10 @@ const SAMPLE_MEAL_Y = SAMPLE_MEAL_X.map((t) => Math.round((sampleRise(t) - (t / 
             v-if="s.estimate.drifting" class="est-drift"
             title="A böjti időszakokban (étel és ható bólus nélkül) a vércukor ebben a napszakban átlagosan ennyit változik óránként: a bázis nem fedi az alapigényt, ezért a korrekciók esése és az étkezések végpontja torzul, a becslések nem megbízhatók."
           >bázis-sodródás {{ s.estimate.drift > 0 ? '+' : '' }}{{ fmt(s.estimate.drift) }} mmol/L/óra, a becslés nem megbízható</small>
+          <small
+            v-else-if="s.estimate.drift == null" class="muted"
+            title="Ebben a napszakban nincs elég étel és bólus nélküli szakasz (legalább 3 óra, 3 napról): nem tudni, a bázis torzítja-e a becslést."
+          >bázis nem ellenőrizhető</small>
         </header>
         <div class="seg-est">
           <div class="est-tile">

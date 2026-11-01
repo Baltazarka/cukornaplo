@@ -41,7 +41,7 @@ export function therapy(): Therapy | null {
   return t && Array.isArray(t.segments) && t.segments.length ? t : null
 }
 
-function hmToMin(hm: string): number {
+export function hmToMin(hm: string): number {
   const [h, m] = hm.split(':').map(Number)
   return h * 60 + m
 }

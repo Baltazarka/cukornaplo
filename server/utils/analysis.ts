@@ -3,7 +3,7 @@
 // hatásidejére, napszakonként. Minden becslés javaslat: a terápia módosítása orvosi döntés.
 import type { Therapy, TherapySegment } from '#shared/types/therapy'
 import { db } from './db'
-import { therapy, activeSegments, segmentAt, actionMinutesAt } from './therapy'
+import { therapy, activeSegments, segmentAt, actionMinutesAt, hmToMin } from './therapy'
 import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from './insulinKind'
 import { notesBetween } from './notes'
 import { targetRange } from './range'
@@ -619,18 +619,20 @@ export function analyze(from: number, to: number) {
   const allIcrMeals: MealEvent[] = []
   // Bázisellenőrzés (böjti időszakok sodródása), és ebből napszakonként az átlagos sodródás a becslések megbízhatóságához.
   const basal = basalCheck(sensorGlucose, glucose, carbs, boluses, diaAt, low, from, Math.min(to, Math.floor(Date.now() / 1000)))
+  // A napszak óráinak súlyozott átlaga; a határon levő óra csak a napszakba eső perceivel számít (05:30 → az 5 óra fele).
   const driftOf = (start: string, end: string): number | null => {
-    const h0 = Number(start.slice(0, 2))
-    const h1 = Number(end.slice(0, 2))
-    const span = h1 > h0 ? h1 - h0 : h1 + 24 - h0
+    const m0 = hmToMin(start)
+    const m1 = hmToMin(end)
+    const span = m1 > m0 ? m1 - m0 : m1 + 1440 - m0
     let sum = 0
     let hours = 0
     const days = new Set<string>()
-    for (let i = 0; i < span; i++) {
-      const x = basal.hours[(h0 + i) % 24]
-      if (x.slope == null) continue
-      sum += x.slope * x.hours
-      hours += x.hours
+    for (let h = Math.floor(m0 / 60); h * 60 < m0 + span; h++) {
+      const frac = (Math.min((h + 1) * 60, m0 + span) - Math.max(h * 60, m0)) / 60
+      const x = basal.hours[h % 24]
+      if (x.slope == null || frac <= 0) continue
+      sum += x.slope * x.hours * frac
+      hours += x.hours * frac
       for (const d of x.days) days.add(d)
     }
     return hours >= MIN_DRIFT_HOURS && days.size >= MIN_DRIFT_DAYS ? r2(sum / hours) : null

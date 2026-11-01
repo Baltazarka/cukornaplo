@@ -90,9 +90,22 @@ const r1 = (v: number) => Math.round(v * 10) / 10
 export function hypoAnalysis(from: number, to: number) {
   const { low, high } = targetRange()
   const t = therapy()
-  const glucose = (db()
-    .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND ts >= ? AND ts < ? AND excluded = 0 ORDER BY ts")
-    .all(from - 2 * 3600, to + REBOUND_SEC) as any[]).map((r) => ({ ts: Number(r.ts), v: Number(r.value) }))
+  // A kézi mérés csak ott számít, ahol 10 percen belül nincs szenzoradat (a szenzor sorát ne törje meg, ne hidaljon át).
+  const rows = (db()
+    .prepare("SELECT ts, value, source FROM entries WHERE type = 'glucose' AND ts >= ? AND ts < ? AND excluded = 0 ORDER BY ts")
+    .all(from - 2 * 3600, to + REBOUND_SEC) as any[]).map((r) => ({ ts: Number(r.ts), v: Number(r.value), manual: r.source === 'manual' }))
+  const sensorTs = rows.filter((r) => !r.manual).map((r) => r.ts)
+  const nearSensor = (ts: number) => {
+    let lo = 0
+    let hi = sensorTs.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (sensorTs[mid] < ts) lo = mid + 1
+      else hi = mid
+    }
+    return (lo < sensorTs.length && sensorTs[lo] - ts <= 600) || (lo > 0 && ts - sensorTs[lo - 1] <= 600)
+  }
+  const glucose = rows.filter((r) => !r.manual || !nearSensor(r.ts)).map((r) => ({ ts: r.ts, v: r.v }))
   const other = db()
     .prepare("SELECT type, ts, value, subtype FROM entries WHERE type IN ('insulin', 'carbs') AND ts >= ? AND ts < ? ORDER BY ts")
     .all(from - BEFORE_SEC - 12 * 3600, to + REBOUND_SEC) as { type: string; ts: number; value: number; subtype: string | null }[]
