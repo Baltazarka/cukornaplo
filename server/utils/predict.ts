@@ -4,7 +4,7 @@
 //  - fel nem szívódott szénhidrát hatása (felszívódási görbe, az étkezés napszakának ISF ÷ CH-aránya mmol/L / g),
 //  - lendület (trend): a legutóbbi mérések meredeksége; rövid távon a trend, hosszabb távon a modell dönt
 //    (súlyozott átlag, a trend súlya lépésenként gyorsan csökken, mint az xDrip+-ban).
-//  Módszerek: 'persist' (az utolsó érték marad), 'trend' (csillapított lineáris extrapoláció, legfeljebb 20 percre),
+//  Módszerek: 'persist' (az utolsó érték marad), 'trend' (csillapított lineáris extrapoláció: fél meredekség, legfeljebb 15 percre),
 //  'residual' (a modellből nem magyarázható eltérés 15 percig folytatódik), 'blend' (trend + modell keverése).
 //  Alapból az automatikus választás él: a Terápia oldali visszateszt alapján távolságonként (15 / 30 / 60 perc) és
 //  aszerint, hogy van-e aktív inzulin / szénhidrát, a legkisebb hibájú módszer, így a bonyolultabb modell csak akkor
@@ -31,7 +31,12 @@ export const PREDICT_MODES: PredictMode[] = ['persist', 'trend', 'residual', 'bl
 /** A kiválasztott módszer távolságonként és állapotonként (aktív inzulin / CH van-e). */
 export type PredictChoice = Record<'15' | '30' | '60', { active: PredictMode; calm: PredictMode }>
 export const CHOICE_KEY = 'predict-choice'
-const TREND_CAP_MIN = 20 // a csillapított trend legfeljebb ennyi percig folytatódik
+const TREND_CAP_MIN = 15 // a csillapított trend legfeljebb ennyi percig folytatódik …
+const TREND_GAIN = 0.5 // … a meredekség felével (a valós visszatesztben a teljes meredekség 15 percre rosszabb volt a változatlannál)
+/** A keverés (modell) átlagos eltérése a visszatesztből (becsült − mért, mmol/L), távolságonként és állapotonként. */
+export type PredictBias = Record<'15' | '30' | '60', { active: number | null; calm: number | null }>
+export const BIAS_KEY = 'predict-bias'
+const BIAS_MAX = 2 // mmol/L: ennél nagyobb korrekciót nem alkalmazunk
 const ACTIVE_IOB = 0.5 // E
 const ACTIVE_COB = 10 // g
 /** Inzulinjavaslat csak ennél kevesebb aktív inzulinnál (E) … */
@@ -46,8 +51,41 @@ function choice(): PredictChoice | null {
   choiceCache = { at: now, v: readComputed<PredictChoice>(CHOICE_KEY)?.data ?? null }
   return choiceCache.v
 }
+let biasCache: { at: number; v: PredictBias | null } | null = null
+function biasTable(): PredictBias | null {
+  const now = Date.now()
+  if (biasCache && now - biasCache.at < 600_000) return biasCache.v
+  biasCache = { at: now, v: readComputed<PredictBias>(BIAS_KEY)?.data ?? null }
+  return biasCache.v
+}
 export function resetPredictChoice(): void {
   choiceCache = null
+  biasCache = null
+}
+/**
+ * A keverés torzítása `h` percre: a 15 / 30 / 60 perces mért értékek között lineárisan (0-tól), 60 perc után arányosan
+ * nő, legfeljebb BIAS_MAX. A valós adatban aktív inzulinnál a modell rendszeresen túl nagy esést jósolt (téves hipó-jelzés).
+ */
+function biasAt(h: number, active: boolean): number {
+  const b = biasTable()
+  if (!b) return 0
+  const pts: [number, number][] = [[0, 0]]
+  for (const k of ['15', '30', '60'] as const) {
+    const v = active ? b[k]?.active : b[k]?.calm
+    if (v != null) pts.push([Number(k), v])
+  }
+  if (pts.length < 2) return 0
+  let v: number
+  const last = pts[pts.length - 1]
+  if (h >= last[0]) v = (last[1] * h) / last[0]
+  else {
+    let i = 1
+    while (pts[i][0] < h) i++
+    const [x0, y0] = pts[i - 1]
+    const [x1, y1] = pts[i]
+    v = y0 + ((y1 - y0) * (h - x0)) / (x1 - x0)
+  }
+  return Math.max(-BIAS_MAX, Math.min(BIAS_MAX, v))
 }
 /** A távolsághoz legközelebbi tesztelt távolság (15 / 30 / 60 perc). */
 const bucket = (h: number): '15' | '30' | '60' => (h <= 22 ? '15' : h <= 45 ? '30' : '60')
@@ -97,6 +135,8 @@ interface Model {
   at: (h: number) => number
   /** Ugyanez egy adott módszerrel. */
   atMode: (h: number, mode: PredictMode) => number
+  /** A keverés a visszatesztben mért átlagos eltéréssel korrigálva (hipó-mélyponthoz, grafikonhoz). */
+  blendCorrected: (h: number) => number
   /** A legutóbbi (nem bázis) bólus időpontja, 0 ha nincs. */
   lastBolusTs: number
 }
@@ -159,7 +199,7 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
   const atMode = (h: number, md: PredictMode) => {
     const hh = h + lagMin // a mérés óta eltelt perc a célidőpontig
     if (md === 'persist' || (md === 'trend' && slope == null)) return Math.min(MAX_GLUCOSE, Math.max(1.5, latest.v))
-    if (md === 'trend') return Math.min(MAX_GLUCOSE, Math.max(1.5, latest.v + slope! * Math.min(hh, TREND_CAP_MIN)))
+    if (md === 'trend') return Math.min(MAX_GLUCOSE, Math.max(1.5, latest.v + TREND_GAIN * slope! * Math.min(hh, TREND_CAP_MIN)))
     let insulinEffect = 0
     for (const d of doses) {
       const m = (nowTs - d.ts) / 60
@@ -181,10 +221,12 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
   const iobNow = iobAt(doses, nowTs)
   const lastBolusTs = doses.reduce((a, d) => (d.ts <= nowTs && d.ts > a ? d.ts : a), 0)
   const active = iobNow >= ACTIVE_IOB || cob >= ACTIVE_COB
+  const blendCorrected = (h: number) => Math.min(MAX_GLUCOSE, Math.max(1.5, atMode(h, 'blend') - biasAt(h, active)))
   const at = (h: number) => {
     if (mode !== 'auto') return atMode(h, mode)
     const c = choice()?.[bucket(h)]
-    return atMode(h, c ? (active ? c.active : c.calm) : 'trend')
+    const md = c ? (active ? c.active : c.calm) : 'trend'
+    return md === 'blend' ? blendCorrected(h) : atMode(h, md)
   }
   // Hosszú távú érték: a teljes még aktív inzulin és a még fel nem szívódó CH hatásával.
   let eventual = latest.v
@@ -193,7 +235,7 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
   for (const c of meals) eventual += c.grams * (1 - absorbed(c, -lagMin)) * c.perG
   eventual = Math.min(MAX_GLUCOSE, Math.max(1.5, eventual))
   const range = targetRange()
-  return { latest, low: range.low, high: range.high, target: seg.target, isf: seg.isf, perG, maxBolus: t.maxBolus, eventual, iob: iobNow, cob, treated, active, at, atMode, lastBolusTs }
+  return { latest, low: range.low, high: range.high, target: seg.target, isf: seg.isf, perG, maxBolus: t.maxBolus, eventual, iob: iobNow, cob, treated, active, at, atMode, blendCorrected, lastBolusTs }
 }
 
 const round = (x: number, k: number) => Math.round(x * k) / k
@@ -224,8 +266,9 @@ export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 100
   let nadirIn = 0
   for (let h = 5; h <= horizon; h += 5) {
     // A hipó-veszély felmérésében óvatosan: a választott módszer, a csillapított trend és az inzulin / szénhidrát
-    // modellje (keverés) közül a legkisebbet vesszük, hogy az aktív inzulin lefelé mutató hatása ne vesszen el.
-    const v = Math.min(m.at(h), m.atMode(h, 'trend'), m.atMode(h, 'blend'))
+    // modellje (keverés) közül a legkisebbet vesszük, hogy az aktív inzulin lefelé mutató hatása ne vesszen el; a
+    // keverést a saját adataidon mért torzításával korrigálva (különben aktív inzulinnál téves riasztás lenne).
+    const v = Math.min(m.at(h), m.atMode(h, 'trend'), m.blendCorrected(h))
     if (v < nadir) { nadir = v; nadirIn = h }
   }
   const currentLow = m.latest.v < m.low
@@ -269,7 +312,7 @@ export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 100
 
 /**
  * A várható vércukorgörbe a következő `hours` órára, 5 percenként: [időpont ms, mmol/L].
- * Mindig az inzulin / szénhidrát modelljét (keverés) mutatja: azt, hogy a már felvett adagokkal és szénhidráttal mi
+ * Mindig az inzulin / szénhidrát modelljét (keverés, a visszatesztben mért torzítással korrigálva) mutatja: azt, hogy a már felvett adagokkal és szénhidráttal mi
  * várható, ha nem történik más (a jövőbeli étkezést / adagot nem ismeri). Az automatikusan választott módszer a
  * pontszerű előrejelzésre (és a hipó-jelzésre) vonatkozik, nem a görbére: a vízszintes „változatlan" vonal aktív
  * inzulin mellett félrevezető lenne.
@@ -278,6 +321,6 @@ export function predictSeries(hours = 3, nowTs = Math.floor(Date.now() / 1000)):
   const m = build(nowTs)
   if (!m) return []
   const out: [number, number][] = [[nowTs * 1000, m.latest.v]]
-  for (let h = 5; h <= hours * 60; h += 5) out.push([(nowTs + h * 60) * 1000, round(m.atMode(h, 'blend'), 10)])
+  for (let h = 5; h <= hours * 60; h += 5) out.push([(nowTs + h * 60) * 1000, round(m.blendCorrected(h), 10)])
   return out
 }

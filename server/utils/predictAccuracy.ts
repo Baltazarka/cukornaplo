@@ -4,7 +4,7 @@
 // külön számolja arra az esetre is, amikor van aktív inzulin / szénhidrát, és amikor nincs. Ebből a 14 napos teszt
 // kiválasztja távolságonként és állapotonként a legjobb módszert (az egyszerűbbet, ha nem rosszabb 3%-nál többel).
 // Megjegyzés: a tanult felszívódási görbe az egész időszak étkezéseiből készült, ezért a teszt enyhén optimista.
-import { predictMany, PREDICT_MODES, CHOICE_KEY, resetPredictChoice, type PredictMode, type PredictChoice } from './predict'
+import { predictMany, PREDICT_MODES, CHOICE_KEY, BIAS_KEY, resetPredictChoice, type PredictMode, type PredictChoice, type PredictBias } from './predict'
 import { glucosePoints } from './digest'
 import { storeComputed } from './computed'
 
@@ -19,8 +19,9 @@ export interface AccuracyRow {
   minutes: number
   n: number
   mae: Mae
-  active: { n: number; mae: Mae }
-  calm: { n: number; mae: Mae }
+  /** A keverés átlagos eltérése (becsült − mért); negatív: túl alacsonyat jósol. */
+  active: { n: number; mae: Mae; blendBias: number | null }
+  calm: { n: number; mae: Mae; blendBias: number | null }
 }
 export interface Accuracy {
   days: number
@@ -53,7 +54,7 @@ export function computeAccuracy(days: number): Accuracy {
     return best
   }
 
-  const acc = ACC_HORIZONS.map(() => ({ n: 0, all: emptySums(), act: { n: 0, s: emptySums() }, calm: { n: 0, s: emptySums() } }))
+  const acc = ACC_HORIZONS.map(() => ({ n: 0, all: emptySums(), act: { n: 0, s: emptySums(), bias: 0 }, calm: { n: 0, s: emptySums(), bias: 0 } }))
   // 30 percenként mintavétel, az utolsó 2 óra kimarad (ott még nincs mért „jövő”).
   for (let t = from; t <= now - 2 * 3600; t += 1800) {
     if (near(t) == null) continue
@@ -66,6 +67,7 @@ export function computeAccuracy(days: number): Accuracy {
       const part = r.active ? a.act : a.calm
       a.n++
       part.n++
+      part.bias += r.v.blend[h] - actual
       for (const m of PREDICT_MODES) {
         const e = Math.abs(r.v[m][h] - actual)
         a.all[m] += e
@@ -79,8 +81,8 @@ export function computeAccuracy(days: number): Accuracy {
       minutes: h,
       n: acc[i].n,
       mae: toMae(acc[i].all, acc[i].n),
-      active: { n: acc[i].act.n, mae: toMae(acc[i].act.s, acc[i].act.n) },
-      calm: { n: acc[i].calm.n, mae: toMae(acc[i].calm.s, acc[i].calm.n) },
+      active: { n: acc[i].act.n, mae: toMae(acc[i].act.s, acc[i].act.n), blendBias: acc[i].act.n >= MIN_SAMPLES ? r2(acc[i].act.bias / acc[i].act.n) : null },
+      calm: { n: acc[i].calm.n, mae: toMae(acc[i].calm.s, acc[i].calm.n), blendBias: acc[i].calm.n >= MIN_SAMPLES ? r2(acc[i].calm.bias / acc[i].calm.n) : null },
     })),
   }
 }
@@ -111,6 +113,7 @@ export function accuracyJob(days: number): Accuracy {
   const acc = computeAccuracy(days)
   if (days === CHOICE_DAYS) {
     storeComputed(CHOICE_KEY, chooseModes(acc))
+    storeComputed(BIAS_KEY, Object.fromEntries(acc.horizons.map((r) => [String(r.minutes), { active: r.active.blendBias, calm: r.calm.blendBias }])) as PredictBias)
     resetPredictChoice()
   }
   return acc
