@@ -37,15 +37,31 @@ const quality = (n: number) => (n >= GOOD ? 'megbízható' : n >= MIN ? 'előzet
 
 // A felső határon akadt illesztés (a vércukor az inzulin leghosszabb hatásidején túl is esett) nem
 // megbízható: az érzékenységet és a hatásidőt ilyenkor nem írjuk be a szerkesztőbe.
-const reliableIsf = (s: any) => (s.estimate.isf && !s.estimate.isf.unreliable ? s.estimate.isf.value : undefined)
-const reliableDia = (s: any) => (s.estimate.action && !s.estimate.action.unreliable ? s.estimate.action.dia : undefined)
-// A CH-arány csak akkor átvehető, ha nem emelkedik még a végpontban, és az ISF-et sem írjuk át egyszerre (az ICR a régi ISF-fel készült).
+// Csak megbízható (legalább GOOD eseményből készült) becslés kerül a szerkesztőbe, és egy lépésben legfeljebb ±20%-kal
+// tér el a beállítottól (mint az autotune korlátja); a nagyobb eltérés több lépésben, újabb adatokkal közelít.
+const MAX_STEP = 0.2
+function capped(v: number, cur: number | null | undefined, step: number): number {
+  const lim = cur ? Math.min(cur * (1 + MAX_STEP), Math.max(cur * (1 - MAX_STEP), v)) : v
+  return Number((Math.round(lim / step) * step).toFixed(2))
+}
+const reliableIsf = (s: any) => {
+  const e = s.estimate.isf
+  if (!e || e.unreliable || (e.n ?? s.counts.cleanCorrections) < GOOD) return undefined
+  return capped(e.value, s.therapy?.isf, 0.05)
+}
+const reliableDia = (s: any) => {
+  const e = s.estimate.action
+  if (!e || e.unreliable || (e.n ?? s.counts.cleanCorrections) < GOOD) return undefined
+  return Math.min(480, Math.max(120, capped(e.dia, s.therapy?.actionMinutes, 15)))
+}
+// A CH-arány csak akkor átvehető, ha nem emelkedik még a végpontban, és az ISF-et sem írjuk át egyszerre (az ICR a régi
+// ISF-fel készült; napszakonként egyszerre egy értéket változtatunk).
 const reliableIcr = (s: any) => {
-  if (!s.estimate.icr || s.estimate.icr.unreliable) return undefined
+  if (!s.estimate.icr || s.estimate.icr.unreliable || s.counts.cleanMeals < GOOD) return undefined
   const newIsf = reliableIsf(s)
   const cur = s.therapy?.isf
-  if (newIsf != null && cur && Math.abs(newIsf - cur) / cur > 0.1) return undefined
-  return s.estimate.icr.value
+  if (newIsf != null && cur && Math.abs(newIsf - cur) / cur > 0.01) return undefined
+  return capped(s.estimate.icr.value, s.therapy?.icr, 0.05)
 }
 const hasEstimate = computed(() => a.value?.segments.some((s: any) => reliableIsf(s) != null || reliableIcr(s) != null || reliableDia(s) != null))
 function apply() {
@@ -316,7 +332,7 @@ const SAMPLE_MEAL_Y = SAMPLE_MEAL_X.map((t) => Math.round((sampleRise(t) - (t / 
 
     <div class="btn-row apply-row">
       <button type="button" :disabled="!hasEstimate" @click="apply">Becslések beírása a szerkesztőbe</button>
-      <span class="muted small">Csak kitölti a fenti mezőket, mentés előtt átnézheted; a változtatást a diabetológusoddal egyeztesd.</span>
+      <span class="muted small">Csak a megbízható (5+ eseményes) becsléseket, lépésenként legfeljebb ±20%-kal tölti ki; mentés előtt átnézheted, a változtatást a diabetológusoddal egyeztesd.</span>
     </div>
   </section>
 </template>
