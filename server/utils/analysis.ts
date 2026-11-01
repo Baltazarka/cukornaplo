@@ -704,7 +704,7 @@ export function analyze(from: number, to: number) {
           n: fpuPcts.length,
           /** Az étkezések középső felének szélessége (%-pont): nagy szórásnál nem megbízható. */
           iqr: fpuIqr,
-          reliable: fpuPcts.length >= FPU_GOOD_EVENTS && fpuIqr! <= FPU_MAX_IQR,
+          reliable: fpuPcts.length >= FPU_GOOD_EVENTS && fpuIqr! <= FPU_MAX_IQR && fpuMedian <= 100,
           // Tartósan a varsói érték fölött: inkább a beállított ISF / CH-arány torzít (minden modellhiba ide kerül).
           mismatch: fpuMedian > 100,
         }
