@@ -46,6 +46,8 @@ const ICR_RISING = 0.6
  * kezelése, zavaró jegyzet), az étkezés a zavarásig számít a CH-arány becslésében. Rövidebb ablakból nem becsülünk.
  */
 const TRUNC_MIN = 180
+/** Egymás utáni korrekciók összevonása: a következő korrekció legfeljebb ennyivel az előző után jöhet. */
+const CHAIN_GAP_SEC = 3 * 3600
 /** Egy étkezés CH-bejegyzései legfeljebb ennyi idő alatt fűződhetnek össze (a láncolás ne nyúljon végtelenre). */
 const MEAL_SPAN_MAX_SEC = 60 * 60
 /**
@@ -556,6 +558,45 @@ export function analyze(from: number, to: number) {
     })
   }
 
+  // --- Összevont korrekciók: a valós adatban a korrekciók többségét 3 órán belül újabb korrekció követi, ezért
+  // „tisztán” kevés marad. Az egymás utáni, étel nélküli korrekciókat egy eseménynek vesszük (az első előtt 1 óráig
+  // tiszta, közben és az utolsó hatásidejéig nincs étel, más bólus és zavaró jegyzet): az összes adagra jutó legnagyobb
+  // esés adja az érzékenységet. A hatásidő illesztésébe nem kerül (több adag időben szétszórva torzítaná a görbét).
+  const chains: { ts: number; seg: number; altSeg: number; dose: number; isf: number }[] = []
+  for (const b of boluses) {
+    if (b.kind !== 'correction' || b.ts < from || b.ts >= to) continue
+    const pre = b.ts - CORR_PRE_MIN * 60
+    if (boluses.some((x) => x !== b && x.ts >= pre && x.ts <= b.ts)) continue
+    if (carbs.some((c) => c.ts >= pre && c.ts <= b.ts) || disturbed(pre, b.ts) || carbsAbsorbingAt(b.ts)) continue
+    const leftover = bolusesBetween(b.ts - LOOKBACK_SEC, b.ts).reduce((a, x) => (x === b ? a : a + x.v * modelOf(x.ts).iob((b.ts - x.ts) / 60)), 0)
+    if (leftover > Math.max(CORR_LEFTOVER_MIN_E, CORR_LEFTOVER_FRAC * b.v)) continue
+    // A lánc: a következő bólus korrekció, legfeljebb 3 órával az előző után, közben nincs étel.
+    const chain = [b]
+    for (;;) {
+      const last = chain[chain.length - 1]
+      const next = boluses.find((x) => x.ts > last.ts && x.ts <= last.ts + CHAIN_GAP_SEC)
+      if (!next || next.kind !== 'correction' || carbs.some((c) => c.ts > last.ts && c.ts <= next.ts)) break
+      chain.push(next)
+    }
+    if (chain.length < 2) continue // az egyedülálló korrekció a tiszta korrekciók között szerepel
+    const last = chain[chain.length - 1]
+    const end = last.ts + diaAt(last.ts) * 60
+    if (boluses.some((x) => x.ts > last.ts && x.ts <= end) || carbs.some((c) => c.ts > b.ts && c.ts <= end)) continue
+    if (disturbTs.some((ts) => ts > b.ts && ts <= end)) continue
+    const startBG = sample(b.ts)
+    const bgBefore = sample(b.ts - 900)
+    if (startBG == null || (bgBefore != null && Math.abs(startBG - bgBefore) / 15 >= STEEP_RATE)) continue
+    const steps = Math.floor((end - b.ts) / 60 / STEP)
+    const vals = Array.from({ length: steps + 1 }, (_, i) => sample(b.ts + i * STEP * 60))
+    if (vals.filter((v) => v != null).length / vals.length < MIN_COVERAGE) continue
+    const dose = chain.reduce((a, x) => a + x.v, 0)
+    const best = Math.max(...vals.map((v) => (v == null ? 0 : startBG - v)))
+    const expected = t ? dose * segmentAt(t, b.ts).isf : null
+    const minDrop = expected != null ? Math.min(MIN_DROP, Math.max(MIN_DROP_FLOOR, MIN_DROP_FRAC * expected)) : MIN_DROP
+    if (best < minDrop) continue
+    chains.push({ ts: b.ts, seg: segIndexAt(t, b.ts), altSeg: altIndexAt(t, b.ts), dose: r2(dose), isf: r2(best / dose) })
+  }
+
   // --- Zsíros étkezések zsír / fehérje adattal: mennyit emelt a zsír-fehérje a CH és az inzulin hatásán felül.
   // A végpontban (a várt hatásidő végén, 4–8 óra) a megfigyelt változásból levonjuk a CH teljes hatását
   // (CH × ISF ÷ CH-arány, a napszak beállított értékeivel) és hozzáadjuk a ténylegesen hatott inzulinét (minden bólus,
@@ -718,6 +759,7 @@ export function analyze(from: number, to: number) {
     // A zsíros / fehérjedús étkezések kimaradnak a CH-arány becsléséből (a késői emelkedés torzítana).
     const cleanCarbMeals = segMeals.filter((m) => (alt || m.altSeg < 0) && m.clean && m.carbs && m.bolus > 0 && m.dEnd != null)
     const segCorr = corrections.filter((c) => (alt ? c.altSeg === sg.index : c.seg === sg.index && c.altSeg < 0))
+    const segChains = chains.filter((c) => (alt ? c.altSeg === sg.index : c.seg === sg.index && c.altSeg < 0))
 
     // ISF és hatásidő: a tiszta korrekciók egységnyi esési görbéjére illesztett modellből.
     const actionFit = segCorr.length >= MIN_EVENTS ? fitAction(segCorr, maxDia) : null
@@ -767,6 +809,8 @@ export function analyze(from: number, to: number) {
         cleanMeals: usedMeals.length,
         truncatedMeals: usedMeals.filter((m) => m.truncated).length,
         cleanCorrections: segCorr.length,
+        /** Összevont (egymás utáni) korrekciók: csak az érzékenység becsléséhez. */
+        chainedCorrections: segChains.length,
       },
       meals: mealSummary(segMeals),
       fatty: mealSummary(fattyMeals),
@@ -779,7 +823,10 @@ export function analyze(from: number, to: number) {
       estimate: {
         // Ha az illesztés az inzulin leghosszabb hatásidején akadt meg, más is csökkentette a
         // vércukrot (pl. bázis): az érzékenység és a hatásidő ilyenkor nem megbízható.
-        isf: actionFit ? { value: actionFit.isf, n: actionFit.n, unreliable: actionFit.unreliable || drifting } : null,
+        // Kevés tiszta korrekciónál az összevont korrekciókkal együtt (adaggal súlyozott medián, tájékoztató).
+        isf: actionFit
+          ? { value: actionFit.isf, n: actionFit.n, unreliable: actionFit.unreliable || drifting }
+          : chainIsf(segCorr, segChains, drifting),
         icr: icrEst != null ? { value: icrEst, n: icrValues.length, unreliable: icrRising || drifting, rising: risingN } : null,
         action: actionFit ? { ...actionFit, unreliable: actionFit.unreliable || drifting } : null,
         /** A napszak böjti időszakainak átlagos vércukor-változása (mmol/L/óra), ha van rá elég adat. */
@@ -972,6 +1019,16 @@ function medianCurve(events: CorrectionEvent[]): (number | null)[] {
 }
 
 /** Súlyozott medián: az az érték, amelynél a kisebb értékek összsúlya eléri a teljes súly felét (két érték között félúton, ha pontosan ott van a határ). */
+/**
+ * ISF a tiszta és az összevont (egymás utáni) korrekciókból, adaggal súlyozott mediánnal; akkor, ha a tiszta
+ * korrekciók egymagukban kevesek, de az összevontakkal együtt legalább MIN_EVENTS esemény van.
+ */
+function chainIsf(clean: CorrectionEvent[], chained: { dose: number; isf: number }[], drifting: boolean) {
+  if (!chained.length || clean.length + chained.length < MIN_EVENTS) return null
+  const v = weightedMedian([...clean.map((c) => ({ v: c.isf, w: c.dose })), ...chained.map((c) => ({ v: c.isf, w: c.dose }))])
+  return v == null ? null : { value: r1(v), n: clean.length + chained.length, chained: chained.length, unreliable: drifting }
+}
+
 function weightedMedian(items: { v: number; w: number }[]): number | null {
   const xs = items.filter((x) => x.w > 0).sort((a, b) => a.v - b.v)
   if (!xs.length) return null
