@@ -54,7 +54,7 @@ const hover = ref<number | null>(null)
 
     <div class="basal-blocks">
       <div v-for="bl in b.blocks" :key="bl.label" class="basal-block" :class="'st-' + blockState(bl)">
-        <div class="tile-label">{{ bl.label }} <span class="muted">{{ String(bl.from).padStart(2, '0') }}–{{ String(bl.to % 24).padStart(2, '0') }}</span></div>
+        <div class="tile-label">{{ bl.label }}</div>
         <div class="tile-value">{{ fmt(bl.hours >= MIN_HOURS ? bl.slope : null, 1, true) }} <small>mmol/L / óra</small></div>
         <div class="tile-sub">
           <i class="st-dot" />{{ STATE_LABEL[blockState(bl)] }} · {{ fmt(bl.hours, 0) }} óra adat, {{ bl.days }} napról

@@ -618,7 +618,7 @@ export function analyze(from: number, to: number) {
   const allIcr: number[] = [] // az összes napszak CH-arány értékei az „egész nap” becsléshez
   const allIcrMeals: MealEvent[] = []
   // Bázisellenőrzés (böjti időszakok sodródása), és ebből napszakonként az átlagos sodródás a becslések megbízhatóságához.
-  const basal = basalCheck(sensorGlucose, glucose, carbs, boluses, diaAt, low, from, Math.min(to, Math.floor(Date.now() / 1000)))
+  const basal = basalCheck(sensorGlucose, glucose, carbs, boluses, diaAt, low, disturbTs, segmentGroups(t), from, Math.min(to, Math.floor(Date.now() / 1000)))
   // A napszak óráinak súlyozott átlaga; a határon levő óra csak a napszakba eső perceivel számít (05:30 → az 5 óra fele).
   const driftOf = (start: string, end: string): number | null => {
     const m0 = hmToMin(start)
@@ -935,22 +935,35 @@ function actionSummary(events: CorrectionEvent[], t: Therapy | null, maxDia: num
   }
 }
 
+const BASAL_SETTLE_MIN = 30 // a bólus hatásideje után ennyit még várunk (a hatás vége elnyúlhat)
+const BASAL_MIN_RUN_STEPS = 24 // legalább 2 óra összefüggő éhgyomri szakasz kell (5 perces lépés)
+const DISTURB_BLOCK_SEC = 6 * 3600 // sport / betegség / alkohol jegyzet után ennyi ideig nem böjti szakasz
+
 /**
- * Bázisellenőrzés: azokban az időszakokban, amikor étel és bólus nem befolyásolja a vércukrot
- * (4 óráig étkezés után — zsírosnál 6 —, a bólus hatásidején belül, és 2 órával hipó után nem),
- * mennyit változik a vércukor óránként. Ha a bázis jól fedi az alapigényt, ez közel nulla.
- * Eredmény: napóránkénti átlagos sodródás (mmol/L/óra) és három napszak-összesítés.
+ * Bázisellenőrzés: azokban az időszakokban, amikor étel és bólus nem befolyásolja a vércukrot, mennyit változik a
+ * vércukor óránként. Ha a bázis jól fedi az alapigényt, ez közel nulla. Kimarad: az étkezés felszívódása (a mérete
+ * szerint, de legalább 4 óra — zsírosnál 6, a zsír-fehérje hatásáig —, gyorsnál 2), a bólus hatásideje + fél óra,
+ * hipó után 2 óra, sport / betegség / alkohol jegyzet után 6 óra, és a 2 óránál rövidebb szakaszok.
+ * Eredmény: napóránkénti átlagos sodródás (mmol/L/óra) és a terápia napszakai szerinti összesítés.
  */
 function basalCheck(
-  sensorGlucose: G[], glucose: G[], carbs: Carb[], boluses: Bolus[], diaAt: (ts: number) => number, low: number, from: number, to: number,
+  sensorGlucose: G[], glucose: G[], carbs: Carb[], boluses: Bolus[], diaAt: (ts: number) => number, low: number,
+  disturbTs: number[], segs: { start: string; end: string }[], from: number, to: number,
 ) {
+  const carbBlockMin = (c: Carb) => {
+    const cat: AbsorbCategory = c.fatty ? 'fatty' : c.fast ? 'fast' : 'normal'
+    const fixed = c.fatty ? FATTY_WINDOW_MIN : c.fast ? FAST_WINDOW_MIN : MEAL_WINDOW_MIN
+    const fpu = c.fatty ? fpuUnits(c.fat, c.protein) : 0
+    return Math.max(fixed, defaultTotalMin(cat, c.v), fpu >= 0.5 ? 60 + fpuHours(fpu) * 60 : 0)
+  }
   const sample = sampler(sensorGlucose)
   // A „nem böjt” időszakok (étkezés, ható bólus, hipó utáni 2 óra) összefésülve, majd 5 perces
   // rácson egyetlen végigsöpréssel jelöljük, mely időpontok számítanak.
   const blocked: [number, number][] = [
-    ...carbs.map((c): [number, number] => [c.ts, c.ts + (c.fatty ? FATTY_WINDOW_MIN : c.fast ? FAST_WINDOW_MIN : MEAL_WINDOW_MIN) * 60]),
-    ...boluses.map((b): [number, number] => [b.ts, b.ts + diaAt(b.ts) * 60]),
+    ...carbs.map((c): [number, number] => [c.ts, c.ts + carbBlockMin(c) * 60]),
+    ...boluses.map((b): [number, number] => [b.ts, b.ts + (diaAt(b.ts) + BASAL_SETTLE_MIN) * 60]),
     ...glucose.filter((g) => g.v < low).map((g): [number, number] => [g.ts, g.ts + 2 * 3600]),
+    ...disturbTs.map((ts): [number, number] => [ts, ts + DISTURB_BLOCK_SEC]),
   ].sort((a, b) => a[0] - b[0])
   const LAG = 15 * 60 // a változást 15 perces lépésekben mérjük (kevésbé zajos)
   const start = Math.ceil(from / 300) * 300
@@ -963,10 +976,16 @@ function basalCheck(
     while (bi < blocked.length && blocked[bi][0] <= ts) blockedUntil = Math.max(blockedUntil, blocked[bi++][1])
     ok[i] = ts >= blockedUntil ? 1 : 0
   }
+  // A rövid (2 óránál kevesebb) böjti foszlányok kimaradnak: ott az előző hatás vége és a zaj dominál.
+  for (let i = 0; i < steps;) {
+    if (!ok[i]) { i++; continue }
+    let j = i
+    while (j < steps && ok[j]) j++
+    if (j - i < BASAL_MIN_RUN_STEPS) ok.fill(0, i, j)
+    i = j
+  }
 
   const hours = Array.from({ length: 24 }, () => ({ sum: 0, n: 0, days: new Set<string>() }))
-  const blockDays: Set<string>[] = [new Set(), new Set(), new Set(), new Set()]
-  const blockOf = (h: number) => (h < 4 ? 0 : h < 8 ? 1 : h < 12 ? 2 : 3)
   const lagSteps = LAG / 300
   for (let i = 0; i + lagSteps < steps; i++) {
     if (!ok[i] || !ok[i + lagSteps]) continue
@@ -978,24 +997,30 @@ function basalCheck(
     hours[h].sum += (b - a) * (3600 / LAG)
     hours[h].n++
     hours[h].days.add(ymdInTz(ts))
-    blockDays[blockOf(h)].add(ymdInTz(ts))
   }
-  const BLOCKS = [
-    { label: 'Éjszaka', from: 0, to: 4 },
-    { label: 'Hajnal, kora reggel', from: 4, to: 8 },
-    { label: 'Délelőtt', from: 8, to: 12 },
-    { label: 'Délután, este', from: 12, to: 24 },
-  ]
+  // Összesítés a terápia napszakai szerint; a határon levő óra a napszakba eső perceivel számít.
   return {
     hours: hours.map((x, h) => ({ h, slope: x.n ? r2(x.sum / x.n) : null, hours: r1((x.n * 5) / 60), days: [...x.days] })),
-    blocks: BLOCKS.map((b, i) => {
-      const hs = hours.slice(b.from, b.to)
-      const n = hs.reduce((a, x) => a + x.n, 0)
+    blocks: segs.map((sg) => {
+      const m0 = hmToMin(sg.start)
+      const m1 = hmToMin(sg.end)
+      const span = m1 > m0 ? m1 - m0 : m1 + 1440 - m0
+      let sum = 0
+      let n = 0
+      const days = new Set<string>()
+      for (let h = Math.floor(m0 / 60); h * 60 < m0 + span; h++) {
+        const frac = (Math.min((h + 1) * 60, m0 + span) - Math.max(h * 60, m0)) / 60
+        const x = hours[h % 24]
+        if (frac <= 0 || !x.n) continue
+        sum += x.sum * frac
+        n += x.n * frac
+        for (const d of x.days) days.add(d)
+      }
       return {
-        ...b,
-        slope: n ? r2(hs.reduce((a, x) => a + x.sum, 0) / n) : null,
+        label: span === 1440 ? 'Egész nap' : `${sg.start}–${sg.end}`,
+        slope: n ? r2(sum / n) : null,
         hours: r1((n * 5) / 60),
-        days: blockDays[i].size,
+        days: days.size,
       }
     }),
   }

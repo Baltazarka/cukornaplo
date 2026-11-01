@@ -298,7 +298,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
           <thead><tr><th>Időszak</th><th class="num">Változás (mmol/L/óra)</th><th class="num">Adat</th><th>Értékelés</th></tr></thead>
           <tbody>
             <tr v-for="bl in an.basal.blocks" :key="bl.label">
-              <td>{{ bl.label }} ({{ String(bl.from).padStart(2, '0') }}–{{ String(bl.to % 24).padStart(2, '0') }})</td>
+              <td>{{ bl.label }}</td>
               <td class="num">{{ fmt(bl.hours >= 1 ? bl.slope : null, 2, true) }}</td>
               <td class="num">{{ fmt(bl.hours, 0) }} óra, {{ bl.days }} nap</td>
               <td>{{ basalState(bl) }}</td>
