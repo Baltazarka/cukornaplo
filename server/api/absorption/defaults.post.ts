@@ -20,8 +20,8 @@ export default defineEventHandler(async (event) => {
   saveSettings({ absorb_rates: Object.keys(saved).length ? saved : null, absorb_defaults: null })
   resetDefaultAbsorbRate()
   resetAbsorptionCache()
-  // Az előrejelzés és a visszateszt az alapértelmezett felszívódási ütemtől függ.
-  invalidateComputed('predict')
+  // Az elemzés (tanulási ablak, CH-arány) és az előrejelzés is az alapértelmezett felszívódási ütemtől függ.
+  invalidateComputed()
   resetPredictChoice()
   return { ok: true }
 })

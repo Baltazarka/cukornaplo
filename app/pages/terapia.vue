@@ -88,7 +88,12 @@ function applyEstimates(values: { start: string; isf?: number; icr?: number; act
     const parts: string[] = []
     if (v.isf != null) { row.isf = v.isf; parts.push('ISF') }
     if (v.icr != null) { row.icr = v.icr; parts.push('CH-arány') }
-    if (v.actionMinutes != null) { row.actionMinutes = v.actionMinutes; parts.push('hatásidő') }
+    // Napszakok nélkül a közös hatásidő érvényes (a napszak saját mezőjét a szerver ilyenkor nem használja).
+    if (v.actionMinutes != null) {
+      if (byTimeOfDay.value) row.actionMinutes = v.actionMinutes
+      else actionMinutes.value = v.actionMinutes
+      parts.push('hatásidő')
+    }
     if (parts.length) changed.push(`${row.start}: ${parts.join(', ')}`)
   }
   applied.value = '' // az ismételt, azonos üzenet is jelenjen meg
