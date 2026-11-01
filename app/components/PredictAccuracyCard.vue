@@ -59,15 +59,17 @@ const choice = computed(() => data.value?.choice as Record<string, { active: Mod
       <p class="muted small">
       Visszateszt a saját szenzoradataidon: minden időpontban kiszámolja, mit jósolt volna az előrejelzés, és összeveti a ténylegesen
       mért értékkel. Átlagos abszolút hiba mmol/L-ben, <b>kisebb a jobb</b>. A „változatlan” az összehasonlítási alap: az utolsó érték marad;
-      a „trend” a csillapított meredekség (legfeljebb 20 percig). A program a 14 napos teszt alapján <b>magától a legjobbat használja</b>
+      a „trend” a csillapított meredekség (a fele, legfeljebb 15 percig). A program a 14 napos teszt alapján <b>magától a legjobbat használja</b>
       (az egyszerűbbet, ha nem rosszabb 3%-nál többel), így a bonyolultabb modell csak akkor számít, ha nálad tényleg pontosabb.
       </p>
       <p class="muted small">
-      A hipó-figyelmeztetésnél a program óvatosan a választott módszer és a trend közül a kisebb értéket veszi. A tanult felszívódási görbe
+      A hipó-figyelmeztetésnél a program óvatosan a választott módszer, a trend és az inzulin / CH modellje közül a kisebb értéket veszi; a modellt az itt mért átlagos eltérésével korrigálja. A tanult felszívódási görbe
       az egész időszak étkezéseiből készült, ezért a teszt kissé optimista. Az étkezés előtti órákban, új étkezés vagy adag felvétele előtt
       a modell nem ismerheti a jövőt, így azok hibája természetes.
       </p>
     </details>
+    <details class="more">
+    <summary>Módszerenként (táblázat)</summary>
     <div class="segmented" role="group" aria-label="Mikor">
       <button v-for="s in SUBSETS" :key="s.id" type="button" :aria-pressed="subset === s.id" @click="subset = s.id">{{ s.label }}</button>
     </div>
@@ -90,6 +92,7 @@ const choice = computed(() => data.value?.choice as Record<string, { active: Mod
       </table>
     </div>
     <p v-else class="muted">Nincs elég szenzoradat a teszthez.</p>
+    </details>
     <div v-if="choice" class="small">
       <b>Most használt módszer</b> (a 14 napos teszt alapján):
       <ul class="choice-list">

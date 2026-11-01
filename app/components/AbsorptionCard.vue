@@ -171,6 +171,8 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
       Amíg egy kategóriához nincs legalább {{ MIN }} tiszta étkezés, az előrejelzés és az aktív CH ezt használja; ha van tanult görbe, az az érvényes.
       </p>
     </details>
+    <details class="more">
+    <summary>Ütem beállítása</summary>
     <form class="absorb-rates" @submit.prevent="saveDefs()">
       <div class="absorb-rate-head" aria-hidden="true">
         <span>Kategória</span><span>Most ezzel számol</span><span>Tanult (adataidból)</span><span>Beállított ütem</span>
@@ -197,8 +199,10 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
         <button type="button" class="ghost" :disabled="saving" @click="saveDefs(true)">Gyári értékek</button>
       </div>
     </form>
+    </details>
 
-    <h3 class="absorb-sub">Mennyi CH szívódik fel óránként?</h3>
+    <details class="more">
+    <summary>Mennyi CH szívódik fel óránként? (táblázat)</summary>
     <p class="muted small">Szemléltetés egy {{ REF_GRAMS }} g-os étkezésre (számolt, nem beírandó).</p>
     <div class="absorb-table-wrap">
       <table class="absorb-table">
@@ -216,6 +220,7 @@ const hours = (m: number) => (m / 60).toLocaleString('hu-HU', { maximumFractionD
         </tbody>
       </table>
     </div>
+    </details>
   </section>
 </template>
 

@@ -21,6 +21,13 @@ function fmt(v: number | null | undefined, dec = 1): string {
 }
 const pct = (n: number) => `${Math.min(100, (100 * n) / GOOD)}%`
 const count = (n: number) => (n >= GOOD ? `${n} ✓` : `${n}/${GOOD}`)
+/** Miért nem megbízható egy becslés (rövid ok a szám alá). */
+function whyNot(s: any, e: any): string {
+  if (s?.estimate?.drifting) return 'nem megbízható: a bázis sodródik'
+  if (e?.atLimit) return 'nem megbízható: a hatásidőn túl is esett'
+  if (e?.short) return 'nem megbízható: túl rövid görbe'
+  return 'nem megbízható'
+}
 const quality = (n: number) => (n >= GOOD ? 'megbízható' : n >= MIN ? 'előzetes' : `még ${MIN - n}`)
 
 // A felső határon akadt illesztés (a vércukor az inzulin leghosszabb hatásidején túl is esett) nem
@@ -212,20 +219,20 @@ const SAMPLE_MEAL_Y = SAMPLE_MEAL_X.map((t) => Math.round((sampleRise(t) - (t / 
         <div class="seg-est">
           <div class="est-tile">
             <span class="est-k">Érzékenység <small>mmol/L/E</small></span>
-            <span class="est-v"><span class="muted">{{ fmt(s.therapy?.isf) }} →</span> <b v-if="s.estimate.isf" class="calc" :class="{ 'est-bad': s.estimate.isf.unreliable }">{{ fmt(s.estimate.isf.value) }}</b><span v-else class="muted">?</span></span>
-            <small class="est-q">{{ s.estimate.isf?.unreliable ? 'nem megbízható' : quality(s.estimate.isf?.n ?? s.counts.cleanCorrections) }}<template v-if="s.estimate.isf?.chained"> · {{ s.estimate.isf.chained }} összevont</template><template v-if="s.estimate.isf?.all"> · minden adatból ({{ fmt(s.estimate.isf.hours, 0) }} óra, {{ s.estimate.isf.days }} nap)</template></small>
+            <span class="est-v"><span class="muted">{{ fmt(s.therapy?.isf) }} →</span> <b v-if="s.estimate.isf" :class="s.estimate.isf.unreliable ? 'est-weak' : 'calc'">{{ fmt(s.estimate.isf.value) }}</b><span v-else class="muted">?</span></span>
+            <small class="est-q">{{ s.estimate.isf?.unreliable ? whyNot(s, s.estimate.isf?.all || s.estimate.isf?.chained ? s.estimate.isf : s.estimate.action) : quality(s.estimate.isf?.n ?? s.counts.cleanCorrections) }}<template v-if="s.estimate.isf?.chained"> · {{ s.estimate.isf.chained }} összevont</template><template v-if="s.estimate.isf?.all"> · minden adatból ({{ fmt(s.estimate.isf.hours, 0) }} óra, {{ s.estimate.isf.days }} nap)</template></small>
           </div>
           <div class="est-tile">
             <span class="est-k">CH-arány <small>g/E</small></span>
-            <span class="est-v"><span class="muted">{{ fmt(s.therapy?.icr) }} →</span> <b v-if="s.estimate.icr" class="calc" :class="{ 'est-bad': s.estimate.icr.unreliable }">{{ fmt(s.estimate.icr.value) }}</b><span v-else class="muted">?</span></span>
-            <small v-if="s.estimate.icr?.unreliable && s.estimate.drifting" class="est-q">nem megbízható</small>
-            <small v-else-if="s.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">még emelkedik</small>
+            <span class="est-v"><span class="muted">{{ fmt(s.therapy?.icr) }} →</span> <b v-if="s.estimate.icr" :class="s.estimate.icr.unreliable ? 'est-weak' : 'calc'">{{ fmt(s.estimate.icr.value) }}</b><span v-else class="muted">?</span></span>
+            <small v-if="s.estimate.icr?.unreliable && s.estimate.drifting" class="est-q">nem megbízható: a bázis sodródik</small>
+            <small v-else-if="s.estimate.icr?.unreliable" class="est-q" title="A tiszta étkezések többségénél a vércukor a végpontban még emelkedik: a CH nem szívódott fel teljesen, ezért a CH-arány túl nagy lehet.">nem megbízható: a végén még emelkedik</small>
             <small v-else class="est-q">{{ quality(s.counts.cleanMeals) }}</small>
           </div>
           <div class="est-tile">
             <span class="est-k">Hatásidő</span>
-            <span class="est-v"><span class="muted">{{ s.therapy ? actionLabel(s.therapy.actionMinutes) : '–' }} →</span> <b v-if="s.estimate.action" class="calc" :class="{ 'est-bad': s.estimate.action.unreliable }">{{ s.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(s.estimate.action.dia) }}</b><span v-else class="muted">?</span></span>
-            <small class="est-q">{{ s.estimate.action?.unreliable ? 'nem megbízható' : quality(s.estimate.action?.n ?? s.counts.cleanCorrections) }}</small>
+            <span class="est-v"><span class="muted">{{ s.therapy ? actionLabel(s.therapy.actionMinutes) : '–' }} →</span> <b v-if="s.estimate.action" :class="s.estimate.action.unreliable ? 'est-weak' : 'calc'">{{ s.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(s.estimate.action.dia) }}</b><span v-else class="muted">?</span></span>
+            <small class="est-q">{{ s.estimate.action?.unreliable ? whyNot(s, s.estimate.action) : quality(s.estimate.action?.n ?? s.counts.cleanCorrections) }}</small>
           </div>
         </div>
         <div class="seg-charts">
@@ -296,18 +303,18 @@ const SAMPLE_MEAL_Y = SAMPLE_MEAL_X.map((t) => Math.round((sampleRise(t) - (t / 
         <div v-if="showOverall" class="seg-est">
           <div class="est-tile">
             <span class="est-k">Érzékenység <small>mmol/L/E</small></span>
-            <span class="est-v"><b v-if="overall.estimate.isf" class="calc" :class="{ 'est-bad': overall.estimate.isf.unreliable }">{{ fmt(overall.estimate.isf.value) }}</b><span v-else class="muted">?</span></span>
-            <small class="est-q">{{ overall.estimate.isf?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
+            <span class="est-v"><b v-if="overall.estimate.isf" :class="overall.estimate.isf.unreliable ? 'est-weak' : 'calc'">{{ fmt(overall.estimate.isf.value) }}</b><span v-else class="muted">?</span></span>
+            <small class="est-q">{{ overall.estimate.isf?.unreliable ? whyNot(null, overall.estimate.action) : 'előzetes' }}</small>
           </div>
           <div class="est-tile">
             <span class="est-k">CH-arány <small>g/E</small></span>
-            <span class="est-v"><b v-if="overall.estimate.icr" class="calc" :class="{ 'est-bad': overall.estimate.icr.unreliable }">{{ fmt(overall.estimate.icr.value) }}</b><span v-else class="muted">?</span></span>
-            <small class="est-q">{{ overall.estimate.icr?.unreliable ? 'még emelkedik' : quality(overall.counts.cleanMeals) }}</small>
+            <span class="est-v"><b v-if="overall.estimate.icr" :class="overall.estimate.icr.unreliable ? 'est-weak' : 'calc'">{{ fmt(overall.estimate.icr.value) }}</b><span v-else class="muted">?</span></span>
+            <small class="est-q">{{ overall.estimate.icr?.unreliable ? 'nem megbízható: a végén még emelkedik' : quality(overall.counts.cleanMeals) }}</small>
           </div>
           <div class="est-tile">
             <span class="est-k">Hatásidő</span>
-            <span class="est-v"><b v-if="overall.estimate.action" class="calc" :class="{ 'est-bad': overall.estimate.action.unreliable }">{{ overall.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(overall.estimate.action.dia) }}</b><span v-else class="muted">?</span></span>
-            <small class="est-q">{{ overall.estimate.action?.unreliable ? 'nem megbízható' : 'előzetes' }}</small>
+            <span class="est-v"><b v-if="overall.estimate.action" :class="overall.estimate.action.unreliable ? 'est-weak' : 'calc'">{{ overall.estimate.action.atLimit ? '≥ ' : '' }}{{ actionLabel(overall.estimate.action.dia) }}</b><span v-else class="muted">?</span></span>
+            <small class="est-q">{{ overall.estimate.action?.unreliable ? whyNot(null, overall.estimate.action) : 'előzetes' }}</small>
           </div>
         </div>
         <div v-if="act?.observed" class="seg-charts">
