@@ -8,7 +8,7 @@ import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from './insulinKind'
 import { notesBetween } from './notes'
 import { targetRange } from './range'
 import { minuteOfDayInTz, ymdInTz } from './time'
-import { defaultFraction, defaultTotalMin } from './absorption'
+import { defaultFraction, defaultTotalMin, scaleFor } from './absorption'
 import { fpuUnits, fpuHours, FPU_CARB_G } from '#shared/utils/fpu'
 
 /** Ennyi tiszta esemény kell egy napszakban a becsléshez, illetve a megbízható becsléshez. */
@@ -819,23 +819,66 @@ export interface AbsorptionProfile {
   t90: number | null
 }
 
-/** Az étkezésenkénti arányok pontonkénti mediánja, monoton növekvővé téve (a zaj miatt). */
+/**
+ * Monoton növekvő illesztés (izotonikus regresszió, PAV): a futó maximummal szemben a zaj nem húzza felfelé a görbét.
+ * `y`: pontonkénti érték (null = nincs adat), `w`: súly (hány étkezésből).
+ */
+function isotonic(y: (number | null)[], w: number[]): (number | null)[] {
+  const blocks: { v: number; w: number; idx: number[] }[] = []
+  y.forEach((v, i) => {
+    if (v == null) return
+    blocks.push({ v, w: w[i], idx: [i] })
+    while (blocks.length > 1 && blocks[blocks.length - 2].v > blocks[blocks.length - 1].v) {
+      const b = blocks.pop()!
+      const a = blocks[blocks.length - 1]
+      a.v = (a.v * a.w + b.v * b.w) / (a.w + b.w)
+      a.w += b.w
+      a.idx.push(...b.idx)
+    }
+  })
+  const out: (number | null)[] = y.map(() => null)
+  for (const b of blocks) for (const i of b.idx) out[i] = b.v
+  return out
+}
+
+/**
+ * Az étkezésenkénti arányokból a felszívódási görbe a tanuló étkezések medián méretére (refGrams). Az előrejelzés a
+ * görbét a méret szerint nyújtja (nagyobb étkezés tovább tart), ezért itt fordítva: minden étkezés idejét a méretével
+ * a referenciaméretre normáljuk, mielőtt pontonként a mediánt vesszük; a mediánra monoton illesztés kerül.
+ */
 function absorptionProfile(items: { frac: (number | null)[]; grams: number }[]): AbsorptionProfile {
-  const samples = items.map((x) => x.frac)
-  const n = samples.length
+  const n = items.length
   const empty: AbsorptionProfile = { n, usable: false, profile: null, refGrams: null, t10: null, t50: null, t90: null }
   if (n < MIN_EVENTS) return empty
+  const ref = median(items.map((x) => x.grams))!
+  // Egy étkezés aránya a referenciaidő `i`. pontjában: a saját idejében `i · lépés · nyújtás` percnél (interpolálva).
+  const samples = items.map((x) => {
+    const sc = scaleFor(x.grams, ref)
+    return Array.from({ length: ABSORB_POINTS }, (_, i) => {
+      const pos = i * sc
+      const j = Math.floor(pos)
+      const a = x.frac[j]
+      const b = x.frac[Math.min(j + 1, ABSORB_POINTS - 1)]
+      if (a == null || j >= ABSORB_POINTS) return null
+      return b == null || j + 1 >= ABSORB_POINTS ? (pos === j ? a : null) : a + (b - a) * (pos - j)
+    })
+  })
   const med: (number | null)[] = []
+  const cnt: number[] = []
   for (let i = 0; i < ABSORB_POINTS; i++) {
     const vals = samples.map((x) => x[i]).filter((v): v is number => v != null)
     med.push(vals.length >= 2 ? median(vals) : null)
+    cnt.push(vals.length)
   }
+  med[0] = 0
+  cnt[0] = Math.max(1, cnt[0])
   const lastIdx = med.findLastIndex((v) => v != null)
   if (lastIdx < 4) return empty
+  const fit = isotonic(med, cnt)
   const prof: number[] = []
   let run = 0
   for (let i = 0; i < ABSORB_POINTS; i++) {
-    run = Math.max(run, i === 0 ? 0 : i > lastIdx ? 1 : (med[i] ?? run))
+    run = i > lastIdx ? 1 : (fit[i] ?? run)
     prof.push(Math.min(1, Math.max(0, run)))
   }
   const peak = Math.max(...prof)
@@ -848,7 +891,7 @@ function absorptionProfile(items: { frac: (number | null)[]; grams: number }[]):
     const b = norm[i]
     return Math.round((i - 1 + (b > a ? (q - a) / (b - a) : 1)) * ABSORB_STEP)
   }
-  return { n, usable: true, profile: norm.map(r2), refGrams: Math.round(median(items.map((x) => x.grams))!), t10: when(0.1), t50: when(0.5), t90: when(0.9) }
+  return { n, usable: true, profile: norm.map(r2), refGrams: Math.round(ref), t10: when(0.1), t50: when(0.5), t90: when(0.9) }
 }
 
 function glucoseCoverage(g: G[], from: number, to: number): number {

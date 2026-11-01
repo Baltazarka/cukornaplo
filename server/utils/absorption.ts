@@ -17,7 +17,7 @@ export const ABSORB_RATE_LIMITS = { min: 5, max: 120 } as const
 const MIN_TOTAL_MIN = 45
 const MAX_TOTAL_MIN = 480
 /** A tanult görbe nyújtási tényezőjének határai. */
-const SCALE_LIMITS = [0.5, 2] as const
+export const SCALE_LIMITS = [0.5, 2] as const
 
 let defaultsCache: { at: number; value: Record<AbsorbCategory, number> } | null = null
 
@@ -84,7 +84,7 @@ export function defaultTotalMin(cat: AbsorbCategory, grams: number): number {
 }
 
 /** A tanult görbe időbeli nyújtása egy `grams` grammos étkezésre (a tanuló étkezések átlagos méretéhez képest). */
-const scaleFor = (grams: number, ref: number) => Math.min(SCALE_LIMITS[1], Math.max(SCALE_LIMITS[0], grams / ref))
+export const scaleFor = (grams: number, ref: number) => Math.min(SCALE_LIMITS[1], Math.max(SCALE_LIMITS[0], grams / ref))
 
 /** A felszívódott CH aránya (0 … 1) egy `grams` grammos étkezés után `minutes` perccel. */
 export function absorbedFraction(cat: AbsorbCategory, minutes: number, grams: number): number {
