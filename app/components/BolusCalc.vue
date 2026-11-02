@@ -183,7 +183,13 @@ async function logToDiary() {
     if (logInsulin.value && doseV.value && !doseInvalid.value) {
       // Típussal: a CH-val együtt (vagy a kalkulátorba írt CH mellett) étkezési bólus, CH nélkül korrekció.
       const kind = carbsV.value ? 'meal' : 'correction'
-      if (await addEntry({ type: 'insulin', value: doseV.value, sub: kind })) {
+      // A számítás bontása is elmentődik, hogy utólag látszódjon, mennyi volt az ételre és mennyi a korrekció.
+      const r = result.value
+      const calc = r ? {
+        carbs: carbsV.value ?? 0, bg: bgV.value, icr: ratios.value.icr, isf: ratios.value.isf, target: seg.value.target,
+        carbDose: r.carbDose, correction: r.correction, iobUsed: r.iobUsed, total: r.total, dose: r.dose, fpu: fpuTogetherExtra.value || null,
+      } : undefined
+      if (await addEntry({ type: 'insulin', value: doseV.value, sub: kind, calc })) {
         done.push(`${fmt(doseV.value)} E ${kind === 'meal' ? 'étkezési bólus' : 'korrekció'}`)
         logged.dose = doseV.value
       } else skipped = true

@@ -1,7 +1,7 @@
 // Kézi bejegyzés a naplóba: inzulin (E), szénhidrát (g) vagy vércukor (mmol/L, kézi mérés, nem szenzoradat),
 // időponttal (az app időzónájában).
 // { date: 'YYYY-MM-DD', time: 'HH:MM', type: 'insulin' | 'carbs' | 'glucose', value, sub?: meal | correction | basal
-//   (inzulin) vagy fatty | fast (CH), fat?, protein? (g, CH-hoz), force?: true }
+//   (inzulin) vagy fatty | fast (CH), fat?, protein? (g, CH-hoz), calc? (inzulinhoz a kalkulátor bontása), force?: true }
 // Friss (30 percen belüli) zsíros étkezésnél zsír / fehérje megadásával a zsír-fehérje emlékeztető is beáll.
 // Ha 30 percen belül már van ugyanilyen típusú bejegyzés, 409-cel visszaszól (force: true-val mégis
 // felveszi). Ha a telefon (Apple Health) később ugyanezt az adagot küldi, a kézi sor beolvad (db.ts storeRows).
@@ -56,6 +56,17 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 400)
     return { ok: false, error: `A zsír és a fehérje 0–${MACRO_MAX_G} g lehet.` }
   }
+  // A kalkulátor bontása (inzulinhoz): csak a várt számmezők, ésszerű határok közt.
+  let calc: string | null = null
+  if (type === 'insulin' && body.calc && typeof body.calc === 'object') {
+    const keys = ['carbs', 'bg', 'icr', 'isf', 'target', 'carbDose', 'correction', 'iobUsed', 'total', 'dose', 'fpu'] as const
+    const o: Record<string, number> = {}
+    for (const k of keys) {
+      const n = Number(body.calc[k])
+      if (body.calc[k] != null && Number.isFinite(n) && Math.abs(n) <= 1000) o[k] = Math.round(n * 100) / 100
+    }
+    if (o.carbDose != null && o.correction != null) calc = JSON.stringify(o)
+  }
   // Időpont nélkül a pontos mostani pillanat (óraátállításkor sem kétértelmű); faliidőből a már elmúlt előfordulás.
   const ts = body.date || body.time ? wallToTs(date, time, nowSec) : nowSec
   if (ts > nowSec + 15 * 60) {
@@ -93,8 +104,8 @@ export default defineEventHandler(async (event) => {
   // Ha korábban pont ezt töröltük, a kézi felvétel visszaállítja.
   db().prepare('DELETE FROM deleted_entries WHERE type = ? AND ts = ? AND value = ?').run(type, ts, value)
   const info = db()
-    .prepare('INSERT OR IGNORE INTO entries (type, ts, value, subtype, source, created_at, fat, protein) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(type, ts, value, sub, MANUAL_SOURCE, now, fat, protein)
+    .prepare('INSERT OR IGNORE INTO entries (type, ts, value, subtype, source, created_at, fat, protein, calc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(type, ts, value, sub, MANUAL_SOURCE, now, fat, protein, calc)
   if (Number(info.changes) === 0) {
     setResponseStatus(event, 409)
     return { ok: false, error: 'Pontosan ilyen bejegyzés (időpont és mennyiség) már van.' }

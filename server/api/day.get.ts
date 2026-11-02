@@ -15,6 +15,11 @@ import { detectHypos, hypoCount } from '../utils/hypo'
 import { carbCurve, cobAt, absorbCategory } from '../utils/absorption'
 import { excludedBetween } from '../utils/excluded'
 
+/** A kalkulátor eltárolt bontása (étel / korrekció / aktív inzulin); hibás JSON-nál nincs. */
+function parseCalc(s: string): Record<string, number> | null {
+  try { return JSON.parse(s) } catch { return null }
+}
+
 export default defineEventHandler((event) => {
   const q = getQuery(event)
   const { low, high } = targetRange()
@@ -27,7 +32,7 @@ export default defineEventHandler((event) => {
   const rangeStart = startOfDayTs(addDaysYmd(day, -13))
 
   const allRows = db()
-    .prepare('SELECT id, type, ts, value, subtype, source, fat, protein, excluded FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
+    .prepare('SELECT id, type, ts, value, subtype, source, fat, protein, calc, excluded FROM entries WHERE ts >= ? AND ts < ? ORDER BY ts')
     .all(rangeStart, dayEnd) as any[]
   // A kizárt szenzorértékek (pl. ráfekvés) semmibe nem számítanak, csak a grafikonon látszanak szürkén.
   const rows = allRows.filter((r) => !r.excluded)
@@ -53,6 +58,7 @@ export default defineEventHandler((event) => {
       dayRows[r.type as 'glucose' | 'insulin' | 'carbs'].push({
         id: Number(r.id), ts, v, sub: r.subtype, src: r.source,
         ...(r.type === 'carbs' ? { fat: r.fat == null ? null : Number(r.fat), protein: r.protein == null ? null : Number(r.protein) } : {}),
+        ...(r.type === 'insulin' && r.calc ? { calc: parseCalc(r.calc) } : {}),
       })
     }
   }
@@ -128,6 +134,7 @@ export default defineEventHandler((event) => {
       manual: e.src === MANUAL_SOURCE,
       autoBasal: e.src === AUTO_BASAL_SOURCE,
       ...(e.type === 'carbs' ? { fat: (e as any).fat ?? null, protein: (e as any).protein ?? null } : {}),
+      ...(e.type === 'insulin' ? { calc: (e as any).calc ?? null } : {}),
     })),
     stats: { day: dayStats, range14: rangeStats },
     totals: {

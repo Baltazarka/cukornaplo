@@ -153,6 +153,21 @@ async function saveMacros() {
     macroError.value = err?.data?.error ?? 'A mentés nem sikerült.'
   }
 }
+/** A kalkulátorból beírt bólus bontása: ételre, korrekció, aktív inzulin, zsír-fehérje, és ha átírtad, a javasolt. */
+const calcText = (e: any) => {
+  const c = e.calc
+  if (!c) return ''
+  const sign = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '') + fmt(Math.abs(v))
+  const parts = [
+    c.carbDose > 0 ? `ételre ${fmt(c.carbDose)} E${c.carbs ? ` (${fmt(c.carbs, 0)} g)` : ''}` : '',
+    c.bg != null && c.correction !== 0 ? `korrekció ${sign(c.correction)} E (${fmt(c.bg)} → ${fmt(c.target)})` : '',
+    c.iobUsed > 0 ? `aktív inzulin −${fmt(c.iobUsed)} E` : '',
+    c.fpu > 0 ? `zsír-fehérje +${fmt(c.fpu)} E` : '',
+  ].filter(Boolean)
+  const suggested = (c.dose ?? 0) + (c.fpu ?? 0)
+  if (Math.abs(suggested - e.v) >= 0.05) parts.push(`javasolt ${fmt(suggested)} E, beírva ${fmt(e.v)} E`)
+  return parts.join(' · ')
+}
 const macroText = (e: any) => [e.fat != null ? `${fmt(e.fat, 0)} g zsír` : '', e.protein != null ? `${fmt(e.protein, 0)} g fehérje` : ''].filter(Boolean).join(', ')
 async function setSub(e: any, v: string) {
   try {
@@ -620,6 +635,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                       <template v-else>{{ kindLabel(e) }}</template>
                       <span v-if="e.autoBasal" class="note-chip name-chip chip-auto">automatikus</span>
                       <span v-else-if="e.manual" class="note-chip name-chip">kézi</span>
+                      <div v-if="calcText(e)" class="macro-line small muted" title="A bóluskalkulátor számítása a beíráskor">{{ calcText(e) }}</div>
                     </template>
                     <template v-else>
                       {{ eventLabel(e) }}

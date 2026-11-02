@@ -50,6 +50,8 @@ export function db(): DatabaseSync {
   if (!cols.has('fat')) d.exec('ALTER TABLE entries ADD COLUMN fat REAL')
   if (!cols.has('protein')) d.exec('ALTER TABLE entries ADD COLUMN protein REAL')
   // Kizárt szenzorérték (pl. ráfekvés): a jelölt szakaszban 1, minden számolásból kimarad (utils/excluded.ts).
+  // Bóluskalkulátorból beírt inzulin: a számítás bontása (étel / korrekció / aktív inzulin), JSON; utólag visszanézhető.
+  if (!cols.has('calc')) d.exec('ALTER TABLE entries ADD COLUMN calc TEXT')
   if (!cols.has('excluded')) d.exec('ALTER TABLE entries ADD COLUMN excluded INTEGER NOT NULL DEFAULT 0')
   d.exec(`CREATE TABLE IF NOT EXISTS excluded_ranges (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -181,10 +183,10 @@ export function storeRows(rows: Row[]): [number, number] {
   // Kézi bejegyzés párja: ha az InPen / Health később ugyanazt az adagot küldi, a beérkező sor
   // megmarad (pontosabb időpont), a kézi törlődik; a kézzel beállított típust / jelölést átvesszük.
   const manualMatch = d.prepare(
-    'SELECT id, subtype, fat, protein FROM entries WHERE source = ? AND type = ? AND value = ? AND ts BETWEEN ? AND ? ORDER BY ABS(ts - ?) LIMIT 1',
+    'SELECT id, subtype, fat, protein, calc FROM entries WHERE source = ? AND type = ? AND value = ? AND ts BETWEEN ? AND ? ORDER BY ABS(ts - ?) LIMIT 1',
   )
   // A kézi sor zsír / fehérje adata is átkerül a beérkező sorra.
-  const copyMacros = d.prepare('UPDATE entries SET fat = ?, protein = ? WHERE type = ? AND ts = ? AND value = ?')
+  const copyMacros = d.prepare('UPDATE entries SET fat = ?, protein = ?, calc = ? WHERE type = ? AND ts = ? AND value = ?')
   const dropManual = d.prepare('DELETE FROM entries WHERE id = ?')
   const stmt = d.prepare(
     `INSERT OR IGNORE INTO entries (type, ts, value, subtype, source, created_at)
@@ -217,7 +219,7 @@ export function storeRows(rows: Row[]): [number, number] {
       if (r.type === 'glucose' && r.source !== MANUAL_SOURCE && nearGlucose.get(r.ts - GLUCOSE_DUP_SEC, r.ts + GLUCOSE_DUP_SEC, r.value, MANUAL_SOURCE)) continue
       if (r.type === 'glucose' && r.source === 'CareLink' && sameSlot.get(r.ts - GLUCOSE_DUP_SEC, r.ts + GLUCOSE_DUP_SEC)) continue
       const manual = r.type !== 'glucose' && r.source !== MANUAL_SOURCE
-        ? manualMatch.get(MANUAL_SOURCE, r.type, r.value, r.ts - MANUAL_MATCH_SEC, r.ts + MANUAL_MATCH_SEC, r.ts) as { id: number; subtype: string | null; fat: number | null; protein: number | null } | undefined
+        ? manualMatch.get(MANUAL_SOURCE, r.type, r.value, r.ts - MANUAL_MATCH_SEC, r.ts + MANUAL_MATCH_SEC, r.ts) as { id: number; subtype: string | null; fat: number | null; protein: number | null; calc: string | null } | undefined
         : undefined
       // A beérkező általános „bolus” jelölésnél a kézi (étkezési / korrekció / bázis / zsíros / gyors) a pontosabb.
       const sub = manual?.subtype && (r.subtype == null || r.subtype === 'bolus') ? manual.subtype : r.subtype
@@ -225,7 +227,7 @@ export function storeRows(rows: Row[]): [number, number] {
       inserted += Number(info.changes)
       if (r.type === 'glucose' && r.source !== MANUAL_SOURCE && Number(info.changes) > 0) markExcluded.run(r.ts, r.value, r.ts)
       if (manual && Number(info.changes) > 0) {
-        if (manual.fat != null || manual.protein != null) copyMacros.run(manual.fat, manual.protein, r.type, r.ts, r.value)
+        if (manual.fat != null || manual.protein != null || manual.calc != null) copyMacros.run(manual.fat, manual.protein, manual.calc, r.type, r.ts, r.value)
         dropManual.run(manual.id)
       }
       if (Number(info.changes) === 0 && r.subtype !== null) fill.run(r.subtype, r.type, r.ts, r.value)
