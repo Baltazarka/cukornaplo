@@ -10,9 +10,12 @@ const PERIODS = [7, 14, 30]
 const days = computed(() => (PERIODS.includes(Number(route.query.days)) ? Number(route.query.days) : 14))
 const end = computed(() => (typeof route.query.end === 'string' ? route.query.end : ''))
 const q = computed(() => ({ end: end.value || undefined, days: days.value }))
+/** Műszak-szűrés (az URL-ben ?shift=morning|afternoon, hogy a nyomtatott riport is ezt mutassa); nincs = minden nap. */
+const shiftSel = computed<'morning' | 'afternoon' | null>(() => (route.query.shift === 'morning' || route.query.shift === 'afternoon' ? route.query.shift : null))
+const qAgp = computed(() => ({ ...q.value, shift: shiftSel.value || undefined }))
 
 const [{ data: agp }, { data: an }, { data: rep }, { data: th }, { data: hy }, { data: lab }] = await Promise.all([
-  useFetch<any>('/api/agp', { query: q }),
+  useFetch<any>('/api/agp', { query: qAgp }),
   useFetch<any>('/api/analysis', { query: q }),
   useFetch<any>('/api/report', { query: q }),
   useFetch<{ therapy: Therapy | null }>('/api/therapy', { key: 'therapy' }),
@@ -48,15 +51,13 @@ const profiles = computed(() => {
   return list
 })
 
-/** Napszak-szűrés (az URL-ben ?half=am|pm, hogy a nyomtatott riport is ezt mutassa); nincs = az egész nap és az összevetés. */
-const half = computed<'am' | 'pm' | null>(() => (route.query.half === 'am' || route.query.half === 'pm' ? route.query.half : null))
-const hs = computed(() => (half.value ? rep.value?.halves?.find((h: any) => h.key === half.value) ?? null : null))
-function setHalf(h: 'am' | 'pm') {
-  router.replace({ query: { ...route.query, half: half.value === h ? undefined : h } })
+function setShift(k: 'morning' | 'afternoon') {
+  router.replace({ query: { ...route.query, shift: shiftSel.value === k ? undefined : k } })
 }
-/** A kijelölt napszakba esik-e egy perc (0–1440) vagy HH:MM időpont; nincs szűrés = mindig. */
-const inHalf = (minute: number) => !half.value || (minute < 720) === (half.value === 'am')
-const hyList = computed<any[]>(() => (hy.value?.events ?? []).filter((e: any) => inHalf(Number(e.time.slice(0, 2)) * 60 + Number(e.time.slice(3, 5)))))
+/** A kijelölt műszak napjai (a beosztás szerint); nincs szűrés = nincs halmaz. */
+const shiftDays = computed(() => (shiftSel.value ? new Set<string>((rep.value?.dayList ?? []).filter((d: any) => d.shift === shiftSel.value).map((d: any) => d.date)) : null))
+const dayListShown = computed<any[]>(() => (rep.value?.dayList ?? []).filter((d: any) => !shiftSel.value || d.shift === shiftSel.value))
+const hyList = computed<any[]>(() => (hy.value?.events ?? []).filter((e: any) => !shiftDays.value || shiftDays.value.has(e.date)))
 const hyLevel2 = computed(() => hyList.value.filter((e: any) => e.level === 2).length)
 function setPeriod(d: number) {
   router.replace({ query: { ...route.query, days: String(d) } })
@@ -84,7 +85,7 @@ function fmt(v: number | null | undefined, dec = 1, sign = false): string {
   const s = v.toLocaleString('hu-HU', { minimumFractionDigits: dec, maximumFractionDigits: dec })
   return sign && v > 0 ? `+${s}` : s
 }
-const s = computed(() => hs.value?.stats ?? agp.value?.stats)
+const s = computed(() => agp.value?.stats)
 const tar = computed(() => (s.value?.n ? s.value.pct.high + s.value.pct.veryHigh : null))
 const tbr = computed(() => (s.value?.n ? s.value.pct.low + s.value.pct.veryLow : null))
 const BANDS = [
@@ -96,46 +97,38 @@ const generated = computed(() => (rep.value ? new Date(rep.value.generatedAt * 1
 const agpChart = computed(() => {
   const a = agp.value?.agp
   if (!a) return null
-  // Napszak-szűrésnél csak a 0–12 vagy a 12–24 órás rész.
-  const idx = (a.minutes as number[]).map((m, i) => i).filter((i) => !half.value || (half.value === 'am' ? a.minutes[i] <= 720 : a.minutes[i] >= 720))
-  const pick = (arr: (number | null)[]) => idx.map((i) => arr[i])
-  const max = Math.max(16, Math.ceil(Math.max(0, ...pick(a.p95).filter((v) => v != null) as number[]) / 2) * 2)
+  const max = Math.max(16, Math.ceil(Math.max(0, ...a.p95.filter((v: number | null) => v != null)) / 2) * 2)
   const yTicks: number[] = []
   for (let v = 2; v <= max; v += 2) yTicks.push(v)
   return {
-    x: idx.map((i) => a.minutes[i]),
+    x: a.minutes,
     bands: [
-      { lo: pick(a.p5), hi: pick(a.p95), color: 'color-mix(in srgb, var(--series-glucose) 14%, transparent)' },
-      { lo: pick(a.p25), hi: pick(a.p75), color: 'color-mix(in srgb, var(--series-glucose) 34%, transparent)' },
+      { lo: a.p5, hi: a.p95, color: 'color-mix(in srgb, var(--series-glucose) 14%, transparent)' },
+      { lo: a.p25, hi: a.p75, color: 'color-mix(in srgb, var(--series-glucose) 34%, transparent)' },
     ],
-    lines: [{ y: pick(a.p50), color: 'var(--series-glucose)', label: 'medián' }],
+    lines: [{ y: a.p50, color: 'var(--series-glucose)', label: 'medián' }],
     yTicks,
   }
 })
 const hh = (m: number) => String(Math.floor(m / 60) % 24).padStart(2, '0')
-// Napi átlag délelőtt és délután: két vonal az időszak napjain.
-const halfChart = computed(() => {
-  const hv = rep.value?.halves
-  const dates: string[] = rep.value?.halfDates ?? []
-  if (!hv || !dates.length) return null
-  const vals = hv.flatMap((h: any) => h.daily).filter((v: number | null) => v != null) as number[]
+// Délelőttös és délutános napok átlagos napi profilja: két vonal egymás mellett.
+const shiftChart = computed(() => {
+  const sp = rep.value?.shiftProfile
+  if (!sp || !sp.days.morning || !sp.days.afternoon) return null
+  const vals = [...sp.morning, ...sp.afternoon].filter((v: number | null) => v != null) as number[]
   if (!vals.length) return null
   const max = Math.max(12, Math.ceil(Math.max(...vals) / 2) * 2)
   const yTicks: number[] = []
   for (let v = 2; v <= max; v += 2) yTicks.push(v)
-  const step = dates.length > 14 ? 5 : dates.length > 7 ? 2 : 1
   return {
-    x: dates.map((_, i) => i),
+    x: sp.minutes as number[],
     lines: [
-      { y: hv[0].daily, color: 'var(--series-glucose)', label: 'délelőtt' },
-      { y: hv[1].daily, color: 'var(--status-warning)', label: 'délután' },
+      { y: sp.morning, color: 'var(--series-glucose)', label: `délelőttös napok (${sp.days.morning} nap)` },
+      { y: sp.afternoon, color: 'var(--status-warning)', label: `délutános napok (${sp.days.afternoon} nap)` },
     ],
     yTicks,
-    xTicks: dates.map((_, i) => i).filter((i) => i % step === 0 || i === dates.length - 1),
-    label: (i: number) => dates[Math.round(i)]?.slice(5).replace('-', '. ') + '.',
   }
 })
-const agpTicks = computed(() => (half.value === 'am' ? [0, 120, 240, 360, 480, 600, 720] : half.value === 'pm' ? [720, 840, 960, 1080, 1200, 1320, 1440] : [0, 180, 360, 540, 720, 900, 1080, 1260, 1440]))
 
 const KIND_LABEL: Record<string, string> = {
   meal: 'Étkezési bólus', 'meal-nocarb': 'Étkezési bólus (CH nélkül)', correction: 'Korrekció', basal: 'Bázis',
@@ -145,7 +138,7 @@ const rowsOf = (d: any) => [
   ...d.events,
   ...d.notes.map((n: any) => ({ ...n, type: 'note' })),
   ...(d.excluded ?? []).map((x: any) => ({ ...x, type: 'excluded' })),
-].filter((r) => inHalf(r.minute)).sort((a, b) => a.minute - b.minute)
+].sort((a, b) => a.minute - b.minute)
 const preBolus = (v: number | null) => (v == null ? '–' : v < 0 ? `${-v} p előtte` : v > 0 ? `${v} p után` : 'evéskor')
 const okPct = (r: any) => {
   const n = r.ok + r.spike + r.high + r.low
@@ -160,9 +153,9 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
       <div class="segmented" role="group" aria-label="Időszak">
         <button v-for="p in PERIODS" :key="p" type="button" :aria-pressed="days === p" @click="setPeriod(p)">{{ p }} nap</button>
       </div>
-      <div class="segmented" role="group" aria-label="Napszak">
-        <button type="button" :aria-pressed="half === 'am'" @click="setHalf('am')">Délelőtt</button>
-        <button type="button" :aria-pressed="half === 'pm'" @click="setHalf('pm')">Délután</button>
+      <div v-if="sh?.enabled" class="segmented" role="group" aria-label="Műszak" title="A beállított beosztás szerint: csak a délelőttös vagy csak a délutános hét napjai">
+        <button type="button" :aria-pressed="shiftSel === 'morning'" @click="setShift('morning')">Délelőtt</button>
+        <button type="button" :aria-pressed="shiftSel === 'afternoon'" @click="setShift('afternoon')">Délután</button>
       </div>
       <input type="date" :value="rep?.end" :max="rep?.today" aria-label="Az időszak utolsó napja" @change="setEnd(($event.target as HTMLInputElement).value)">
       <button type="button" class="ghost" @click="print">Nyomtatás / mentés PDF-be</button>
@@ -174,7 +167,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
         <div>
           <h1>Cukornapló – glükózriport</h1>
           <div class="muted">{{ rep.start.replaceAll('-', '. ') }}. – {{ rep.end.replaceAll('-', '. ') }}. ({{ rep.days }} nap)</div>
-          <div v-if="hs" class="small"><b>Csak a {{ hs.label.toLowerCase() }} ({{ hs.span }} óra)</b>: az összefoglaló, a profil, a hipók és a napi bejegyzések szűrtek; a napi grafikon a teljes napot mutatja.</div>
+          <div v-if="shiftSel" class="small"><b>Csak a {{ SHIFT_LABEL[shiftSel].toLowerCase() }} hét napjai ({{ shiftDays?.size ?? 0 }} nap)</b>: az összefoglaló, a profil, a hipók és a napi részletek szűrtek, az alsó becslések az egész időszakra szólnak.</div>
         </div>
         <div class="report-meta muted small">
           <div>Készült: {{ generated }}</div>
@@ -200,10 +193,10 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
           <div><span>Céltartományban (TIR)</span><b>{{ fmt(s.n ? s.pct.inRange : null, 0) }} <small>%</small></b></div>
           <div><span>Magas (TAR)</span><b>{{ fmt(tar, 0) }} <small>%</small></b></div>
           <div><span>Alacsony (TBR)</span><b>{{ fmt(tbr, 0) }} <small>%</small></b></div>
-          <div v-if="!hs"><span>Változásban (≥ 0,06/perc)</span><b>{{ fmt(rep.change?.any, 0) }} <small>%</small></b></div>
-          <div><span>{{ hs ? 'Bólus + korrekció naponta' : 'Inzulin naponta' }}</span><b>{{ fmt(hs ? hs.mealPerDay + hs.correctionPerDay : agp.totals.insulinPerDay) }} <small>E</small></b></div>
-          <div><span>Bólus / korrekció / bázis</span><b class="kpi-split">{{ fmt(hs ? hs.mealPerDay : agp.totals.mealPerDay) }} / {{ fmt(hs ? hs.correctionPerDay : agp.totals.correctionPerDay) }} / {{ hs ? '–' : fmt(agp.totals.basalPerDay) }} <small>E</small></b></div>
-          <div><span>Szénhidrát naponta</span><b>{{ fmt(hs ? hs.carbsPerDay : agp.totals.carbsPerDay, 0) }} <small>g</small></b></div>
+          <div v-if="!shiftSel"><span>Változásban (≥ 0,06/perc)</span><b>{{ fmt(rep.change?.any, 0) }} <small>%</small></b></div>
+          <div><span>Inzulin naponta</span><b>{{ fmt(agp.totals.insulinPerDay) }} <small>E</small></b></div>
+          <div><span>Bólus / korrekció / bázis</span><b class="kpi-split">{{ fmt(agp.totals.mealPerDay) }} / {{ fmt(agp.totals.correctionPerDay) }} / {{ fmt(agp.totals.basalPerDay) }} <small>E</small></b></div>
+          <div><span>Szénhidrát naponta</span><b>{{ fmt(agp.totals.carbsPerDay, 0) }} <small>g</small></b></div>
           <div><span>Napok inzulin- vagy CH-bejegyzéssel</span><b>{{ agp.totals.penDays }}</b></div>
         </div>
         <div v-if="s.n" class="report-tir">
@@ -216,45 +209,6 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
             <span v-for="[k, name] in BANDS" :key="k"><i :class="'seg-' + k" />{{ name }} {{ fmt(s.pct[k], 0) }}%</span>
           </div>
         </div>
-      </section>
-
-      <section v-if="!hs && rep.halves?.some((h: any) => h.stats.n)" class="report-section">
-        <h2>Délelőtt – délután összevetés</h2>
-        <p class="muted small">Az időszak minden napjának 0–12 és 12–24 órája külön (a vágás 12:00-nál van).</p>
-        <div v-for="h in rep.halves" :key="h.key" class="report-half">
-          <div class="small"><b>{{ h.label }}</b> <span class="muted">{{ h.span }} óra</span></div>
-          <div v-if="h.stats.n" class="report-tir">
-            <div class="tir-hbar">
-              <template v-for="[k] in BANDS" :key="k">
-                <span v-if="h.stats.pct[k] > 0" :class="'seg-' + k" :style="{ flexBasis: h.stats.pct[k] + '%' }" />
-              </template>
-            </div>
-            <div class="report-tir-legend small">
-              <span v-for="[k, name] in BANDS" :key="k"><i :class="'seg-' + k" />{{ name }} {{ fmt(h.stats.pct[k], 0) }}%</span>
-            </div>
-          </div>
-          <p v-else class="muted small">Nincs glükózadat.</p>
-        </div>
-        <h3 class="report-sub">Napi átlag glükóz (mmol/L)</h3>
-        <ClientOnly v-if="halfChart">
-          <MiniBandChart
-            :x="halfChart.x" :lines="halfChart.lines" :x-ticks="halfChart.xTicks" :x-format="halfChart.label"
-            :y-ticks="halfChart.yTicks" :y-format="(v: number) => String(v)" :ref-y="[rep.range.low, rep.range.high]" :height="190"
-            caption=""
-          />
-        </ClientOnly>
-        <table class="table report-table">
-          <thead><tr><th /><th v-for="h in rep.halves" :key="h.key" class="num">{{ h.label }}</th></tr></thead>
-          <tbody>
-            <tr><td>Átlag glükóz (mmol/L)</td><td v-for="h in rep.halves" :key="h.key" class="num">{{ fmt(h.stats.n ? h.stats.avg : null) }}</td></tr>
-            <tr><td>Variációs koefficiens (CV)</td><td v-for="h in rep.halves" :key="h.key" class="num">{{ fmt(h.stats.n ? h.stats.cv : null, 0) }}%</td></tr>
-            <tr><td>Céltartományban (TIR)</td><td v-for="h in rep.halves" :key="h.key" class="num">{{ fmt(h.stats.n ? h.stats.pct.inRange : null, 0) }}%</td></tr>
-            <tr><td>Magas (TAR)</td><td v-for="h in rep.halves" :key="h.key" class="num">{{ fmt(h.stats.n ? h.stats.pct.high + h.stats.pct.veryHigh : null, 0) }}%</td></tr>
-            <tr><td>Alacsony (TBR)</td><td v-for="h in rep.halves" :key="h.key" class="num">{{ fmt(h.stats.n ? h.stats.pct.low + h.stats.pct.veryLow : null, 0) }}%</td></tr>
-            <tr><td>Szénhidrát naponta (g)</td><td v-for="h in rep.halves" :key="h.key" class="num">{{ fmt(h.carbsPerDay, 0) }}</td></tr>
-            <tr><td>Bólus / korrekció naponta (E)</td><td v-for="h in rep.halves" :key="h.key" class="num">{{ fmt(h.mealPerDay) }} / {{ fmt(h.correctionPerDay) }}</td></tr>
-          </tbody>
-        </table>
       </section>
 
       <section v-if="t" class="report-section">
@@ -299,6 +253,29 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
             <tr><td>CH naponta</td><td v-for="x in shiftRows" :key="x.kind" class="num">{{ fmt(x.perDay.carbs, 0) }} g</td></tr>
           </tbody>
         </table>
+        <template v-if="!shiftSel && shiftChart">
+          <h3 class="report-sub">Műszakonként összesítve: tartományban töltött idő</h3>
+          <div v-for="k in (['morning', 'afternoon'] as const)" :key="k" class="report-half">
+            <div class="small"><b>{{ SHIFT_LABEL[k] }} hét</b> <span class="muted">{{ rep.shiftProfile.days[k] }} nap</span></div>
+            <div v-if="rep.shiftProfile.stats[k]?.n" class="report-tir">
+              <div class="tir-hbar">
+                <template v-for="[b] in BANDS" :key="b">
+                  <span v-if="rep.shiftProfile.stats[k].pct[b] > 0" :class="'seg-' + b" :style="{ flexBasis: rep.shiftProfile.stats[k].pct[b] + '%' }" />
+                </template>
+              </div>
+              <div class="report-tir-legend small">
+                <span v-for="[b, name] in BANDS" :key="b"><i :class="'seg-' + b" />{{ name }} {{ fmt(rep.shiftProfile.stats[k].pct[b], 0) }}%</span>
+              </div>
+            </div>
+          </div>
+          <h3 class="report-sub">Átlagos napi profil: délelőttös és délutános napok</h3>
+          <ClientOnly>
+            <MiniBandChart
+              :x="shiftChart.x" :lines="shiftChart.lines" :x-ticks="[0, 180, 360, 540, 720, 900, 1080, 1260, 1440]" :x-format="hh"
+              :y-ticks="shiftChart.yTicks" :y-format="(v: number) => String(v)" :ref-y="[rep.range.low, rep.range.high]" :height="200" caption=""
+            />
+          </ClientOnly>
+        </template>
       </section>
 
       <section v-if="agpChart" class="report-section">
@@ -307,7 +284,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
         <ClientOnly>
           <MiniBandChart
             :x="agpChart.x" :lines="agpChart.lines" :bands="agpChart.bands"
-            :x-ticks="agpTicks" :x-format="hh"
+            :x-ticks="[0, 180, 360, 540, 720, 900, 1080, 1260, 1440]" :x-format="hh"
             :y-ticks="agpChart.yTicks" :y-format="(v: number) => String(v)" :ref-y="[rep.range.low, rep.range.high]" :height="210"
             caption=""
           >
@@ -321,9 +298,9 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
 
       <section v-if="hy" class="report-section">
         <h2>Hipók</h2>
-        <p v-if="!hyList.length" class="small">Az időszakban{{ hs ? ` (${hs.label.toLowerCase()})` : '' }} nem volt hipóesemény (legalább 15 perc {{ fmt(hy.low) }} mmol/L alatt).</p>
+        <p v-if="!hyList.length" class="small">Az időszakban{{ shiftSel ? ` (${SHIFT_LABEL[shiftSel].toLowerCase()} hét)` : '' }} nem volt hipóesemény (legalább 15 perc {{ fmt(hy.low) }} mmol/L alatt).</p>
         <template v-else>
-          <p v-if="hs" class="small"><b>{{ hyList.length }}</b> esemény, ebből <b>{{ hyLevel2 }}</b> 2. szintű (&lt; {{ fmt(hy.veryLow) }}).</p>
+          <p v-if="shiftSel" class="small"><b>{{ hyList.length }}</b> esemény, ebből <b>{{ hyLevel2 }}</b> 2. szintű (&lt; {{ fmt(hy.veryLow) }}).</p>
           <p v-else class="small">
             <b>{{ hy.summary.n }}</b> esemény (hetente {{ fmt(hy.summary.perWeek) }}), ebből <b>{{ hy.summary.level2 }}</b> 2. szintű (&lt; {{ fmt(hy.veryLow) }}),
             {{ hy.summary.night }} éjszakai (0–6 óra); átlagos hossz {{ hy.summary.avgMinutes }} perc, legalacsonyabb {{ sgText(hy.summary.lowest) }} mmol/L.
@@ -413,7 +390,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
 
       <section class="report-section report-days">
         <h2>Napi részletek</h2>
-        <article v-for="d in rep.dayList" :key="d.date" class="report-day">
+        <article v-for="d in dayListShown" :key="d.date" class="report-day">
           <header>
             <b>{{ d.label }} {{ d.weekday }}</b><template v-if="d.shift"> · {{ SHIFT_LABEL[d.shift as 'morning'].toLowerCase() }}</template>
             <span class="muted small">
@@ -425,7 +402,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
             </span>
           </header>
           <ReportDayChart :glucose="d.glucose" :manual="d.manual" :events="d.events" :low="rep.range.low" :high="rep.range.high" :excluded-glucose="d.excludedGlucose" :excluded="d.excluded" />
-          <table v-if="rowsOf(d).length" class="table report-events">
+          <table v-if="d.events.length || d.notes.length || d.excluded?.length" class="table report-events">
             <tbody>
               <tr v-for="(e, i) in rowsOf(d)" :key="i" :class="{ 'report-note': e.type === 'note', 'report-excluded': e.type === 'excluded' }">
                 <td class="num">{{ e.type === 'excluded' ? e.time.slice(0, 5) : e.time }}</td>
@@ -449,7 +426,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
               </tr>
             </tbody>
           </table>
-          <p v-else class="muted small">{{ hs ? 'Nincs bejegyzés ebben a napszakban.' : 'Nincs bejegyzés.' }}</p>
+          <p v-else class="muted small">Nincs bejegyzés.</p>
         </article>
       </section>
 

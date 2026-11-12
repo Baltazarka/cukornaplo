@@ -9,6 +9,7 @@ import { changeTime, type GPoint } from '../utils/trend'
 import { insulinKind } from '../utils/insulinKind'
 import { detectHypos, hypoCount } from '../utils/hypo'
 import { ymdInTz } from '../utils/time'
+import { shiftOn } from '../utils/therapy'
 
 const PERIODS = [7, 14, 30]
 const BIN_MIN = 15 // 96 sáv naponta
@@ -36,9 +37,12 @@ export default defineEventHandler((event) => {
   const startTs = startOfDayTs(start)
   const endTs = startOfDayTs(addDaysYmd(end, 1))
 
-  const rows = db()
+  const allRows = db()
     .prepare('SELECT type, ts, value, subtype, source FROM entries WHERE ts >= ? AND ts < ? AND excluded = 0 ORDER BY ts')
     .all(startTs, endTs) as { type: string; ts: number; value: number; subtype: string | null; source: string | null }[]
+  // Váltott műszaknál szűrhető egy műszak napjaira (a napok a beosztás / kézi átállítás szerint).
+  const shift = q.shift === 'morning' || q.shift === 'afternoon' ? q.shift : null
+  const rows = shift ? allRows.filter((r) => shiftOn(ymdInTz(Number(r.ts))) === shift) : allRows
 
   const bins: number[][] = Array.from({ length: BINS }, () => [])
   const meal = new Array(24).fill(0)
@@ -97,7 +101,12 @@ export default defineEventHandler((event) => {
   // Lefedettség: a mérések száma az időszak eltelt részéhez képest (ma csak a mostanáig eltelt idő számít).
   // Az első szenzormérés óta eltelt időhöz viszonyítva: ha csak az időszak egy részéről van adat, nem ez „rontja” a lefedettséget.
   const elapsedSec = Math.min(endTs, Math.floor(Date.now() / 1000)) - Math.max(startTs, Number.isFinite(firstSensorTs) ? firstSensorTs : startTs)
-  const coverage = elapsedSec > 0 ? Math.min(100, (100 * sensorN) / (elapsedSec / 300)) : 0
+  // Műszak-szűrésnél a kiválasztott műszak napjaihoz viszonyítva (a mai, még le nem zárt nap csak részben számít).
+  let shiftDayCount = 0
+  if (shift) for (let d = start; d <= end; d = addDaysYmd(d, 1)) if (shiftOn(d) === shift) shiftDayCount++
+  const coverage = shift
+    ? Math.min(100, (100 * sensorN) / Math.max(1, shiftDayCount * 288))
+    : elapsedSec > 0 ? Math.min(100, (100 * sensorN) / (elapsedSec / 300)) : 0
 
   const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0)
   // Csak a naplózott adagok, a beadás időpontja szerint (becsült bázis nélkül).
