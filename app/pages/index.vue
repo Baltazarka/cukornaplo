@@ -244,11 +244,6 @@ async function undoExcluded(x: any) {
 const logRows = computed<any[]>(() =>
   [...(data.value?.events ?? []), ...(data.value?.notes ?? []).map((n: any) => ({ ...n, type: 'note' })), ...excludedRows.value].sort((a, b) => a.ts - b.ts))
 
-// Napló szűrése napszakra (délelőtt / délután, 12:00-nál vág); nincs kijelölve = az egész nap és az összevető grafikon.
-const half = ref<'am' | 'pm' | null>(null)
-watch(() => data.value?.day, () => { half.value = null })
-const shownRows = computed(() => (half.value ? logRows.value.filter((e) => (e.time < '12:00') === (half.value === 'am')) : logRows.value))
-
 // Új jegyzet: időpont (mai napon most, különben 12:00), címkék, szöveg.
 const noteForm = ref<{ time: string; tags: string[]; text: string } | null>(null)
 const noteError = ref('')
@@ -545,10 +540,6 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
             <button type="button" class="ghost sm" @click="openNoteForm">+ Jegyzet</button>
           </div>
         </div>
-        <div class="log-half segmented" role="group" aria-label="Napszak">
-          <button type="button" :aria-pressed="half === 'am'" @click="half = half === 'am' ? null : 'am'">Délelőtt</button>
-          <button type="button" :aria-pressed="half === 'pm'" @click="half = half === 'pm' ? null : 'pm'">Délután</button>
-        </div>
         <GuardianLine v-if="lastGuardian && !entryForm" v-bind="lastGuardian" @close="lastGuardian = null" />
         <form v-if="entryForm" class="note-form" @submit.prevent="saveEntry()">
           <b class="small">{{ entryForm.type === 'insulin' ? 'Inzulin felvétele' : entryForm.type === 'carbs' ? 'Szénhidrát felvétele' : 'Vércukor felvétele (kézi mérés)' }}</b>
@@ -602,34 +593,11 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
           </div>
         </form>
         <p v-if="!readOnly" class="muted small">A bázis az, amit bázisnak jelölsz, vagy amit a Terápia oldalon beállított automatikus beírás rögzít. A típus nélküli bólus automatikusan: étkezési, ha 60 percen belül utána (előbólus) vagy 30 percen belül előtte szénhidrát is van; különben korrekció. Az „(auto)” sorokat a legördülővel bármikor átállíthatod (pl. korrekcióról étkezési bólusra), a × gombbal törölheted (a telefon sem tölti vissza).</p>
-        <div v-if="!half && data.halves?.some((h: any) => h.stats.n)" class="half-compare">
-          <div v-for="h in data.halves" :key="h.key" class="tir">
-            <div class="tir-title">{{ h.label }} <span class="muted">{{ h.span }} óra</span></div>
-            <p v-if="!h.stats.n" class="muted small">Nincs glükózadat.</p>
-            <template v-else>
-              <div class="tir-row">
-                <div class="tir-bar">
-                  <template v-for="[k] in bandLabels" :key="k">
-                    <span v-if="h.stats.pct[k] > 0" class="seg" :class="'seg-' + k" :style="{ flexBasis: h.stats.pct[k] + '%' }" />
-                  </template>
-                </div>
-                <ul class="tir-legend">
-                  <li v-for="[k, name, range] in bandLabels" :key="k">
-                    <span class="key" :class="'seg-' + k" />
-                    <span>{{ name }} <span class="muted">{{ range }}</span></span>
-                    <b>{{ fmt(h.stats.pct[k], 0) }}%</b>
-                  </li>
-                </ul>
-              </div>
-              <p class="small muted">átlag <b>{{ fmt(h.stats.avg) }}</b> mmol/L · CH <b>{{ fmt(h.carbs, 0) }}</b> g · bólus <b>{{ fmt(h.meal + h.correction) }}</b> E<template v-if="h.correction"> (ebből korrekció {{ fmt(h.correction) }})</template></p>
-            </template>
-          </div>
-        </div>
-        <div v-if="shownRows.length" class="table-wrap">
+        <div v-if="logRows.length" class="table-wrap">
           <table class="table log-table">
             <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num c-gl">Glükóz</th><th v-if="!readOnly"><span class="sr-only">Törlés</span></th></tr></thead>
             <tbody>
-              <tr v-for="e in shownRows" :key="e.type + e.id" :class="{ 'note-row': e.type === 'note', 'excluded-row': e.type === 'excluded' }">
+              <tr v-for="e in logRows" :key="e.type + e.id" :class="{ 'note-row': e.type === 'note', 'excluded-row': e.type === 'excluded' }">
                 <td class="num">{{ e.time }}</td>
                 <template v-if="e.type === 'excluded'">
                   <td>
@@ -715,7 +683,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
             </tbody>
           </table>
         </div>
-        <p v-else class="muted">{{ logRows.length ? 'Ebben a napszakban nincs bejegyzés.' : 'Erre a napra nincs bejegyzés.' }}</p>
+        <p v-else class="muted">Erre a napra nincs bejegyzés.</p>
       </section>
 
       <section class="card">
