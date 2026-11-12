@@ -130,8 +130,30 @@ export default defineEventHandler((event) => {
     }
   })
 
+  // Délelőtt (0–12) és délután (12–24) külön az egész időszakra (a nap faliórája szerint, 12:00-nál vág).
+  const halfDays = out.filter((d) => d.events.length).length || 1
+  const halves = [['am', 'Délelőtt', '0–12'], ['pm', 'Délután', '12–24']].map(([key, label, span], i) => {
+    const inHalf = (minute: number) => (minute < 720 ? 0 : 1) === i
+    const ev = out.flatMap((d) => d.events.filter((e) => inHalf(e.minute)))
+    const perDay = (pred: (e: Day['events'][number]) => boolean) => ev.filter(pred).reduce((a, e) => a + e.v, 0) / halfDays
+    return {
+      key, label, span,
+      stats: glucoseStats(out.flatMap((d) => [...d.glucose, ...d.manual].filter((g) => inHalf(g[0])).map((g) => g[1])), low, high),
+      // Napi átlag (legalább 1 óra szenzor- vagy kézi mérés a napszakban), a napok időrendjében.
+      daily: out.map((d) => {
+        const v = [...d.glucose, ...d.manual].filter((g) => inHalf(g[0])).map((g) => g[1])
+        return v.length >= 12 ? Math.round((v.reduce((a, x) => a + x, 0) / v.length) * 10) / 10 : null
+      }),
+      carbsPerDay: perDay((e) => e.type === 'carbs'),
+      mealPerDay: perDay((e) => e.kind === 'meal' || e.kind === 'meal-nocarb'),
+      correctionPerDay: perDay((e) => e.kind === 'correction'),
+    }
+  })
+
   return {
     days, start, end, today,
+    halves,
+    halfDates: out.map((d) => d.date),
     generatedAt: Math.floor(Date.now() / 1000),
     range: { low, high },
     change: changeTime(allGlucose),

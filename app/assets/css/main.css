@@ -1059,6 +1059,7 @@ details.more p + p { margin-top: 6px; }
 .report-kpis b { font-size: 18px; font-variant-numeric: tabular-nums; }
 .report-kpis b small { font-size: 11px; font-weight: 400; color: var(--text-muted); }
 .report-kpis .kpi-split { font-size: 15px; }
+.report-half { margin-bottom: 10px; }
 .tir-hbar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; gap: 2px; }
 .tir-hbar span { display: block; min-width: 2px; }
 .report-tir-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; color: var(--text-secondary); }
