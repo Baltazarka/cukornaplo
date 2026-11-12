@@ -583,6 +583,9 @@ input[type=date], input[type=time] {
 .segmented button:hover { background: var(--page); color: var(--text-primary); }
 .segmented button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-2); font-weight: 600; }
 .period-view { display: flex; flex-direction: column; gap: 16px; }
+.log-half { margin: 4px 0 10px; }
+.log-half button { padding: 6px 14px; }
+.half-compare { display: grid; gap: 14px; margin-bottom: 12px; }
 @media (max-width: 560px) { .chart-box { height: 520px; } }
 
 .last-reading {

@@ -72,6 +72,18 @@ export default defineEventHandler((event) => {
   const dayInsulin = dayRows.insulin.reduce((a, e) => a + e.v, 0)
   const sumKind = (k: string) => dayRows.insulin.filter((e) => e.kind === k).reduce((a, e) => a + e.v, 0)
   const dayCarbs = dayRows.carbs.reduce((a, e) => a + e.v, 0)
+  // Délelőtt (0–12) és délután (12–24) összevetése: ugyanazok az értékek és ugyanaz a céltartomány, mint a napi statisztikában.
+  const halves = [['am', 'Délelőtt', '0–12'], ['pm', 'Délután', '12–24']].map(([key, label, span], i) => {
+    const inHalf = (ts: number) => (hmInTz(ts) < '12:00' ? 0 : 1) === i
+    const sumOf = (rows: any[], pick: (e: any) => boolean = () => true) => rows.filter((e) => inHalf(e.ts) && pick(e)).reduce((a, e) => a + e.v, 0)
+    return {
+      key, label, span,
+      stats: glucoseStats([...dayRows.glucose.filter((g) => inHalf(g.ts)).map((g) => g.v), ...manualGlucose.filter((g) => inHalf(g.ts)).map((g) => g.v)], low, high),
+      carbs: sumOf(dayRows.carbs),
+      meal: sumOf(dayRows.insulin, (e) => e.kind === 'meal'),
+      correction: sumOf(dayRows.insulin, (e) => e.kind === 'correction'),
+    }
+  })
   // Lefedettség: a mérések száma az eltelt időhöz képest (ma csak a mostanáig eltelt rész számít).
   const elapsedSec = Math.min(dayEnd, Math.floor(Date.now() / 1000)) - dayStart
   const coverage = dayRows.glucose.length && elapsedSec > 0 ? Math.min(100, (100 * dayRows.glucose.length) / (elapsedSec / 300)) : 0
@@ -137,6 +149,7 @@ export default defineEventHandler((event) => {
       ...(e.type === 'insulin' ? { calc: (e as any).calc ?? null } : {}),
     })),
     stats: { day: dayStats, range14: rangeStats },
+    halves,
     totals: {
       insulin: dayInsulin,
       meal: sumKind('meal'),
