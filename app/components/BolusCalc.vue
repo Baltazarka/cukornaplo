@@ -223,6 +223,8 @@ async function logToDiary() {
 
 const low = computed(() => bgV.value != null && bgV.value < (data.value?.range.low ?? 3.9))
 const ago = (min: number) => (min < 1 ? 'most' : min < 60 ? `${min} perce` : `${Math.floor(min / 60)} ó ${min % 60} p-e`)
+// Esik a vércukor, és a számítás pozitív korrekciót ad: a korrekció a mostani értékre számol, az esést nem látja.
+const fallingCorrection = computed(() => !!(cgmFresh.value && cgm.value?.trend && cgm.value.trend.dir < 0 && bgV.value != null && result.value && result.value.correction > 0))
 const trendText = computed(() => {
   const t = cgm.value?.trend
   if (!t || t.level < 2) return ''
@@ -356,7 +358,8 @@ const trendText = computed(() => {
           <template v-else>Ez a korrekció a zsír-fehérje további hatását nem ismeri: a kettő átfed, ne add össze, a nagyobbat vedd figyelembe.</template>
         </p>
         <p v-if="bgV != null && bgV >= KETONE_BG" class="notice">{{ fmt(KETONE_BG, 0) }} mmol/L fölött ketonvizsgálat javasolt.</p>
-        <p v-if="trendText && bgV != null" class="notice">{{ trendText }} A kalkulátor a trendet nem veszi figyelembe.</p>
+        <p v-if="fallingCorrection" class="notice">Esik a vércukor{{ cgm.trend.level >= 2 ? ' gyorsan' : '' }}: a korrekciós rész (+{{ fmt(result.correction) }} E) túl sok lehet. A kalkulátor a trendet nem veszi figyelembe.</p>
+        <p v-else-if="trendText && bgV != null" class="notice">{{ trendText }} A kalkulátor a trendet nem veszi figyelembe.</p>
         <p v-if="result.correction > 0 && data.iob > 0 && !useIob" class="notice">Az aktív inzulin levonása ki van kapcsolva: az egymásra adott korrekciók összeadódnak.</p>
       </div>
 
