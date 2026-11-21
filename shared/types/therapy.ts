@@ -63,9 +63,10 @@ export interface Therapy {
   freeProfile?: 'base' | 'alt'
   /**
    * A bázis automatikus beírása: naponta `time`-kor (HH:MM) `units` E bázis kerül a naplóba (push értesítéssel), ha
-   * aznap még nincs bázis beírva (server/utils/basalAuto.ts). Hiányzó: kikapcsolva.
+   * aznap még nincs bázis beírva (server/utils/basalAuto.ts). Hiányzó vagy `enabled: false`: kikapcsolva (az időpont és az
+   * adag ilyenkor is megmarad a visszakapcsoláshoz).
    */
-  basalAuto?: { time: string; units: number }
+  basalAuto?: { time: string; units: number; enabled?: boolean }
   /** Egyelőre mindig kézi; később számítás vagy varázsló is beállíthatja. */
   source: 'manual'
   updatedAt: number

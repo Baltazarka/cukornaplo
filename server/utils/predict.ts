@@ -145,14 +145,17 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
   if (!latest || nowTs - latest.ts > MAX_AGE_SEC) return null
 
   const seg = segmentAt(t, latest.ts)
-  const perG = seg.isf / seg.icr // mmol/L / g szénhidrát (a mostani napszakban: a javaslatokhoz)
-  // Minden adag / étkezés a beadás (étkezés) napszakának ISF-jével és CH-arányával hat, nem a mostanival
-  // (ahogy a Loop is teszi): napszakhatáron így nem ugrik a becslés.
-  const isfAt = (ts: number) => segmentAt(t, ts).isf
+  // Minden adag / étkezés a beadás (étkezés) idejének ISF-jével és CH-arányával hat, nem a mostanival (ahogy a Loop is
+  // teszi): napszakhatáron így nem ugrik a becslés. A napszakok közti átmenettel (blendAt), ahogy a bóluskalkulátor
+  // is számol: az adag mennyiségét az átmeneti ISF-fel döntötted el, a hatását ugyanezzel kell becsülni.
+  const isfAt = (ts: number) => blendAt(t, ts)?.isf ?? segmentAt(t, ts).isf
   const perGAt = (ts: number) => {
+    const b = blendAt(t, ts)
+    if (b) return b.isf / b.icr
     const s2 = segmentAt(t, ts)
     return s2.isf / s2.icr
   }
+  const perG = perGAt(latest.ts) // mmol/L / g szénhidrát a mostani időpontban: a javaslatokhoz
   const carbRows = db()
     .prepare("SELECT ts, value, subtype FROM entries WHERE type = 'carbs' AND ts >= ? AND ts <= ? ORDER BY ts")
     .all(nowTs - 12 * 3600, nowTs) as { ts: number; value: number; subtype: string | null }[] // a tanult felszívódás nagy étkezésnél 12 óráig is tarthat

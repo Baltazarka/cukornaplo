@@ -4,6 +4,7 @@
 import type { ShiftKind, ShiftSchedule, Therapy, TherapySegment } from '#shared/types/therapy'
 import { insulinById } from '#shared/utils/insulins'
 import { shiftOf, profileFor } from '#shared/utils/shift'
+import { sameTherapy } from '#shared/utils/sameTherapy'
 import { zonedToTs } from './normalize'
 import { minuteOfDayInTz, ymdInTz } from './time'
 
@@ -51,6 +52,9 @@ export function therapyHistory(): TherapyVersion[] {
  */
 export function recordTherapy(next: Therapy, prev: Therapy | null): void {
   const list = [...therapyHistory()]
+  // Változatlan mentés (pl. újra a „Mentés”): nem kerül az előzménybe, különben a százas korlát kiszorítaná a valódi
+  // régi változatokat, és az elemzés a régi eseményeket későbbi értékekkel értékelné.
+  if (sameTherapy(next, list.length ? list[list.length - 1].therapy : prev)) return
   if (!list.length && prev) list.push({ from: 0, therapy: prev })
   list.push({ from: Math.floor(Date.now() / 1000), therapy: next })
   saveSettings({ therapy_history: list.slice(-HISTORY_MAX) })
@@ -121,13 +125,19 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
   const altEnabled = body?.altEnabled === true
   const altSegments = altEnabled ? parseSegments(body?.altSegments, 'Délutános hét, ', errors) : undefined
   // A bázis automatikus beírása (időpont és adag).
+  // Kikapcsolva (`enabled: false`) is megmarad az időpont és az adag, hogy a visszakapcsolásnál ne kelljen újra megadni.
   let basalAuto: Therapy['basalAuto']
-  if (body?.basalAuto?.enabled === true) {
-    const time = String(body.basalAuto.time ?? '')
-    const units = Math.round(Number(body.basalAuto.units) * 10) / 10
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) errors.push('A bázis beadásának időpontja érvénytelen.')
-    if (!Number.isFinite(units) || units < 1 || units > 100) errors.push('A bázisadag 1 és 100 E között lehet.')
-    basalAuto = { time, units }
+  const ba = body?.basalAuto
+  const baTime = String(ba?.time ?? '')
+  const baUnits = Math.round(Number(ba?.units) * 10) / 10
+  const baTimeOk = /^([01]\d|2[0-3]):[0-5]\d$/.test(baTime)
+  const baUnitsOk = Number.isFinite(baUnits) && baUnits >= 1 && baUnits <= 100
+  if (ba?.enabled === true) {
+    if (!baTimeOk) errors.push('A bázis beadásának időpontja érvénytelen.')
+    if (!baUnitsOk) errors.push('A bázisadag 1 és 100 E között lehet.')
+    basalAuto = { time: baTime, units: baUnits }
+  } else if (baTimeOk && baUnitsOk) {
+    basalAuto = { time: baTime, units: baUnits, enabled: false }
   }
 
   if (errors.length) return { ok: false, errors }

@@ -87,3 +87,12 @@ test('push-feliratkozás: csak az ismert push-szolgáltatók https címe, belső
   assert.equal(ok('https://web.push.apple.com:8443/abc'), false)
   assert.equal(ok('nem url'), false)
 })
+
+test('terápia-előzmény: a mentés időbélyege nem számít, minden más változás igen', async () => {
+  const { sameTherapy } = await import('../shared/utils/sameTherapy.ts')
+  const t = { mealMode: 'carbs' as const, maxBolus: 30, actionMinutes: 240, byTimeOfDay: false, segments: [{ start: '00:00', target: 5.5, isf: 0.5, icr: 2 }], source: 'manual' as const, updatedAt: 1 }
+  assert.equal(sameTherapy(t, { ...t, updatedAt: 999 }), true)
+  assert.equal(sameTherapy(t, { ...t, maxBolus: 25 }), false)
+  assert.equal(sameTherapy(t, { ...t, segments: [{ ...t.segments[0], isf: 0.6 }] }), false)
+  assert.equal(sameTherapy(t, null), false)
+})

@@ -26,7 +26,7 @@ const PUSH_MAX_LATE_SEC = 30 * 60
 export async function checkBasalAuto(nowTs = Math.floor(Date.now() / 1000)): Promise<void> {
   const t = therapy()
   const cfg = t?.basalAuto
-  if (!cfg) return
+  if (!cfg || cfg.enabled === false) return
   const today = ymdInTz(nowTs)
   if (setting<{ date: string } | null>('basal_auto', null)?.date === today) return
   const ts = wallToTs(today, cfg.time, nowTs)

@@ -19,7 +19,7 @@ const bolusInfo = computed(() => insulinById(bolusInsulin.value))
 const basalInfo = computed(() => insulinById(basalInsulin.value))
 const maxBolus = ref<number | ''>(t?.maxBolus ?? '')
 // A bázis automatikus beírása: naponta a megadott időpontban a naplóba kerül (push értesítéssel).
-const basalAutoOn = ref<boolean>(!!t?.basalAuto)
+const basalAutoOn = ref<boolean>(!!t?.basalAuto && t.basalAuto.enabled !== false)
 const basalAutoTime = ref<string>(t?.basalAuto?.time ?? '07:00')
 const basalAutoUnits = ref<number | ''>(t?.basalAuto?.units ?? '')
 const actionMinutes = ref<number>(t?.actionMinutes ?? 240)
@@ -116,6 +116,16 @@ const need = computed<{ label: string; corr: number; meal: number }[]>(() =>
   })),
 )
 
+
+// A bázis automatikus beírásának kikapcsolása előtt rákérdez: egy véletlen kikapcsolás után napokig nem íródik be a bázis.
+async function toggleBasalAuto(e: Event) {
+  const box = e.target as HTMLInputElement
+  if (!box.checked && !(await askConfirm('Kikapcsolod a bázis automatikus beírását? Ezután a bázist neked kell a naplóba írnod, különben hiányzik a napi összinzulinból.', { title: 'Bázis automatikus beírása', confirmLabel: 'Kikapcsolom', danger: true }))) {
+    box.checked = true
+    return
+  }
+  basalAutoOn.value = box.checked
+}
 
 // A becslések átvétele a szerkesztőbe (napszak-kezdet szerint párosítva); menteni külön kell.
 const applied = ref('')
@@ -243,7 +253,7 @@ async function save() {
         </p>
         <label class="tf-row">
           <span class="tf-label">Automatikus beírás a naplóba</span>
-          <input v-model="basalAutoOn" type="checkbox" class="switch" role="switch">
+          <input :checked="basalAutoOn" type="checkbox" class="switch" role="switch" @change="toggleBasalAuto">
         </label>
         <template v-if="basalAutoOn">
           <label class="tf-row tf-sub">

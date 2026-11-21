@@ -48,7 +48,7 @@ const updated = computed(() =>
         <div><dt>Inzulinhatás időtartama</dt><dd>{{ actionLabel(t.actionMinutes) }}</dd></div>
         <div v-if="bolus"><dt>Bólusinzulin</dt><dd>{{ bolus.name }}</dd></div>
         <div v-if="basal"><dt>Bázisinzulin</dt><dd>{{ basal.name }}</dd></div>
-        <div v-if="t.basalAuto"><dt>Bázis automatikusan</dt><dd>{{ t.basalAuto.units.toLocaleString('hu-HU') }} E, {{ t.basalAuto.time }}</dd></div>
+        <div v-if="t.basalAuto && t.basalAuto.enabled !== false"><dt>Bázis automatikusan</dt><dd>{{ t.basalAuto.units.toLocaleString('hu-HU') }} E, {{ t.basalAuto.time }}</dd></div>
       </dl>
 
       <table class="table therapy-table">
