@@ -470,8 +470,8 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
         <button type="button" class="qa-ins" @click="quickEntry('insulin')">+ Inzulin</button>
       </div>
       <div class="now-facts">
-        <div v-if="data.iobNow != null"><span>Aktív inzulin</span><b class="now-ins">{{ fmt(data.iobNow) }} E</b></div>
-        <div v-if="data.cobNow != null"><span>Aktív CH</span><b class="now-carbs">{{ fmt(data.cobNow, 0) }} g</b></div>
+        <div v-if="data.cardIob != null"><span>Aktív inzulin</span><b class="now-ins">{{ fmt(data.cardIob) }} E</b></div>
+        <div v-if="data.cardCob != null"><span>Aktív CH</span><b class="now-carbs">{{ fmt(data.cardCob, 0) }} g</b></div>
         <div v-if="pred30 != null"><span>30 perc múlva</span><b>≈ {{ sgText(pred30) }}</b></div>
       </div>
     </section>

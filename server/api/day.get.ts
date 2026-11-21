@@ -108,6 +108,7 @@ export default defineEventHandler((event) => {
     .prepare("SELECT ts, value FROM entries WHERE type = 'glucose' AND (source IS NULL OR source != 'manual') AND ((ts >= ? AND ts < ?) OR (ts >= ? AND ts < ?)) AND excluded = 0 ORDER BY ts")
     .all(dayStart - 8 * 3600, dayStart, dayEnd, dayEnd + 8 * 3600) as { ts: number; value: number }[]).map((r) => [Number(r.ts) * 1000, Number(r.value)])
   const nowTs = Math.floor(Date.now() / 1000)
+  const cardTs = day === today ? nowTs : (dayRows.glucose.length ? dayRows.glucose[dayRows.glucose.length - 1].ts : null)
   const cobNow = day === today ? Math.round(cobAt(cobCarbs, nowTs) * 10) / 10 : null
 
   return {
@@ -146,6 +147,9 @@ export default defineEventHandler((event) => {
     },
     iobNow,
     cobNow,
+    // A „Most” kártya csempéi: ma a mostani, korábbi napon a nap utolsó szenzorértékének időpontjára.
+    cardIob: activeInsulin && cardTs != null ? round2(activeInsulin.at(cardTs)) : null,
+    cardCob: cardTs != null ? Math.round(cobAt(cobCarbs, cardTs) * 10) / 10 : null,
     // Étkezésenként a felszívódási görbe (15 percenként, 0–480 perc), az aktív CH görbéhez.
     absorption: { carbs: cobCarbs.map((c) => [c.ts * 1000, c.v, c.sub === 'fatty' || c.sub === 'fast' ? c.sub : null, carbCurve(absorbCategory(c.sub), c.v)]) },
     trend: lastTrend(dayRows.glucose),
