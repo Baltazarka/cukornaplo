@@ -56,7 +56,9 @@ function setShift(k: 'morning' | 'afternoon') {
 }
 /** A kijelölt műszak napjai (a beosztás szerint); nincs szűrés = nincs halmaz. */
 const shiftDays = computed(() => (shiftSel.value ? new Set<string>((rep.value?.dayList ?? []).filter((d: any) => d.shift === shiftSel.value).map((d: any) => d.date)) : null))
-const dayListShown = computed<any[]>(() => (rep.value?.dayList ?? []).filter((d: any) => !shiftSel.value || d.shift === shiftSel.value))
+// Az adat nélküli nap (nincs mérés, bejegyzés, jegyzet) kimarad: 90 napnál a napló kezdete előtti napok nem jelennek meg.
+const hasData = (d: any) => d.glucose.length || d.manual.length || d.events.length || d.notes.length || d.excluded.length
+const dayListShown = computed<any[]>(() => (rep.value?.dayList ?? []).filter((d: any) => hasData(d) && (!shiftSel.value || d.shift === shiftSel.value)))
 const hyList = computed<any[]>(() => (hy.value?.events ?? []).filter((e: any) => !shiftDays.value || shiftDays.value.has(e.date)))
 const hyLevel2 = computed(() => hyList.value.filter((e: any) => e.level === 2).length)
 function setPeriod(d: number) {
