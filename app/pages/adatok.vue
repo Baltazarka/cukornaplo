@@ -160,16 +160,18 @@ async function clDisconnect() {
 }
 
 async function resetDb() {
-  if (!(await askConfirm('Biztos törlöd az ÖSSZES mért adatot? Ez nem vonható vissza. A jelszó és a CareLink kapcsolat megmarad.', { title: 'Összes adat törlése', confirmLabel: 'Adatok törlése', danger: true }))) return
+  const password = await askPassword('Biztos törlöd az ÖSSZES mért adatot? Ez nem vonható vissza (a napi mentés megmarad). A jelszó és a CareLink kapcsolat megmarad. A megerősítéshez írd be a jelszavad.', { title: 'Összes adat törlése', confirmLabel: 'Adatok törlése', danger: true })
+  if (!password) return
   await guarded('reset', async () => {
-    const r: any = await $fetch('/api/reset', { method: 'POST', body: { confirm: true } })
+    const r: any = await $fetch('/api/reset', { method: 'POST', body: { confirm: true, password } })
     flash(`Törölve: ${r.deleted} bejegyzés.`)
   }, 'A törlés nem sikerült.')
 }
 async function factoryReset() {
-  if (!(await askConfirm('MINDENT töröl: a mért adatokat, a jelszót, a passkey-ket, az API-kulcsot és a CareLink kapcsolatot is. Utána elölről kell beállítani. Biztos?', { title: 'Gyári visszaállítás', confirmLabel: 'Mindent törlök', danger: true }))) return
+  const password = await askPassword('MINDENT töröl: a mért adatokat, a jelszót, a passkey-ket, az API-kulcsot és a CareLink kapcsolatot is (a napi mentés megmarad). Utána elölről kell beállítani. A megerősítéshez írd be a jelszavad.', { title: 'Gyári visszaállítás', confirmLabel: 'Mindent törlök', danger: true })
+  if (!password) return
   try {
-    await $fetch('/api/factory-reset', { method: 'POST', body: { confirm: true } })
+    await $fetch('/api/factory-reset', { method: 'POST', body: { confirm: true, password } })
   } catch (e: any) {
     flash('', e?.data?.error ?? 'A visszaállítás nem sikerült.')
     return

@@ -60,6 +60,12 @@ export function zonedToTs(y: number, mo: number, d: number, h: number, mi: numbe
   return Math.floor((wall - off) / 1000)
 }
 
+/** Létező naptári nap és érvényes idő (a 02-31 nem csúszhat át március 3-ra). */
+function validWall(y: number, mo: number, d: number, h: number, mi: number): boolean {
+  const t = new Date(Date.UTC(y, mo - 1, d))
+  return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d && h < 24 && mi < 60
+}
+
 /** ISO 8601, Apple Health vagy a magyar Parancsok-dátum ("2026. 10. 07. 8:15", "2026. okt. 7. 8:15:30"). */
 export function parseDate(input: string): number | null {
   let s = input.replace(/[   ]/g, ' ').trim()
@@ -70,9 +76,9 @@ export function parseDate(input: string): number | null {
   if (hu) {
     const mon = hu[2]
     const month = /^\d+$/.test(mon) ? +mon : (MONTHS[stripAccents(mon).toLowerCase().slice(0, 3)] ?? 0)
-    if (month >= 1 && month <= 12) {
-      ts = zonedToTs(+hu[1], month, +hu[3], +hu[4], +hu[5], +(hu[6] ?? 0))
-    }
+    // Magyar alakú, de nem létező nap vagy idő: nem engedjük tovább a laza Date.parse-ra.
+    if (!(month >= 1 && month <= 12 && validWall(+hu[1], month, +hu[3], +hu[4], +hu[5]))) return null
+    ts = zonedToTs(+hu[1], month, +hu[3], +hu[4], +hu[5], +(hu[6] ?? 0))
   }
 
   // Apple Health export: "YYYY-MM-DD HH:MM:SS +ZZZZ" → ISO.
@@ -88,6 +94,7 @@ export function parseDate(input: string): number | null {
     const hasTz = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(s)
     const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/)
     if (!hasTz && iso) {
+      if (!validWall(+iso[1], +iso[2], +iso[3], +iso[4], +iso[5])) return null
       ts = zonedToTs(+iso[1], +iso[2], +iso[3], +iso[4], +iso[5], +(iso[6] ?? 0))
     } else {
       const parsed = Date.parse(s)

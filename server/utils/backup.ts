@@ -22,7 +22,7 @@ export function backupDaily(): boolean {
   // Előbb ideiglenes fájlba, a végén átnevezve: egy megszakadt másolat nem számít mai mentésnek.
   const tmp = `${file}.tmp`
   rmSync(tmp, { force: true })
-  db().exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`)
+  db().prepare('VACUUM INTO ?').run(tmp)
   renameSync(tmp, file)
   for (const f of staleBackups(readdirSync(dir), KEEP)) rmSync(join(dir, f), { force: true })
   return true

@@ -3,6 +3,7 @@
 const st = useConfirmState()
 const cancelBtn = ref<HTMLButtonElement | null>(null)
 const okBtn = ref<HTMLButtonElement | null>(null)
+const pwInput = ref<HTMLInputElement | null>(null)
 let returnFocus: HTMLElement | null = null
 
 function finish(v: boolean) {
@@ -17,7 +18,7 @@ watch(() => st.value.open, async (open) => {
     returnFocus = document.activeElement as HTMLElement | null
     await nextTick()
     // Veszélyes műveletnél a „Mégse” kapja a fókuszt, hogy egy véletlen Enter ne töröljön.
-    ;(st.value.danger ? cancelBtn.value : okBtn.value)?.focus()
+    ;(st.value.password ? pwInput.value : st.value.danger ? cancelBtn.value : okBtn.value)?.focus()
   } else {
     returnFocus?.focus?.()
   }
@@ -30,7 +31,7 @@ function onKey(e: KeyboardEvent) {
     finish(false)
   } else if (e.key === 'Tab') {
     // A fókusz az ablakon belül marad.
-    const f = [cancelBtn.value, okBtn.value].filter(Boolean) as HTMLElement[]
+    const f = [pwInput.value, cancelBtn.value, okBtn.value].filter(Boolean) as HTMLElement[]
     if (!f.length) return
     const i = f.indexOf(document.activeElement as HTMLElement)
     e.preventDefault()
@@ -48,6 +49,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <div class="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-text">
           <h2 v-if="st.title" class="confirm-title">{{ st.title }}</h2>
           <p id="confirm-text" class="confirm-text">{{ st.text }}</p>
+          <input
+            v-if="st.password" ref="pwInput" v-model="st.input" type="password" class="confirm-input" autocomplete="current-password"
+            placeholder="Jelszó" aria-label="Jelszó" @keydown.enter.prevent="st.input && finish(true)"
+          >
           <div class="confirm-actions">
             <button ref="cancelBtn" type="button" class="ghost" @click="finish(false)">{{ st.cancelLabel ?? 'Mégse' }}</button>
             <button ref="okBtn" type="button" :class="{ 'confirm-danger': st.danger }" @click="finish(true)">{{ st.confirmLabel ?? 'Igen' }}</button>
@@ -69,6 +74,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 .confirm-title { font-size: 16px; margin: 0 0 8px; }
 .confirm-text { margin: 0 0 16px; white-space: pre-line; line-height: 1.45; overflow-wrap: anywhere; }
+.confirm-input { width: 100%; margin: 0 0 16px; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .confirm-danger { background: var(--status-critical); border-color: var(--status-critical); color: #fff; }
 .confirm-enter-active, .confirm-leave-active { transition: opacity 0.15s ease; }

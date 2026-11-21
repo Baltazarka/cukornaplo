@@ -39,14 +39,16 @@ const clampTo = (v: unknown, min: number, max: number, step: number, def: number
 }
 
 export function validateApSettings(b: any): ApSettings {
+  const doseStep = b?.doseStep === 0.5 ? 0.5 : 1
   return {
     enabled: b?.enabled === true,
     push: b?.push !== false,
     fraction: clampTo(b?.fraction, 0.25, 1, 0.25, DEFAULTS.fraction),
     maxIob: clampTo(b?.maxIob, 0.5, 30, 0.5, DEFAULTS.maxIob),
-    maxStep: clampTo(b?.maxStep, 0.5, 30, 0.5, DEFAULTS.maxStep),
+    // Legalább egy adagolási lépés: különben lefelé kerekítve soha nem javasolna.
+    maxStep: Math.max(doseStep, clampTo(b?.maxStep, 0.5, 30, 0.5, DEFAULTS.maxStep)),
     spacingMin: clampTo(b?.spacingMin, 30, 240, 15, DEFAULTS.spacingMin),
-    doseStep: b?.doseStep === 0.5 ? 0.5 : 1,
+    doseStep,
   }
 }
 
