@@ -218,7 +218,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
         </p>
         <template v-for="pr in profiles" :key="pr.label">
           <h3 v-if="pr.label" class="report-sub">{{ pr.label }}</h3>
-          <table class="table report-table">
+          <div class="table-wrap"><table class="table report-table">
             <thead><tr><th>Napszak</th><th class="num">Cél (mmol/L)</th><th class="num">Érzékenység (mmol/L/E)</th><th class="num">CH-arány (g/E)</th><th class="num">Hatásidő</th></tr></thead>
             <tbody>
               <tr v-for="(sg, i) in (t.byTimeOfDay ? pr.segs : pr.segs.slice(0, 1))" :key="sg.start">
@@ -229,14 +229,14 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
                 <td class="num">{{ actionLabel(sg.actionMinutes ?? t.actionMinutes) }}</td>
               </tr>
             </tbody>
-          </table>
+          </table></div>
         </template>
       </section>
 
       <section v-if="shiftRows.length" class="report-section">
         <h2>Váltott műszak szerint</h2>
         <p class="muted small">A napok a műszakbeosztás szerint (délelőttös / délutános hét, szabadnap); csak a legalább félig szenzoradatos napok.</p>
-        <table class="table report-table">
+        <div class="table-wrap"><table class="table report-table">
           <thead>
             <tr><th /><th v-for="x in shiftRows" :key="x.kind" class="num">{{ SHIFT_LABEL[x.kind as 'morning'] }} ({{ x.days }} nap)</th></tr>
           </thead>
@@ -249,7 +249,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
             <tr><td>Bólus / korrekció naponta</td><td v-for="x in shiftRows" :key="x.kind" class="num">{{ fmt(x.perDay.bolus, 0) }} / {{ fmt(x.perDay.correction, 0) }} E</td></tr>
             <tr><td>CH naponta</td><td v-for="x in shiftRows" :key="x.kind" class="num">{{ fmt(x.perDay.carbs, 0) }} g</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <template v-if="!shiftSel && shiftChart">
           <h3 class="report-sub">Műszakonként összesítve: tartományban töltött idő</h3>
           <div v-for="k in (['morning', 'afternoon'] as const)" :key="k" class="report-half">
@@ -303,7 +303,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
             {{ hy.summary.night }} éjszakai (0–6 óra); átlagos hossz {{ hy.summary.avgMinutes }} perc, legalacsonyabb {{ sgText(hy.summary.lowest) }} mmol/L.
             Bólus utáni 4 órában: {{ hy.summary.afterBolus }}, túlkezelés (utána a céltartomány fölé): {{ hy.summary.overTreated }}.
           </p>
-          <table class="table report-table">
+          <div class="table-wrap"><table class="table report-table">
             <thead><tr><th>Mikor</th><th class="num">Hossz</th><th class="num">Legalacsonyabb</th><th>Előtte</th><th>Kezelés</th><th class="num">Utána max.</th></tr></thead>
             <tbody>
               <tr v-for="e in hyList" :key="e.start">
@@ -317,13 +317,13 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
                 <td class="num">{{ e.rebound ? sgText(e.rebound.v) : '–' }}</td>
               </tr>
             </tbody>
-          </table>
+          </table></div>
         </template>
       </section>
 
       <section class="report-section">
         <h2>Étkezések napszakonként</h2>
-        <table class="table report-table">
+        <div class="table-wrap"><table class="table report-table">
           <thead>
             <tr>
               <th>Napszak</th><th class="num">Étkezés</th><th class="num">Emelkedés</th><th class="num">Csúcs</th>
@@ -343,13 +343,13 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
               <td class="num">{{ sg.fatty ? `${sg.fatty.n} (6 ó: ${fmt(sg.fatty.d6h, 1, true)})` : '–' }}</td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
         <p class="muted small">Eltérés a kezdő értékhez képest, mmol/L, mediánok. Rendben: a csúcs a céltartomány alatt maradt, és 4 óra múlva ±2 mmol/L-en belül visszaállt.</p>
       </section>
 
       <section class="report-section">
         <h2>Bázisellenőrzés</h2>
-        <table class="table report-table">
+        <div class="table-wrap"><table class="table report-table">
           <thead><tr><th>Időszak</th><th class="num">Változás (mmol/L/óra)</th><th class="num">Adat</th><th>Értékelés</th></tr></thead>
           <tbody>
             <tr v-for="bl in an.basal.blocks" :key="bl.label">
@@ -359,13 +359,13 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
               <td>{{ basalState(bl) }}</td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
         <p class="muted small">Étel, ható bólus és hipó nélküli időszakokban; stabil: ±0,3 mmol/L óránként.</p>
       </section>
 
       <section v-if="an.therapySet" class="report-section">
         <h2>Becslés a mért adatokból</h2>
-        <table class="table report-table">
+        <div class="table-wrap"><table class="table report-table">
           <thead>
             <tr>
               <th>Napszak</th><th class="num">Tiszta korr. / étk.</th>
@@ -381,7 +381,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
               <td class="num">{{ sg.therapy ? actionLabel(sg.therapy.actionMinutes) : '–' }} → {{ sg.estimate.action ? actionLabel(sg.estimate.action.dia) : '?' }}<template v-if="sg.estimate.action?.unreliable"> <small>(nem megbízható)</small></template></td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
         <p class="muted small">Tájékoztató becslés (legalább 3 tiszta eseményből); a terápia módosítása a kezelőorvossal egyeztetendő.</p>
       </section>
 

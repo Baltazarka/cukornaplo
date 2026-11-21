@@ -1317,3 +1317,10 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
 .theme-toggle.spinning svg { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Telefonon az apró vezérlők érintőfelülete nagyobb (a látható méret ugyanaz, a „?” gomb kijelölt területe nő). */
+@media (max-width: 700px) {
+  .guide-link { position: relative; }
+  .guide-link::after { content: ''; position: absolute; inset: -10px; }
+  .sub-select { min-height: 34px; }
+  .topbar .brand { padding: 10px 0; }
+}

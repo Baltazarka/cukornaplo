@@ -422,7 +422,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
     <div class="filters">
       <template v-if="period === 1">
         <button class="ghost" aria-label="Előző nap" @click="go(data.prev)">←</button>
-        <input type="date" :value="data.day" :max="data.today" @change="go(($event.target as HTMLInputElement).value)">
+        <input type="date" :value="data.day" :max="data.today" aria-label="Nap" @change="go(($event.target as HTMLInputElement).value)">
         <button class="ghost" aria-label="Következő nap" :hidden="data.day >= data.today" @click="go(data.next)">→</button>
         <button v-if="data.day !== data.today" class="ghost" @click="go(data.today)">Ma</button>
       </template>

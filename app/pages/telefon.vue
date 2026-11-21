@@ -88,6 +88,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
 
 <template>
   <main class="phone-page">
+    <h1 class="sr-only">Telefon beállítása</h1>
     <section class="card">
       <h2>Widget a telefon képernyőjére</h2>
       <p class="muted small">

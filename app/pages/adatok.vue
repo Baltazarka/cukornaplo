@@ -183,6 +183,7 @@ async function factoryReset() {
 
 <template>
   <main v-if="data">
+    <h1 class="sr-only">Beállítások</h1>
 
     <section class="card">
       <h2>Tárolt adatok</h2>
@@ -262,7 +263,7 @@ async function factoryReset() {
           <li>Illeszd be ide (a teljes címet vagy csak a kódot), és kapcsolódj. A kód csak pár percig él.</li>
         </ol>
         <form class="stack" @submit.prevent="clConnect">
-          <textarea v-model="clCode" rows="3" required placeholder="com.medtronic.carepartner:/sso?code=…" />
+          <textarea v-model="clCode" rows="3" required aria-label="CareLink kód" placeholder="com.medtronic.carepartner:/sso?code=…" />
           <button type="submit" :disabled="busy === 'cl-connect'">Kapcsolódás</button>
         </form>
       </template>
@@ -302,7 +303,7 @@ async function factoryReset() {
       <h2>Kézi import</h2>
       <p class="muted">Soronként: <code>típus;dátum;érték</code> (típus: <code>glucose</code>, <code>insulin</code>, <code>carbs</code>). JSON is beilleszthető.</p>
       <form class="stack" @submit.prevent="doImport">
-        <textarea v-model="importText" rows="5" placeholder="Illeszd be a sorokat…" />
+        <textarea v-model="importText" rows="5" aria-label="Importálandó sorok" placeholder="Illeszd be a sorokat…" />
         <label>vagy fájl (.txt / .csv / .json)
           <input type="file" accept=".txt,.csv,.json" @change="importFile = ($event.target as HTMLInputElement).files?.[0] ?? null">
         </label>
