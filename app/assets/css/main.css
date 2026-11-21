@@ -86,6 +86,7 @@
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px;
   --zone: var(--status-good);
 }
+:root[data-theme="pastel-night"] .now-card .qa-inline { display: grid; grid-template-columns: repeat(3, auto); gap: 8px; }
 :root[data-theme="pastel-night"] .now-card.z-low { --zone: #f2a66b; }
 :root[data-theme="pastel-night"] .now-card.z-very-low { --zone: var(--status-critical); }
 :root[data-theme="pastel-night"] .now-card.z-high { --zone: var(--status-warning); }
@@ -252,6 +253,7 @@
   :root[data-theme="pastel-night"] .day-so-far { display: flex; }
   :root[data-theme="pastel-night"] .home-main > .day-so-far { order: 2; }
   :root[data-theme="pastel-night"] .quick-actions { display: grid; }
+  :root[data-theme="pastel-night"] .now-card .qa-inline { display: none; }
   :root[data-theme="pastel-night"] .now-value { font-size: 48px; }
   :root[data-theme="pastel-night"] .now-facts { flex: 1 1 100%; }
   :root[data-theme="pastel-night"] .now-facts > div { flex: 1 1 0; }

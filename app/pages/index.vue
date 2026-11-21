@@ -463,6 +463,12 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
         <TrendArrows v-if="data.trend && data.day === data.today" :dir="data.trend.dir" :level="data.trend.level" class="now-trend" />
         <span class="now-zone">{{ ZONE_LABEL[nowReading.zone] }}</span>
       </div>
+      <!-- Számítógépen a kártya üres közepén (telefonon a kártya alatti gombsor látszik). -->
+      <div v-if="!readOnly" class="quick-actions qa-inline" role="group" aria-label="Gyors műveletek">
+        <button type="button" class="qa-calc" @click="quickCalc">Kalkulátor</button>
+        <button type="button" class="qa-carbs" @click="quickEntry('carbs')">+ CH</button>
+        <button type="button" class="qa-ins" @click="quickEntry('insulin')">+ Inzulin</button>
+      </div>
       <div class="now-facts">
         <div v-if="data.iobNow != null"><span>Aktív inzulin</span><b class="now-ins">{{ fmt(data.iobNow) }} E</b></div>
         <div v-if="data.cobNow != null"><span>Aktív CH</span><b class="now-carbs">{{ fmt(data.cobNow, 0) }} g</b></div>
