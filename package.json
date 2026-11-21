@@ -6,7 +6,8 @@
     "dev": "nuxt dev",
     "build": "nuxt build",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "test": "node --test tests/autopilot.test.ts"
   },
   "dependencies": {
     "@simplewebauthn/browser": "^14.0.0",

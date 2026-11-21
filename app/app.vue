@@ -113,6 +113,7 @@ const themeLabel = computed(() => THEMES.find((t) => t.id === theme.value)?.labe
         <nav v-if="auth.authed">
           <NuxtLink to="/" :class="{ active: route.path === '/' }">Napi nézet</NuxtLink>
           <NuxtLink to="/terapia" :class="{ active: route.path === '/terapia' }">Terápia</NuxtLink>
+          <NuxtLink to="/autopilot" :class="{ active: route.path === '/autopilot' }">Autopilot</NuxtLink>
           <NuxtLink to="/telefon" :class="{ active: route.path === '/telefon' }">Telefon beállítása</NuxtLink>
           <NuxtLink to="/adatok" :class="{ active: route.path === '/adatok' }">Beállítások</NuxtLink>
           <a href="#" @click.prevent="showGuide">Számítások</a>
