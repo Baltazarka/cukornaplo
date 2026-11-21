@@ -6,7 +6,7 @@ import { targetRange } from '../utils/range'
 import { startOfDayTs, todayYmd, addDaysYmd, minuteOfDayInTz } from '../utils/time'
 import { groupByDay, summaryRows } from '../utils/summary'
 import { changeTime, type GPoint } from '../utils/trend'
-import { insulinKind } from '../utils/insulinKind'
+import { insulinKind, MEAL_WINDOW_SEC, PREBOLUS_SEC } from '../utils/insulinKind'
 import { detectHypos, hypoCount } from '../utils/hypo'
 import { ymdInTz } from '../utils/time'
 import { shiftOn } from '../utils/therapy'
@@ -53,7 +53,10 @@ export default defineEventHandler((event) => {
   const gPoints: GPoint[] = [] // csak szenzoradat (a változás sebességéhez)
   const hypoPoints: GPoint[] = [] // szenzor + kézi mérés (a hipóesemények észleléséhez)
   let sensorN = 0
-  const carbTs = rows.filter((r) => r.type === 'carbs').map((r) => Number(r.ts))
+  // A besoroláshoz (étkezési bólus / korrekció) az időszakon kívüli CH-bejegyzések is kellenek: egy éjfél előtti
+  // előbólus CH-ja másnap 00:10-kor lehet; ugyanúgy, mint a napi nézetben (különben a két nézet összege eltér).
+  const carbTs = (db().prepare("SELECT ts FROM entries WHERE type = 'carbs' AND ts >= ? AND ts < ?")
+    .all(startTs - MEAL_WINDOW_SEC, endTs + PREBOLUS_SEC) as { ts: number }[]).map((r) => Number(r.ts))
   // A mai (még le nem zárt) napot a napi átlagokból kihagyjuk, ha van lezárt nap inzulin- / CH-adattal: egy félnapnyi
   // adat a teljes napra osztva lehúzná az átlagot.
   const skipToday = end >= today && rows.some((r) => r.type !== 'glucose' && ymdInTz(Number(r.ts)) < today)
