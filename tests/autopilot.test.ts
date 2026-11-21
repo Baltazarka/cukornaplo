@@ -37,9 +37,12 @@ test('friss adag után várakozás', () => {
   assert.equal(d.state, 'wait')
 })
 
-test('a határ feletti aktív inzulin: várakozás', () => {
-  const d = apDecide(input({ iobAt: () => 31 }))
+test('a határ feletti aktív inzulin: várakozás, és kiírja, mennyit javasolna a határ nélkül', () => {
+  // 20 mmol/L, 6 E aktív inzulin (3 mmol/L-t levinne), határ 5 E
+  const d = apDecide(input({ glucose: series(20, 20), iobAt: (ts) => (ts <= NOW ? 6 : 0), params: { ...params, maxIob: 5 } }))
   assert.equal(d.state, 'wait')
+  assert.equal(d.units, null)
+  assert.match(d.reasons.join(' '), /A határ nélkül kb. 10 E/)
 })
 
 test('régi szenzorérték: nincs adat', () => {

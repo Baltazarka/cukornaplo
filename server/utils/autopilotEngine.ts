@@ -135,20 +135,31 @@ export function apDecide(i: ApInput): ApDecision {
     const ago = Math.round((i.nowTs - i.lastBolusTs) / 60)
     return wait([`${ago} perce adtál inzulint, a hatásához idő kell. Legközelebb ${p.spacingMin - ago} perc múlva számol újra.`])
   }
-  if (iob >= p.maxIob) {
-    return wait([`Az aktív inzulin (${n1(iob)} E) eléri a beállított határt (${n1(p.maxIob)} E).`])
-  }
   if (bg <= p.high || eventual <= p.high) {
     return wait([`Nem kell: most ${n1(bg)}, a várható érték ${n1(eventual)} mmol/L, a céltartományban (felső határ ${n1(p.high)}).`])
   }
 
   const need = (eventual - p.target) / p.isf
   const full = floorTo(need, p.minStep)
-  let units = floorTo(Math.min(p.fraction * need, p.maxStep, p.maxIob - iob), p.minStep)
-  // A javasolt adag mellett se lehessen a várható mélypont a biztonsági sáv alatt: ha igen, kisebb lépés.
   const after = (u: number): [number, number][] => curve.map(([k, v]) => [k, round(v - u * p.isf * (1 - i.remaining(k)))])
   const lowest = (c: [number, number][]) => Math.min(...c.map((x) => x[1]))
-  while (units >= p.minStep && lowest(after(units)) < p.low + LOW_MARGIN) units = round(units - p.minStep, 100)
+  // Egy lépés: a töredék, a legnagyobb lépés és az aktív inzulin határa közül a legkisebb; a javasolt adag mellett se
+  // lehessen a várható mélypont a biztonsági sáv alatt: ha igen, kisebb lépés.
+  const step = (cap: number) => {
+    let u = floorTo(Math.min(p.fraction * need, p.maxStep, cap), p.minStep)
+    while (u >= p.minStep && lowest(after(u)) < p.low + LOW_MARGIN) u = round(u - p.minStep, 100)
+    return u
+  }
+  if (iob >= p.maxIob) {
+    const u = step(Infinity)
+    return wait([
+      `Az aktív inzulin (${n1(iob)} E) eléri a beállított határt (${n1(p.maxIob)} E), ezért most nem javasol.`,
+      u >= p.minStep
+        ? `A határ nélkül kb. ${n1(u)} E lenne a javaslat (most ${n1(bg)}, a várható érték ${n1(eventual)} mmol/L). A határot a Beállításokban módosíthatod.`
+        : `A várható érték ${n1(eventual)} mmol/L, de a határ nélkül sem lenne biztonságos javaslat.`,
+    ])
+  }
+  const units = step(p.maxIob - iob)
   if (units < p.minStep) {
     return wait([`A várható érték ${n1(eventual)} mmol/L, de a legkisebb lépés mellett is túl közel kerülne az alacsonyhoz (várható mélypont ${n1(min[1])}): most nem javasol.`])
   }

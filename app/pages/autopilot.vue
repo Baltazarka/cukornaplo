@@ -13,7 +13,7 @@ const fmt = (v: number | null | undefined, dec = 1) => (v == null ? '–' : v.to
 const dec = computed(() => data.value?.decision ?? null)
 const STATE: Record<string, { label: string; cls: string }> = {
   suggest: { label: 'Javaslat', cls: 'ap-suggest' },
-  wait: { label: 'Nincs teendő', cls: 'ap-wait' },
+  wait: { label: 'Nincs javaslat', cls: 'ap-wait' },
   hold: { label: 'Várj', cls: 'ap-hold' },
   stale: { label: 'Nincs friss adat', cls: 'ap-stale' },
 }
@@ -146,7 +146,8 @@ const outcomeOk = (r: any) => r.min4h != null && r.min4h >= range.value.low
           </label>
         </div>
         <p class="muted small">
-          A cél, az érzékenység és a CH-arány a Terápia oldalról jön. Nem javasol: hipó-veszélynél, eső vércukornál, friss adag után,
+          A cél, az érzékenység és a CH-arány a Terápia oldalról jön. Az aktív inzulin határa: egy nagyobb étkezési bólus után órákig
+          fölötte lehet az aktív inzulin, ilyenkor nem javasol (a határt a diabetológussal egyeztetve érdemes megadni). Nem javasol: hipó-veszélynél, eső vércukornál, friss adag után,
           és ha a javasolt adag mellett is túl közel kerülne a várható mélypont az alacsonyhoz.
         </p>
         <button type="submit" :disabled="saving">Mentés</button>
