@@ -54,3 +54,15 @@ test('a javasolt adag mellett sem lehet a mélypont a biztonsági sáv alatt', (
   const d = apDecide(input({ glucose: series(10.4, 10.4), params: { ...params, high: 9, fraction: 1, maxStep: 20, maxIob: 30 } }))
   if (d.state === 'suggest') assert.ok(Math.min(...d.curveAfter.map((c) => c[1])) >= params.low + 0.5)
 })
+
+test('egész egységes lépésköz: lefelé kerekít, és ha az aktív inzulin határáig nem fér be egy egész, nem javasol', () => {
+  const whole = { ...params, minStep: 1, fraction: 0.75 }
+  const a = apDecide(input({ params: whole })) // teljes 13 E, 75% = 9,75 → 9
+  assert.equal(a.state, 'suggest')
+  assert.equal(a.units, 9)
+  // 7,5 E aktív, határ 8: 0,5 E hely van, de a legkisebb adag 1 E
+  const b = apDecide(input({ glucose: series(20, 20), params: { ...whole, maxIob: 8 }, iobAt: (ts) => (ts <= NOW ? 7.5 : 0) }))
+  assert.equal(b.state, 'wait')
+  assert.equal(b.units, null)
+  assert.match(b.reasons.join(' '), /meghaladná a beállított határt/)
+})

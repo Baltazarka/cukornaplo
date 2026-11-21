@@ -27,7 +27,7 @@ const arrow = computed(() => {
 })
 
 // Beállítások
-const form = reactive({ enabled: false, push: true, fraction: 0.5, maxIob: 3, maxStep: 5, spacingMin: 60 })
+const form = reactive({ enabled: false, push: true, fraction: 0.5, maxIob: 3, maxStep: 5, spacingMin: 60, doseStep: 1 })
 watch(() => data.value?.settings, (s) => { if (s) Object.assign(form, s) }, { immediate: true })
 const saveMsg = ref('')
 const saveErr = ref('')
@@ -140,6 +140,12 @@ const outcomeOk = (r: any) => r.min4h != null && r.min4h >= range.value.low
           </label>
           <label>Egy javaslat legfeljebb (E)
             <input v-model.number="form.maxStep" type="number" min="0.5" max="30" step="0.5">
+          </label>
+          <label>Adagolás lépésköze
+            <select v-model.number="form.doseStep">
+              <option :value="1">1 E (egész egységek)</option>
+              <option :value="0.5">0,5 E</option>
+            </select>
           </label>
           <label>Két javaslat között legalább (perc)
             <input v-model.number="form.spacingMin" type="number" min="30" max="240" step="15">

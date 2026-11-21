@@ -17,9 +17,11 @@ export interface ApSettings {
   maxIob: number
   maxStep: number
   spacingMin: number
+  /** Ennyi E-nél pontosabban nem tudsz adagolni (a toll lépésköze): a javaslat erre kerekítve, lefelé. */
+  doseStep: number
 }
 
-const DEFAULTS: ApSettings = { enabled: false, push: true, fraction: 0.5, maxIob: 3, maxStep: 5, spacingMin: 60 }
+const DEFAULTS: ApSettings = { enabled: false, push: true, fraction: 0.5, maxIob: 3, maxStep: 5, spacingMin: 60, doseStep: 1 }
 const LOG_DAYS = 120
 
 export function apSettings(): ApSettings {
@@ -44,6 +46,7 @@ export function validateApSettings(b: any): ApSettings {
     maxIob: clampTo(b?.maxIob, 0.5, 30, 0.5, DEFAULTS.maxIob),
     maxStep: clampTo(b?.maxStep, 0.5, 30, 0.5, DEFAULTS.maxStep),
     spacingMin: clampTo(b?.spacingMin, 30, 240, 15, DEFAULTS.spacingMin),
+    doseStep: b?.doseStep === 0.5 ? 0.5 : 1,
   }
 }
 
@@ -96,7 +99,7 @@ export function apCompute(nowTs = Math.floor(Date.now() / 1000)): ApDecision | n
   const { low, high } = targetRange()
   const params: ApParams = {
     target: seg.target, isf: b?.isf ?? seg.isf, icr: b?.icr ?? seg.icr, low, high,
-    fraction: s.fraction, maxIob: s.maxIob, maxStep: Math.min(s.maxStep, Math.floor(t.maxBolus * 2) / 2), minStep: 0.5, spacingMin: s.spacingMin,
+    fraction: s.fraction, maxIob: s.maxIob, maxStep: Math.min(s.maxStep, Math.floor(t.maxBolus / s.doseStep) * s.doseStep), minStep: s.doseStep, spacingMin: s.spacingMin,
   }
   const model = insulinModel(bolusPeak(t), actionMinutesAt(t, nowTs))
   return apDecide({

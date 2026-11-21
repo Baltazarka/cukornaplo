@@ -150,10 +150,10 @@ export function apDecide(i: ApInput): ApDecision {
     while (u >= p.minStep && lowest(after(u)) < p.low + LOW_MARGIN) u = round(u - p.minStep, 100)
     return u
   }
-  if (iob >= p.maxIob) {
+  if (iob + p.minStep > p.maxIob) {
     const u = step(Infinity)
     return wait([
-      `Az aktív inzulin (${n1(iob)} E) eléri a beállított határt (${n1(p.maxIob)} E), ezért most nem javasol.`,
+      `Az aktív inzulin (${n1(iob)} E) és a legkisebb adag (${n1(p.minStep)} E) együtt meghaladná a beállított határt (${n1(p.maxIob)} E), ezért most nem javasol.`,
       u >= p.minStep
         ? `A határ nélkül kb. ${n1(u)} E lenne a javaslat (most ${n1(bg)}, a várható érték ${n1(eventual)} mmol/L). A határot a Beállításokban módosíthatod.`
         : `A várható érték ${n1(eventual)} mmol/L, de a határ nélkül sem lenne biztonságos javaslat.`,
