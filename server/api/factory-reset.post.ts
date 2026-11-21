@@ -5,7 +5,6 @@ import { authSession } from '../utils/auth'
 import { CL_RAW_FILE } from '../utils/carelink'
 import { invalidateComputed } from '../utils/jobs'
 import { apReset } from '../utils/autopilot'
-import { backupClear } from '../utils/backup'
 import { unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -27,7 +26,6 @@ export default defineEventHandler(async (event) => {
   db().exec('DELETE FROM computed_cache')
   db().exec('DELETE FROM push_log')
   apReset()
-  backupClear()
   resetSettings()
   // A memóriabeli gyorsítótárak (tanult felszívódás, módszerválasztás) sem maradhatnak a törölt adatokból.
   invalidateComputed()

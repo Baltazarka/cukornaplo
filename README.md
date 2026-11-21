@@ -40,6 +40,9 @@ pnpm dev          # http://localhost:3000
 
 ### Adatmappa (`DATA_DIR`)
 
+- Napi automatikus mentés: `data/backup/diabetes-ÉÉÉÉ-HH-NN.sqlite` (utolsó 7 nap, éjjel 3 után készül). Visszaállítás: állítsd
+  le a szervert, másold a mentést a `data/diabetes.sqlite` helyére, és töröld a `diabetes.sqlite-wal` és `-shm` fájlt.
+  A „Minden elölről” a mentéseket nem törli.
 - Alapértelmezés: a projekt `./data` mappája (nincs verziókezelve).
 - Kísérletezéshez külön mappa adható meg, pl. egy demó-példány:
 

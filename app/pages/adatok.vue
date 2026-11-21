@@ -337,7 +337,7 @@ node scripts/import-health-export.ts C:\útvonal\export.xml 2026-01-01</pre>
       <div class="danger-row">
         <div>
           <b>Minden elölről (gyári visszaállítás)</b>
-          <p class="muted small">A mért adatok, a jelszó, a passkey-k, az API-kulcs és a CareLink kapcsolat is törlődik. Utána új jelszót kell beállítani.</p>
+          <p class="muted small">A mért adatok, a jelszó, a passkey-k, az API-kulcs és a CareLink kapcsolat is törlődik. Utána új jelszót kell beállítani. A napi mentések (a data/backup mappában) megmaradnak.</p>
         </div>
         <button class="ghost danger-btn" @click="factoryReset">Minden törlése</button>
       </div>

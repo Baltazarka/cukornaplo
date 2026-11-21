@@ -1,25 +1,29 @@
 // Napi biztonsági másolat: a teljes adatbázis (VACUUM INTO, konzisztens, WAL-nal is) a data/backup mappába.
-// Az utolsó KEEP nap marad. A másolat egészségügyi adat: a „Minden elölről” ezt is törli.
-import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
+// Az utolsó KEEP nap marad. A „Minden elölről” a mentéseket NEM törli (hogy egy téves törlés visszafordítható legyen).
+// Visszaállítás: állítsd le a szervert, másold a kívánt mentést a data/diabetes.sqlite helyére, és töröld a mellette lévő
+// diabetes.sqlite-wal és diabetes.sqlite-shm fájlt.
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { staleBackups } from '#shared/utils/backupKeep'
 import { db } from './db'
-import { ymdInTz } from './time'
+import { minuteOfDayInTz, ymdInTz } from './time'
 
 const KEEP = 7
-export const backupDir = () => join(dataDir(), 'backup')
+/** Éjjel 3 óra előtt nem fut (a szinkron másolás ilyenkor a legkevésbé zavar). */
+const FROM_MINUTE = 3 * 60
 
 /** Ma még nincs másolat → készít egyet, és törli a régieket. Igaz, ha készült. */
 export function backupDaily(): boolean {
-  const dir = backupDir()
-  const file = join(dir, `diabetes-${ymdInTz(Math.floor(Date.now() / 1000))}.sqlite`)
-  if (existsSync(file)) return false
+  const now = Math.floor(Date.now() / 1000)
+  const dir = join(dataDir(), 'backup')
+  const file = join(dir, `diabetes-${ymdInTz(now)}.sqlite`)
+  if (existsSync(file) || minuteOfDayInTz(now) < FROM_MINUTE) return false
   mkdirSync(dir, { recursive: true })
-  db().exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`)
-  const old = readdirSync(dir).filter((f) => /^diabetes-\d{4}-\d{2}-\d{2}\.sqlite$/.test(f)).sort().slice(0, -KEEP)
-  for (const f of old) rmSync(join(dir, f), { force: true })
+  // Előbb ideiglenes fájlba, a végén átnevezve: egy megszakadt másolat nem számít mai mentésnek.
+  const tmp = `${file}.tmp`
+  rmSync(tmp, { force: true })
+  db().exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`)
+  renameSync(tmp, file)
+  for (const f of staleBackups(readdirSync(dir), KEEP)) rmSync(join(dir, f), { force: true })
   return true
-}
-
-export function backupClear(): void {
-  rmSync(backupDir(), { recursive: true, force: true })
 }

@@ -23,10 +23,11 @@ const DEFAULTS: ApSettings = { enabled: false, push: true, fraction: 0.5, maxIob
 const LOG_DAYS = 120
 
 export function apSettings(): ApSettings {
-  // Amíg nincs elmentve, az aktív inzulin határa a terápiában beállított legnagyobb egyszeri adag (nem fix 3 E:
-  // étkezési bólus után órákig ennél több az aktív inzulin, és akkor soha nem javasolna).
+  // Amíg nincs elmentve, az aktív inzulin határa a terápiában beállított legnagyobb egyszeri adag fele (nem fix 3 E:
+  // étkezési bólus után órákig ennél több az aktív inzulin, és akkor soha nem javasolna). A határot a diabetológussal
+  // egyeztetve érdemes megadni.
   const maxBolus = therapy()?.maxBolus
-  const maxIob = maxBolus ? Math.min(30, Math.max(0.5, Math.floor(maxBolus * 2) / 2)) : DEFAULTS.maxIob
+  const maxIob = maxBolus ? Math.min(30, Math.max(0.5, Math.floor(maxBolus) / 2)) : DEFAULTS.maxIob
   return { ...DEFAULTS, maxIob, ...(setting<Partial<ApSettings>>('autopilot', null) ?? {}) }
 }
 

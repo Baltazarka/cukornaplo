@@ -50,3 +50,9 @@ test('a maximális dózisnál nem több, és capped jelzi', () => {
 test('lebegőpontos hiba: 6,9999… nem kerekedik le', () => {
   assert.equal(calcBolus({ ...base, carbs: 70 }).dose, 7)
 })
+
+test('mentések megőrzése: az utolsó 7 marad, idegen fájlhoz nem nyúl', async () => {
+  const { staleBackups } = await import('../shared/utils/backupKeep.ts')
+  const names = Array.from({ length: 9 }, (_, i) => `diabetes-2026-11-0${i + 1}.sqlite`)
+  assert.deepEqual(staleBackups([...names, 'x.txt', 'diabetes-2026-11-01.sqlite.tmp'], 7), names.slice(0, 2))
+})
