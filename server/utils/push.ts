@@ -4,6 +4,7 @@
 import webpush from 'web-push'
 import { db } from './db'
 import { mailSettings } from './mail'
+import { pushEndpointAllowed } from '#shared/utils/pushHosts'
 
 interface Vapid { publicKey: string; privateKey: string }
 
@@ -31,7 +32,7 @@ function subject(): string {
 export interface PushSub { endpoint: string; keys: { p256dh: string; auth: string } }
 
 export function validSubscription(b: any): b is PushSub {
-  return typeof b?.endpoint === 'string' && /^https:\/\//.test(b.endpoint) && b.endpoint.length < 1000
+  return typeof b?.endpoint === 'string' && pushEndpointAllowed(b.endpoint) && b.endpoint.length < 1000
     && typeof b?.keys?.p256dh === 'string' && typeof b?.keys?.auth === 'string'
 }
 

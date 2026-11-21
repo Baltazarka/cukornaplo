@@ -1,7 +1,7 @@
 // A teljes mért adat törlése (bejegyzések). A jelszó, kulcs és CareLink megmarad.
 import { db } from '../utils/db'
 import { invalidateComputed } from '../utils/jobs'
-import { verifyPassword } from '../utils/auth'
+import { confirmPassword } from '../utils/auth'
 
 export default defineEventHandler(async (event) => {
   const body = (await readBody(event)) ?? {}
@@ -9,10 +9,8 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 400)
     return { ok: false, error: 'Megerősítés szükséges.' }
   }
-  if (!(await verifyPassword(String(body.password ?? '')))) {
-    setResponseStatus(event, 403)
-    return { ok: false, error: 'Hibás jelszó.' }
-  }
+  const denied = await confirmPassword(event, String(body.password ?? ''))
+  if (denied) return { ok: false, error: denied }
   const before = (db().prepare('SELECT COUNT(*) c FROM entries').get() as any).c
   db().exec('DELETE FROM entries')
   db().exec('DELETE FROM deleted_entries')

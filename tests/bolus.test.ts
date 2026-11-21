@@ -73,3 +73,17 @@ test('inzulinjavaslat: a szükséglet fele, a toll lépésére lefelé kerekítv
   assert.equal(suggestInsulin({ ...base, eventual: 7.8 }), null) // 1,8 E szükséglet → 0,9 < 1 egész
   assert.equal(suggestInsulin({ ...base, eventual: 5 }), null)
 })
+
+test('push-feliratkozás: csak az ismert push-szolgáltatók https címe, belső cím és más port nem', async () => {
+  const { pushEndpointAllowed: ok } = await import('../shared/utils/pushHosts.ts')
+  assert.equal(ok('https://web.push.apple.com/abc'), true)
+  assert.equal(ok('https://fcm.googleapis.com/fcm/send/abc'), true)
+  assert.equal(ok('https://updates.push.services.mozilla.com/wpush/v2/abc'), true)
+  assert.equal(ok('https://wns2-par02p.notify.windows.com/?token=abc'), true)
+  assert.equal(ok('http://web.push.apple.com/abc'), false)
+  assert.equal(ok('https://192.168.1.1/abc'), false)
+  assert.equal(ok('https://evil.example.com/web.push.apple.com'), false)
+  assert.equal(ok('https://web.push.apple.com.evil.com/abc'), false)
+  assert.equal(ok('https://web.push.apple.com:8443/abc'), false)
+  assert.equal(ok('nem url'), false)
+})

@@ -1,7 +1,7 @@
 // Minden elölről: a mért adatok ÉS az összes beállítás (jelszó, passkey-k, kulcs, CareLink) törlése.
 import { db } from '../utils/db'
 import { resetSettings } from '../utils/settings'
-import { authSession, verifyPassword } from '../utils/auth'
+import { authSession, confirmPassword } from '../utils/auth'
 import { CL_RAW_FILE } from '../utils/carelink'
 import { invalidateComputed } from '../utils/jobs'
 import { unlinkSync } from 'node:fs'
@@ -13,10 +13,8 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 400)
     return { ok: false, error: 'Megerősítés szükséges.' }
   }
-  if (!(await verifyPassword(String(body.password ?? '')))) {
-    setResponseStatus(event, 403)
-    return { ok: false, error: 'Hibás jelszó.' }
-  }
+  const denied = await confirmPassword(event, String(body.password ?? ''))
+  if (denied) return { ok: false, error: denied }
   db().exec('DELETE FROM entries')
   db().exec('DELETE FROM deleted_entries')
   db().exec('DELETE FROM notes')

@@ -180,6 +180,26 @@ export function loginFailed(event: H3Event): void {
   db().prepare('INSERT INTO login_failures (ip, ts) VALUES (?, ?)').run(clientIp(event), now)
 }
 
+/**
+ * Jelszó megerősítése veszélyes műveletnél (törlés): ugyanaz a próbálkozás-korlát, mint a belépésnél, hogy egy ellopott
+ * munkamenetből ne lehessen a jelszót találgatni. Hibaüzenet (és a válaszkód beállítva), vagy null, ha jó a jelszó.
+ */
+export async function confirmPassword(event: H3Event, pw: string): Promise<string | null> {
+  const wait = loginLockedFor(event)
+  if (wait > 0) {
+    setResponseStatus(event, 429)
+    return `Túl sok hibás próbálkozás. Próbáld újra ${Math.ceil(wait / 60)} perc múlva.`
+  }
+  // A próbálkozás az ellenőrzés előtt számít (sikeres ellenőrzéskor törlődik), a párhuzamos kérések miatt.
+  loginFailed(event)
+  if (await verifyPassword(pw)) {
+    loginSucceeded(event)
+    return null
+  }
+  setResponseStatus(event, 403)
+  return 'Hibás jelszó.'
+}
+
 export function loginSucceeded(event: H3Event): void {
   db().prepare('DELETE FROM login_failures WHERE ip = ?').run(clientIp(event))
 }
