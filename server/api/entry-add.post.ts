@@ -1,7 +1,8 @@
 // Kézi bejegyzés a naplóba: inzulin (E), szénhidrát (g) vagy vércukor (mmol/L, kézi mérés, nem szenzoradat),
 // időponttal (az app időzónájában).
 // { date: 'YYYY-MM-DD', time: 'HH:MM', type: 'insulin' | 'carbs' | 'glucose', value, sub?: meal | correction | basal
-//   (inzulin) vagy fatty | fast (CH), fat?, protein? (g, CH-hoz), calc? (inzulinhoz a kalkulátor bontása), force?: true }
+//   (inzulin) vagy fatty | fast (CH), fat?, protein? (g, CH-hoz), calc? (inzulinhoz a kalkulátor bontása),
+//   ap?: true (az Autopilot javaslata alapján beadott inzulin: ugyanúgy bólus, csak 🤖 jelölést kap), force?: true }
 // Friss (30 percen belüli) zsíros étkezésnél zsír / fehérje megadásával a zsír-fehérje emlékeztető is beáll.
 // Ha 30 percen belül már van ugyanilyen típusú bejegyzés, 409-cel visszaszól (force: true-val mégis
 // felveszi). Ha a telefon (Apple Health) később ugyanezt az adagot küldi, a kézi sor beolvad (db.ts storeRows).
@@ -67,6 +68,8 @@ export default defineEventHandler(async (event) => {
     }
     if (o.carbDose != null && o.correction != null) calc = JSON.stringify(o)
   }
+  // Autopilot-jelölés: a `calc` mezőben `ap: 1` (a bólus kezelése nem változik).
+  if (type === 'insulin' && body.ap === true) calc = JSON.stringify({ ...(calc ? JSON.parse(calc) : {}), ap: 1 })
   // Időpont nélkül a pontos mostani pillanat (óraátállításkor sem kétértelmű); faliidőből a már elmúlt előfordulás.
   const ts = body.date || body.time ? wallToTs(date, time, nowSec) : nowSec
   if (ts > nowSec + 15 * 60) {

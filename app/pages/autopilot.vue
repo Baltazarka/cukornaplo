@@ -49,6 +49,25 @@ async function save() {
   }
 }
 
+// „Beadtam”: a javasolt adagot normál bólusként a naplóba írja (🤖 jelöléssel), mostani időponttal.
+const logging = ref(false)
+async function logDose() {
+  const u = dec.value?.units
+  if (!u || logging.value) return
+  logging.value = true
+  saveMsg.value = ''
+  saveErr.value = ''
+  try {
+    await $fetch('/api/entry-add', { method: 'POST', body: { type: 'insulin', value: u, ap: true } })
+    saveMsg.value = `${fmt(u)} E beírva a naplóba.`
+    await refresh()
+  } catch (e: any) {
+    saveErr.value = e?.data?.error ?? 'A naplózás nem sikerült.'
+  } finally {
+    logging.value = false
+  }
+}
+
 // Várható görbe a MiniBandChart-tal: a mostani állapot és (javaslatnál) a javasolt adag beadásával.
 const chart = computed(() => {
   const d = dec.value
@@ -107,6 +126,7 @@ const outcomeOk = (r: any) => r.min4h != null && r.min4h >= range.value.low
     <section v-if="dec" class="card">
       <h2 class="ap-h">Javaslat</h2>
       <p v-if="dec.state === 'suggest'" class="ap-advice">Kb. <b>{{ fmt(dec.units) }} E</b> javasolt <small class="muted">(a teljes szükséglet kb. {{ fmt(dec.full) }} E)</small></p>
+      <button v-if="dec.state === 'suggest'" type="button" class="ap-log" :disabled="logging" @click="logDose">🤖 Beadtam: {{ fmt(dec.units) }} E, írd a naplóba</button>
       <ul class="ap-reasons">
         <li v-for="(r, i) in dec.reasons" :key="i">{{ r }}</li>
       </ul>

@@ -1331,3 +1331,4 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
 .autopilot .chip.ap-hold { background: color-mix(in srgb, var(--status-serious) 22%, var(--surface-1)); }
 .autopilot .chip.ap-wait { color: var(--text-muted); }
 .ap-form label.check { display: flex; flex-direction: row; align-items: center; gap: 8px; margin-bottom: 6px; }
+.ap-log { margin: 0 0 10px; }
