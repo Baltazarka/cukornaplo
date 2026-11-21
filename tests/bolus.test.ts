@@ -56,3 +56,10 @@ test('mentések megőrzése: az utolsó 7 marad, idegen fájlhoz nem nyúl', asy
   const names = Array.from({ length: 9 }, (_, i) => `diabetes-2026-11-0${i + 1}.sqlite`)
   assert.deepEqual(staleBackups([...names, 'x.txt', 'diabetes-2026-11-01.sqlite.tmp'], 7), names.slice(0, 2))
 })
+
+test('mentések megőrzése: a beállításfájlból is az utolsó 7 marad, a két fajta külön számít', async () => {
+  const { staleBackups } = await import('../shared/utils/backupKeep.ts')
+  const days = Array.from({ length: 9 }, (_, i) => `2026-11-0${i + 1}`)
+  const files = [...days.map((d) => `diabetes-${d}.sqlite`), ...days.slice(0, 3).map((d) => `settings-${d}.json`)]
+  assert.deepEqual(staleBackups(files, 7).sort(), ['diabetes-2026-11-01.sqlite', 'diabetes-2026-11-02.sqlite'])
+})

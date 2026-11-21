@@ -1,6 +1,6 @@
 // Beállítások ugyanabban a settings.json-ban, amit a PHP is ír (jelszó-hash, api_token, carelink állapot).
 // Atomi írás (ideiglenes fájl + átnevezés), hogy párhuzamos íráskor ne sérüljön a fájl.
-import { readFileSync, writeFileSync, renameSync, mkdirSync, statSync } from 'node:fs'
+import { readFileSync, writeFileSync, renameSync, mkdirSync, statSync, copyFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 /** Az adatmappa futásidőben: a DATA_DIR env felülírja a beégetett alapértelmezést (fontos Dockerben). */
@@ -41,7 +41,10 @@ export function settings(): Record<string, any> {
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf8'))
     if (parsed && typeof parsed === 'object') data = parsed
-  } catch { /* nincs vagy sérült fájl: üres beállítások */ }
+  } catch {
+    // Nincs vagy sérült fájl: üres beállítások. Sérült fájlról másolat marad, mert a következő mentés felülírná.
+    try { if (existsSync(path)) copyFileSync(path, path + '.bad') } catch { /* nem sikerült: nincs mit tenni */ }
+  }
   cache = { path, data, mtimeMs, checkedAt: now }
   return data
 }

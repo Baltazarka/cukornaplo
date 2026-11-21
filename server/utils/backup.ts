@@ -1,8 +1,9 @@
-// Napi biztonsági másolat: a teljes adatbázis (VACUUM INTO, konzisztens, WAL-nal is) a data/backup mappába.
+// Napi biztonsági másolat: a teljes adatbázis (VACUUM INTO, konzisztens, WAL-nal is) és a settings.json (terápia, műszak,
+// jelszó-hash, kulcsok) a data/backup mappába.
 // Az utolsó KEEP nap marad. A „Minden elölről” a mentéseket NEM törli (hogy egy téves törlés visszafordítható legyen).
-// Visszaállítás: állítsd le a szervert, másold a kívánt mentést a data/diabetes.sqlite helyére, és töröld a mellette lévő
-// diabetes.sqlite-wal és diabetes.sqlite-shm fájlt.
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs'
+// Visszaállítás: állítsd le a szervert, másold a kívánt mentést a data/diabetes.sqlite helyére (és a settings-…json-t
+// settings.json néven), és töröld a mellette lévő diabetes.sqlite-wal és diabetes.sqlite-shm fájlt.
+import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { staleBackups } from '#shared/utils/backupKeep'
 import { db } from './db'
@@ -24,6 +25,9 @@ export function backupDaily(): boolean {
   rmSync(tmp, { force: true })
   db().prepare('VACUUM INTO ?').run(tmp)
   renameSync(tmp, file)
+  try {
+    copyFileSync(join(dataDir(), 'settings.json'), join(dir, `settings-${ymdInTz(now)}.json`))
+  } catch { /* még nincs beállításfájl */ }
   for (const f of staleBackups(readdirSync(dir), KEEP)) rmSync(join(dir, f), { force: true })
   return true
 }
