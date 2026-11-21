@@ -10,16 +10,17 @@ import { targetRange } from './range'
 import { minuteOfDayInTz, ymdInTz } from './time'
 import { defaultTotalMin, scaleFor, absorbedFraction } from './absorption'
 import { fpuUnits, fpuHours, FPU_CARB_G } from '#shared/utils/fpu'
+import { MIN_EVENTS, STEP, quantile, median, weightedMedian, isotonic, fitAction, nadirDrop } from './analysisMath'
+
+export { MIN_EVENTS }
 
 /** Ennyi tiszta esemény kell egy napszakban a becsléshez, illetve a megbízható becsléshez. */
-export const MIN_EVENTS = 3
 export const GOOD_EVENTS = 5
 /** A saját zsír-fehérje % becsléséhez ennyi kiértékelhető zsíros étkezés kell a megbízhatóhoz. */
 export const FPU_GOOD_EVENTS = 6
 /** A zsír-fehérje % becslés csak akkor „megbízható”, ha az étkezések középső fele ennél kisebb sávban van (%-pont). */
 const FPU_MAX_IQR = 60
 
-const STEP = 5 // perc
 const MEAL_WINDOW_MIN = 240 // az étkezés utáni 4 óra
 const FATTY_WINDOW_MIN = 360 // zsíros / fehérjedús étkezésnél 6 óra (később emel)
 const FAST_WINDOW_MIN = 120 // gyors CH (pl. hipó kezelése): 2 óra alatt felszívódik
@@ -79,16 +80,6 @@ interface Bolus { ts: number; v: number; kind: 'meal' | 'correction'; noCarbs: b
 
 const r1 = (v: number) => Math.round(v * 10) / 10
 const r2 = (v: number) => Math.round(v * 100) / 100
-
-function quantile(sorted: number[], q: number): number {
-  const pos = (sorted.length - 1) * q
-  const lo = Math.floor(pos)
-  const hi = Math.ceil(pos)
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo)
-}
-function median(values: number[]): number | null {
-  return values.length ? quantile([...values].sort((a, b) => a - b), 0.5) : null
-}
 
 /** Vércukor egy tetszőleges időpontban: lineáris közelítés két, legfeljebb 15 percre lévő mérés között. */
 function sampler(g: G[]) {
@@ -551,7 +542,7 @@ export function analyze(from: number, to: number) {
     const win = values.slice(0, Math.floor(winMin / STEP) + (truncated ? 0 : 1))
     if (win.filter((v) => v != null).length / win.length < MIN_COVERAGE) continue
     const drops = values.map((v) => (v == null ? null : startBG - v))
-    const best = Math.max(...drops.map((d) => d ?? 0))
+    const best = nadirDrop(drops)
     const expected = t ? b.v * segAt(b.ts).isf : null
     const minDrop = expected != null ? Math.min(MIN_DROP, Math.max(MIN_DROP_FLOOR, MIN_DROP_FRAC * expected)) : MIN_DROP
     if (best < minDrop) continue
@@ -600,7 +591,7 @@ export function analyze(from: number, to: number) {
     const vals = Array.from({ length: steps + 1 }, (_, i) => sample(b.ts + i * STEP * 60))
     if (vals.filter((v) => v != null).length / vals.length < MIN_COVERAGE) continue
     const dose = chain.reduce((a, x) => a + x.v, 0)
-    const best = Math.max(...vals.map((v) => (v == null ? 0 : startBG - v)))
+    const best = nadirDrop(vals.map((v) => (v == null ? null : startBG - v)))
     const expected = t ? dose * segAt(b.ts).isf : null
     const minDrop = expected != null ? Math.min(MIN_DROP, Math.max(MIN_DROP_FLOOR, MIN_DROP_FRAC * expected)) : MIN_DROP
     if (best < minDrop) continue
@@ -930,28 +921,6 @@ export interface AbsorptionProfile {
 }
 
 /**
- * Monoton növekvő illesztés (izotonikus regresszió, PAV): a futó maximummal szemben a zaj nem húzza felfelé a görbét.
- * `y`: pontonkénti érték (null = nincs adat), `w`: súly (hány étkezésből).
- */
-function isotonic(y: (number | null)[], w: number[]): (number | null)[] {
-  const blocks: { v: number; w: number; idx: number[] }[] = []
-  y.forEach((v, i) => {
-    if (v == null) return
-    blocks.push({ v, w: w[i], idx: [i] })
-    while (blocks.length > 1 && blocks[blocks.length - 2].v > blocks[blocks.length - 1].v) {
-      const b = blocks.pop()!
-      const a = blocks[blocks.length - 1]
-      a.v = (a.v * a.w + b.v * b.w) / (a.w + b.w)
-      a.w += b.w
-      a.idx.push(...b.idx)
-    }
-  })
-  const out: (number | null)[] = y.map(() => null)
-  for (const b of blocks) for (const i of b.idx) out[i] = b.v
-  return out
-}
-
-/**
  * Az étkezésenkénti arányokból a felszívódási görbe a tanuló étkezések medián méretére (refGrams). Az előrejelzés a
  * görbét a méret szerint nyújtja (nagyobb étkezés tovább tart), ezért itt fordítva: minden étkezés idejét a méretével
  * a referenciaméretre normáljuk, mielőtt pontonként a mediánt vesszük; a mediánra monoton illesztés kerül.
@@ -1050,17 +1019,6 @@ function mealSummary(meals: MealEvent[]) {
  * Az egységnyi esés időpontonkénti mediánja, az adag nagyságával súlyozva: egy 1 E-s korrekciónál a mérési zaj és a
  * bázis-sodródás egységnyire vetítve négyszer akkora, mint egy 4 E-snél, ezért a kis adagok kevesebbet számítanak.
  */
-function medianCurve(events: CorrectionEvent[]): (number | null)[] {
-  const need = Math.min(events.length, Math.max(MIN_EVENTS, Math.ceil(events.length / 2)))
-  return events[0].perUnit.map((_, i) => {
-    const v = events
-      .filter((e) => e.perUnit[i] != null)
-      .map((e) => ({ v: e.perUnit[i]!, w: e.dose }))
-    return v.length >= need ? weightedMedian(v) : null
-  })
-}
-
-/** Súlyozott medián: az az érték, amelynél a kisebb értékek összsúlya eléri a teljes súly felét (két érték között félúton, ha pontosan ott van a határ). */
 /**
  * ISF a tiszta és az összevont (egymás utáni) korrekciókból, adaggal súlyozott mediánnal; akkor, ha a tiszta
  * korrekciók egymagukban kevesek, de az összevontakkal együtt legalább MIN_EVENTS esemény van.
@@ -1069,62 +1027,6 @@ function chainIsf(clean: CorrectionEvent[], chained: { dose: number; isf: number
   if (!chained.length || clean.length + chained.length < MIN_EVENTS) return null
   const v = weightedMedian([...clean.map((c) => ({ v: c.isf, w: c.dose })), ...chained.map((c) => ({ v: c.isf, w: c.dose }))])
   return v == null ? null : { value: r1(v), n: clean.length + chained.length, chained: chained.length, unreliable: drifting }
-}
-
-function weightedMedian(items: { v: number; w: number }[]): number | null {
-  const xs = items.filter((x) => x.w > 0).sort((a, b) => a.v - b.v)
-  if (!xs.length) return null
-  const half = xs.reduce((a, x) => a + x.w, 0) / 2
-  let acc = 0
-  for (let i = 0; i < xs.length; i++) {
-    acc += xs[i].w
-    if (Math.abs(acc - half) < 1e-9 && i + 1 < xs.length) return (xs[i].v + xs[i + 1].v) / 2
-    if (acc > half) return xs[i].v
-  }
-  return xs[xs.length - 1].v
-}
-
-/**
- * A mért esési görbékhez illesztett exponenciális modell rácskereséssel. Minden (csúcsidő,
- * hatásidő) párra a teljes esés nagysága (= ISF, mmol/L/E) zárt alakban adódik a legkisebb
- * négyzetek módszerével: medián esés(t) ≈ ISF × (1 − IOB(t)). A legkisebb eltérésű pár nyer.
- */
-function fitAction(events: CorrectionEvent[], maxDia: number) {
-  const med = medianCurve(events)
-  let best: { peak: number; dia: number; isf: number; err: number } | null = null
-  // A határ nélküli (2 órával tovább engedett) legjobb illesztés csak annak eldöntésére kell, hogy a
-  // vércukor a határon túl is esett-e.
-  let free: { dia: number; err: number } | null = null
-  // A hatásidő legfeljebb az inzulin alkalmazási előírás szerinti leghosszabb hatásideje lehet.
-  for (let dia = 120; dia <= maxDia + 120; dia += 15) {
-    for (let peak = 40; peak <= Math.min(120, dia * 0.4); peak += 5) {
-      const m = insulinModel(peak, dia)
-      const g = med.map((_, i) => 1 - m.iob(i * STEP))
-      let og = 0
-      let gg = 0
-      med.forEach((o, i) => { if (o != null) { og += o * g[i]; gg += g[i] * g[i] } })
-      if (gg === 0) continue
-      const A = og / gg
-      let err = 0
-      let n = 0
-      med.forEach((o, i) => { if (o != null) { err += (o - A * g[i]) ** 2; n++ } })
-      const rmse = Math.sqrt(err / Math.max(1, n))
-      if (A <= 0) continue
-      if (!free || rmse < free.err) free = { dia, err: rmse }
-      if (dia <= maxDia && (!best || rmse < best.err)) best = { peak, dia, isf: A, err: rmse }
-    }
-  }
-  // atLimit: határ nélkül hosszabb hatásidő illene jobban, vagyis a vércukor a határon túl is esett.
-  const atLimit = !!free && free.dia > maxDia
-  // A görbe tényleges (elég eseménnyel alátámasztott) hossza: ha rövidebb a hatásidőnél, a hatásidő és az ISF
-  // sem eldönthető belőle.
-  const last = med.findLastIndex((v) => v != null)
-  const spanMin = last < 0 ? 0 : last * STEP
-  const short = !!best && spanMin < best.dia - 30
-  return best && {
-    peak: best.peak, dia: best.dia, isf: r1(best.isf), rmse: r2(best.err), n: events.length, maxDia, atLimit,
-    spanMin, short, unreliable: atLimit || short,
-  }
 }
 
 /**
