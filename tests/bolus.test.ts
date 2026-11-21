@@ -63,3 +63,13 @@ test('mentések megőrzése: a beállításfájlból is az utolsó 7 marad, a k�
   const files = [...days.map((d) => `diabetes-${d}.sqlite`), ...days.slice(0, 3).map((d) => `settings-${d}.json`)]
   assert.deepEqual(staleBackups(files, 7).sort(), ['diabetes-2026-11-01.sqlite', 'diabetes-2026-11-02.sqlite'])
 })
+
+test('inzulinjavaslat: a szükséglet fele, a toll lépésére lefelé kerekítve, a maximális bólusig', async () => {
+  const { suggestInsulin } = await import('../shared/utils/suggest.ts')
+  const base = { target: 6, isf: 1, maxBolus: 30, step: 1 }
+  assert.deepEqual(suggestInsulin({ ...base, eventual: 19 }), { units: 6, full: 13 }) // 13 E szükséglet → 6,5 → 6
+  assert.equal(suggestInsulin({ ...base, eventual: 19, step: 0.5 })?.units, 6.5)
+  assert.equal(suggestInsulin({ ...base, eventual: 19, maxBolus: 4.5 })?.units, 4)
+  assert.equal(suggestInsulin({ ...base, eventual: 7.8 }), null) // 1,8 E szükséglet → 0,9 < 1 egész
+  assert.equal(suggestInsulin({ ...base, eventual: 5 }), null)
+})

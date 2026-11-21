@@ -28,6 +28,8 @@ export interface NotifySettings {
   hypoHorizon: number
   /** Ennél kisebb inzulinjavaslatról nem szól, E. */
   insulinMin: number
+  /** A toll adagolási lépésköze, E (0,5 vagy 1): az inzulinjavaslat erre kerekítve (lefelé). */
+  doseStep: number
   /** Ennyi percenként ismétli az értesítést, amíg a helyzet fennáll (15 / 30 / 60). */
   repeatMin: number
   /** Szenzor lejárata (12 órával előtte) és alacsony transzmittertöltés. */
@@ -48,7 +50,7 @@ interface NotifyState {
   lastError?: string
 }
 
-const DEFAULTS: NotifySettings = { hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, repeatMin: 15, devicePush: true, fpuPush: true }
+const DEFAULTS: NotifySettings = { hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, doseStep: 1, repeatMin: 15, devicePush: true, fpuPush: true }
 
 export function notifySettings(): NotifySettings {
   return { ...DEFAULTS, ...(setting<Partial<NotifySettings>>('notify', null) ?? {}) }
@@ -71,6 +73,7 @@ export function validateNotify(b: any): NotifySettings {
     insulinPush: b?.insulinPush === true,
     hypoHorizon: Number.isInteger(horizon) && horizon >= 15 && horizon <= 60 ? horizon : DEFAULTS.hypoHorizon,
     insulinMin: Number.isFinite(min) && min >= 0.5 && min <= 10 ? Math.round(min * 2) / 2 : DEFAULTS.insulinMin,
+    doseStep: b?.doseStep === 0.5 ? 0.5 : 1,
     repeatMin: [15, 30, 60].includes(Number(b?.repeatMin)) ? Number(b.repeatMin) : DEFAULTS.repeatMin,
     devicePush: b?.devicePush === true,
     fpuPush: b?.fpuPush === true,
@@ -105,10 +108,10 @@ export function carbsPayload(p: Pick<Prediction, 'now' | 'nadir' | 'nadirIn' | '
   }
 }
 
-export function insulinPayload(p: Pick<Prediction, 'now' | 'eventual' | 'iob'>, units: number): PushPayload {
+export function insulinPayload(p: Pick<Prediction, 'now' | 'eventual' | 'iob'>, units: number, full: number | null = null): PushPayload {
   return {
     title: `💉 Kb. ${units.toLocaleString('hu-HU', { maximumFractionDigits: 1 })} E inzulin javasolt`,
-    body: `Most ${trendNow(p)} mmol/L, az aktív inzulin (${fmt1(p.iob)} E) után is kb. ${fmt1(p.eventual)} mmol/L marad. ${SAFETY}`,
+    body: `Most ${trendNow(p)} mmol/L, az aktív inzulin (${fmt1(p.iob)} E) után is kb. ${fmt1(p.eventual)} mmol/L marad.${full ? ` A teljes szükséglet kb. ${fmt1(full)} E, ez egy lépés: egy óra múlva újraszámol.` : ''} ${SAFETY}`,
     url: '/', tag: 'insulin',
   }
 }
@@ -139,11 +142,11 @@ export function testPayload(kind: string): PushPayload | null {
   if (kind === 'hypo') {
     return tagged(hypoPayload({
       ...low, now: sampleNow(4.4, '↘'), predicted: 3.1, currentLow: false, risk: true, low: 3.9, cob: 0, treated: false,
-      eventual: 3.1, carbsNeeded: 15, insulinNeeded: null,
+      eventual: 3.1, carbsNeeded: 15, insulinNeeded: null, insulinFull: null,
     }, 15))
   }
   if (kind === 'carbs') return tagged(carbsPayload({ ...low, now: sampleNow(4.4, '↘') }, 15))
-  if (kind === 'insulin') return tagged(insulinPayload({ now: sampleNow(13.2, '↗'), eventual: 11.8, iob: 1.8 }, 3))
+  if (kind === 'insulin') return tagged(insulinPayload({ now: sampleNow(13.2, '↗'), eventual: 11.8, iob: 1.8 }, 3, 6))
   if (kind === 'device') return tagged(sensorPayload(Math.floor(Date.now() / 1000) + 11 * 3600, 11))
   if (kind === 'fpu') return tagged(fpuPayload({ mealTs: Math.floor(Date.now() / 1000) - 90 * 60, extra: 4.5, units: 1.8, hours: 4, pct: 50 }, sampleNow(9.4, '↗'), 2))
   return null
@@ -325,7 +328,7 @@ export async function checkAlerts(nowTs = Math.floor(Date.now() / 1000)): Promis
     }
   } else if (!p.risk && wantInsulin && p.insulinNeeded && p.insulinNeeded >= s.insulinMin) {
     saveState({ lastInsulin: nowTs })
-    await send(insulinPayload(p, p.insulinNeeded), 'normal')
+    await send(insulinPayload(p, p.insulinNeeded, p.insulinFull), 'normal')
   }
   if (errors.length) saveState({ lastError: `Push: ${errors.join('; ')}` })
   else if (notifyState().lastError) saveState({ lastError: undefined })

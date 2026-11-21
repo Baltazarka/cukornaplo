@@ -18,6 +18,7 @@ import { glucosePoints, latestGlucose, type Latest } from './digest'
 import { rateAt } from './trend'
 import { absorbedFraction, absorbSpanMin, absorbCategory } from './absorption'
 import { readComputed } from './computed'
+import { suggestInsulin } from '#shared/utils/suggest'
 
 const MAX_AGE_SEC = 15 * 60 // ennél régebbi utolsó méréssel nem jósolunk
 const MOMENTUM_MIN = 15
@@ -113,8 +114,10 @@ export interface Prediction {
   eventual: number
   /** Javasolt gyors szénhidrát, g (hipó-veszélynél). */
   carbsNeeded: number | null
-  /** Javasolt korrekciós inzulin, E (magas vércukornál, aktív inzulin levonva). */
+  /** Javasolt korrekciós inzulin, E (magas vércukornál, aktív inzulin levonva): a teljes szükséglet fele, a toll lépésére lefelé kerekítve. */
   insulinNeeded: number | null
+  /** A teljes szükséglet, E (a javaslat ennek egy lépése, egy óra múlva újraszámol). */
+  insulinFull: number | null
 }
 
 interface Model {
@@ -241,7 +244,6 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
 const round = (x: number, k: number) => Math.round(x * k) / k
 
 const roundTo = (x: number, step: number) => Math.round(x / step) * step
-const floorTo = (x: number, step: number) => Math.floor(x / step + 1e-9) * step
 
 /**
  * A pontosság visszatesztjéhez: egyszer felépített modellből az összes kért módszer és távolság becslése.
@@ -281,16 +283,18 @@ export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 100
   // Inzulin: csak ha a vércukor most is és a hosszú távú értéke is a céltartomány fölött van, nincs hipó-veszély,
   // nem esik, kevés az aktív inzulin, és az utolsó bólus óta legalább egy óra eltelt (a valós adatban a frissen
   // beadott adag melletti javaslatok halmozódtak). Ismeretlen trendnél (kevés friss szenzoradat) nincs javaslat.
-  // A javaslat (hosszú távú érték − cél) ÷ ISF (a kalkulátorhoz hasonlóan a napszakok közti átmenettel), 0,5 E-re
-  // lefelé kerekítve, a (lefelé kerekített) maximális bólusig.
+  // A teljes szükséglet (hosszú távú érték − cél) ÷ ISF (a kalkulátorhoz hasonlóan a napszakok közti átmenettel); a javaslat
+  // ennek fele, a toll lépésére (alap 1 E) lefelé kerekítve, a maximális bólusig (shared/utils/suggest.ts).
   const falling = m.latest.rate == null || m.latest.rate <= -0.03
   const recentBolus = m.lastBolusTs > 0 && nowTs - m.lastBolusTs < SUGGEST_AFTER_BOLUS_MIN * 60
   let insulinNeeded: number | null = null
+  let insulinFull: number | null = null
   if (!risk && !falling && !recentBolus && m.iob < SUGGEST_MAX_IOB && m.latest.v > m.high && m.eventual > m.high) {
     const t = therapy()
     const isf = (t && blendAt(t, nowTs)?.isf) || m.isf
-    const dose = Math.min(floorTo(m.maxBolus, 0.5), floorTo((m.eventual - m.target) / isf, 0.5))
-    if (dose >= 0.5) insulinNeeded = dose
+    const step = setting<{ doseStep?: number }>('notify', null)?.doseStep === 0.5 ? 0.5 : 1
+    const s = suggestInsulin({ eventual: m.eventual, target: m.target, isf, maxBolus: m.maxBolus, step })
+    if (s) { insulinNeeded = s.units; insulinFull = s.full }
   }
   return {
     now: m.latest,
@@ -307,6 +311,7 @@ export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 100
     eventual: round(m.eventual, 10),
     carbsNeeded,
     insulinNeeded,
+    insulinFull,
   }
 }
 

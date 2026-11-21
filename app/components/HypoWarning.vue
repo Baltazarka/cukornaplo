@@ -45,6 +45,7 @@ const fmt = (v: number) => v.toLocaleString('hu-HU', { minimumFractionDigits: 1,
       <b>Magas vércukor: kb. {{ prediction.insulinNeeded.toLocaleString('hu-HU', { maximumFractionDigits: 1 }) }} E inzulin javasolt</b>
       <span>
         Most {{ sgText(prediction.now.v) }} mmol/L {{ prediction.now.arrow }}, az aktív inzulin ({{ fmt(prediction.iob) }} E) után is kb. {{ fmt(prediction.eventual) }} mmol/L marad.
+        <template v-if="prediction.insulinFull">A teljes szükséglet kb. {{ fmt(prediction.insulinFull) }} E, ez egy lépés: egy óra múlva újraszámol.</template>
         Számított javaslat a terápiás beállításaid alapján; beadás előtt ellenőrizd.
       </span>
     </div>

@@ -4,7 +4,7 @@
 const { data, refresh } = await useFetch<any>('/api/notify/settings', { key: 'notify-settings' })
 const { data: push, refresh: pushRefresh } = await useFetch<any>('/api/push/key', { key: 'push-key' })
 
-const form = reactive({ hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, repeatMin: 15, devicePush: true, fpuPush: true })
+const form = reactive({ hypoPush: true, carbsPush: true, insulinPush: false, hypoHorizon: 30, insulinMin: 1, doseStep: 1, repeatMin: 15, devicePush: true, fpuPush: true })
 watchEffect(() => {
   if (data.value?.settings) Object.assign(form, data.value.settings)
 })
@@ -182,9 +182,15 @@ const noDevice = computed(() => !push.value?.devices?.length)
 
       <fieldset class="notify-block">
         <label class="check"><input v-model="form.insulinPush" type="checkbox"> Inzulinjavaslat (pl. „kb. 3 E inzulin javasolt”)</label>
-        <p class="muted small">Magas vércukornál, ha az aktív inzulin levonása után is a céltartomány fölött maradna. A javaslat a napszak ISF-jéből és célértékéből számolódik, a maximális bólusig. Az aktív inzulin levonása miatt a beadás után magától elhallgat.</p>
+        <p class="muted small">Magas vércukornál, ha az aktív inzulin levonása után is a céltartomány fölött maradna. A javaslat a teljes szükséglet fele (egy lépés, egy óra múlva újraszámol), a napszak ISF-jéből és célértékéből számolva, a toll lépésére lefelé kerekítve, a maximális bólusig. Az aktív inzulin levonása miatt a beadás után magától elhallgat.</p>
         <label>Legalább ennyi E-nél szóljon
           <input v-model.number="form.insulinMin" type="number" step="0.5" min="0.5" max="10">
+        </label>
+        <label>A toll adagolási lépésköze
+          <select v-model.number="form.doseStep">
+            <option :value="1">1 E (egész egységek)</option>
+            <option :value="0.5">0,5 E</option>
+          </select>
         </label>
         <p v-if="data?.lastInsulin" class="muted small">Utolsó: {{ new Date(data.lastInsulin * 1000).toLocaleString('hu-HU', { dateStyle: 'short', timeStyle: 'short' }) }}</p>
       </fieldset>
