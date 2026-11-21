@@ -34,8 +34,8 @@ test('korrekció mélypontja: egy zajos pont nem mélyíti, a hiányzó pont kim
 })
 
 /** `n` korrekció esési görbéje (mmol/L / E), pontosan az `isf` × (1 − IOB) alakkal, kis determinisztikus zajjal. */
-function events(isf: number, peak: number, dia: number, noise: number, n: number) {
-  let s = 7
+function eventsSeeded(isf: number, peak: number, dia: number, noise: number, n: number, seed: number) {
+  let s = seed
   const rnd = () => {
     s = (s * 16807) % 2147483647
     return s / 2147483647 - 0.5
@@ -46,6 +46,8 @@ function events(isf: number, peak: number, dia: number, noise: number, n: number
     perUnit: Array.from({ length: 73 }, (_, i) => isf * (1 - m.iob(i * STEP)) + rnd() * noise),
   }))
 }
+
+const events = (isf: number, peak: number, dia: number, noise: number, n: number) => eventsSeeded(isf, peak, dia, noise, n, 7)
 
 test('hatásidő-illesztés: az ismert ISF-et, csúcsidőt és hatásidőt visszaadja, zajjal is', () => {
   const clean = fitAction(events(2, 75, 300, 0, 12), 300)!
@@ -62,4 +64,13 @@ test('hatásidő-illesztés: a megengedett leghosszabb hatásidőnél nem illesz
   assert.ok(r.dia <= 300)
   assert.equal(r.atLimit, true)
   assert.equal(r.unreliable, true)
+})
+
+test('hatásidő-illesztés: ha a valódi hatásidő pontosan a határ, zajnál sem jelez téves „határon” jelzést', () => {
+  let flagged = 0
+  for (let seed = 1; seed <= 20; seed++) {
+    const r = fitAction(eventsSeeded(2.5, 75, 300, 0.4, 20, seed), 300)!
+    if (r.atLimit) flagged++
+  }
+  assert.equal(flagged, 0)
 })

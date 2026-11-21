@@ -6,7 +6,7 @@ import { insulinById } from '#shared/utils/insulins'
 import { shiftOf, profileFor } from '#shared/utils/shift'
 import { sameTherapy } from '#shared/utils/sameTherapy'
 import { zonedToTs } from './normalize'
-import { minuteOfDayInTz, ymdInTz } from './time'
+import { minuteOfDayInTz, ymdInTz, startOfDayTs, addDaysYmd } from './time'
 
 export const THERAPY_LIMITS = {
   maxBolus: { min: 0.5, max: 50 },
@@ -84,6 +84,10 @@ export function hmToMin(hm: string): number {
 
 const round = (v: number, dec: number) => Math.round(v * 10 ** dec) / 10 ** dec
 
+/** Szám vagy szám alakú szöveg; minden más (logikai, tömb, „0x10”, „1e1”) érvénytelen (NaN). */
+const toNum = (v: unknown): number =>
+  typeof v === 'number' ? v : typeof v === 'string' && /^\s*-?\d+(?:[.,]\d+)?\s*$/.test(v) ? Number(v.trim().replace(',', '.')) : NaN
+
 /**
  * A beküldött adatok ellenőrzése. Hiba esetén magyar nyelvű üzenetek listája, különben a
  * normalizált beállítás (napszakok időrendben).
@@ -92,7 +96,7 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
   const L = THERAPY_LIMITS
   const errors: string[] = []
   const inRange = (v: unknown, lim: { min: number; max: number }) => {
-    const n = Number(v)
+    const n = toNum(v)
     return Number.isFinite(n) && n >= lim.min && n <= lim.max ? n : null
   }
   const num = (v: number) => v.toLocaleString('hu-HU')
@@ -129,7 +133,8 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
   let basalAuto: Therapy['basalAuto']
   const ba = body?.basalAuto
   const baTime = String(ba?.time ?? '')
-  const baUnits = Math.round(Number(ba?.units) * 10) / 10
+  const baUnits = Math.round(toNum(ba?.units) * 10) / 10
+  if (ba != null && ba.enabled != null && typeof ba.enabled !== 'boolean') errors.push('A bázis automatikus beírásának kapcsolója érvénytelen.')
   const baTimeOk = /^([01]\d|2[0-3]):[0-5]\d$/.test(baTime)
   const baUnitsOk = Number.isFinite(baUnits) && baUnits >= 1 && baUnits <= 100
   if (ba?.enabled === true) {
@@ -165,7 +170,7 @@ export function validateTherapy(body: any): { ok: true; therapy: Therapy } | { o
 function parseSegments(input: unknown, prefix: string, errors: string[]): TherapySegment[] {
   const L = THERAPY_LIMITS
   const inRange = (v: unknown, lim: { min: number; max: number }) => {
-    const n = Number(v)
+    const n = toNum(v)
     return Number.isFinite(n) && n >= lim.min && n <= lim.max ? n : null
   }
   const num = (v: number) => v.toLocaleString('hu-HU')
@@ -268,7 +273,16 @@ export function actionMinutesAt(t: Therapy, ts: number): number {
 export function daySegments(t: Therapy, ymd: string) {
   const [y, mo, d] = ymd.split('-').map(Number)
   const segs = activeSegments(t, ymd)
-  const at = (min: number) => zonedToTs(y, mo, d, Math.floor(min / 60), min % 60, 0)
+  // Átállás napján (23 / 25 órás nap) a napszakhatár a faliórai perc első előfordulása, mint a segmentAt-nál; a nem létező
+  // vagy kétszer előforduló percnél (02:00–03:00) a zonedToTs más pillanatot adna.
+  const dayStart = startOfDayTs(ymd)
+  const dayEnd = startOfDayTs(addDaysYmd(ymd, 1))
+  const dst = dayEnd - dayStart !== 86400
+  const at = (min: number) => {
+    if (!dst) return zonedToTs(y, mo, d, Math.floor(min / 60), min % 60, 0)
+    for (let ts = dayStart; ts < dayEnd; ts += 60) if (minuteOfDayInTz(ts) >= min) return ts
+    return dayEnd
+  }
   const cuts = segs.map((s, i) => ({ seg: s, index: i, from: hmMin(s.start) }))
   const out: { from: number; to: number; index: number; start: string; end: string; target: number; isf: number; icr: number; actionMinutes: number }[] = []
   const push = (c: (typeof cuts)[number], fromMin: number, toMin: number) => {

@@ -19,6 +19,27 @@ const bolusInfo = computed(() => insulinById(bolusInsulin.value))
 const basalInfo = computed(() => insulinById(basalInsulin.value))
 const maxBolus = ref<number | ''>(t?.maxBolus ?? '')
 // A bázis automatikus beírása: naponta a megadott időpontban a naplóba kerül (push értesítéssel).
+// Hiányzó bázisnapok (a legelső naplózott bázis óta): a „Pótlás” gombbal a mostani beállítás szerint beírhatók.
+const { data: fill, refresh: refreshFill } = await useFetch<{ time: string | null; units: number | null; days: string[] }>('/api/basal-backfill')
+const filling = ref(false)
+async function backfillBasalDays() {
+  const f = fill.value
+  if (!f?.days.length || filling.value) return
+  const list = f.days.length > 8 ? `${f.days.slice(0, 8).join(', ')} … (összesen ${f.days.length} nap)` : f.days.join(', ')
+  if (!(await askConfirm(`Beírom a bázist (${f.units} E, ${f.time}) a naplóba erre a ${f.days.length} napra: ${list}. A sorok „automatikus” jelölést kapnak, a naplóban szerkeszthetők és törölhetők. Csak azokra a napokra írom be, ahol a legelső bázis óta nincs.`, { title: 'Hiányzó bázis pótlása', confirmLabel: 'Beírom' }))) return
+  filling.value = true
+  try {
+    const r: any = await $fetch('/api/basal-backfill', { method: 'POST', body: { confirm: true } })
+    applied.value = ''
+    applied.value = `${r.added} nap bázisa beírva a naplóba.`
+    await refreshFill()
+  } catch (e: any) {
+    errors.value = [e?.data?.error ?? 'A pótlás nem sikerült.']
+  } finally {
+    filling.value = false
+  }
+}
+
 const basalAutoOn = ref<boolean>(!!t?.basalAuto && t.basalAuto.enabled !== false)
 const basalAutoTime = ref<string>(t?.basalAuto?.time ?? '07:00')
 const basalAutoUnits = ref<number | ''>(t?.basalAuto?.units ?? '')
@@ -266,6 +287,10 @@ async function save() {
           </label>
           <p class="tf-hint tf-sub">Ha aznap még nincs bázis, ekkor beírja és értesít; a kézzel beírt a helyére lép.</p>
         </template>
+        <div v-if="fill?.days?.length" class="tf-row tf-sub">
+          <span class="tf-label">Hiányzik a bázis a naplóból: {{ fill.days.length }} nap</span>
+          <button type="button" class="ghost" :disabled="filling" @click="backfillBasalDays">Pótlás ({{ fill.units }} E)</button>
+        </div>
       </div>
 
       </section>

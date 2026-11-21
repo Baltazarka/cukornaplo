@@ -20,9 +20,10 @@ export interface SuggestInput {
 
 /** { units: a javasolt adag, full: a teljes szükséglet } vagy null, ha egy lépésnyi sincs. */
 export function suggestInsulin(i: SuggestInput): { units: number; full: number } | null {
+  if (!(i.isf > 0) || !(i.step > 0)) return null
   const need = (i.eventual - i.target) / i.isf
-  if (!(need > 0)) return null
+  if (!(need > 0) || !Number.isFinite(need)) return null
   const units = Math.min(floorTo(i.maxBolus, i.step), floorTo(need * SUGGEST_FRACTION, i.step))
-  if (units < i.step) return null
+  if (!Number.isFinite(units) || units < i.step) return null
   return { units, full: Math.round(need * 10) / 10 }
 }

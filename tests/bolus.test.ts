@@ -96,3 +96,24 @@ test('terápia-előzmény: a mentés időbélyege nem számít, minden más vál
   assert.equal(sameTherapy(t, { ...t, segments: [{ ...t.segments[0], isf: 0.6 }] }), false)
   assert.equal(sameTherapy(t, null), false)
 })
+
+test('érvénytelen bemenet nem ad NaN vagy negatív adagot', () => {
+  const ok = { carbs: 60, bg: 10, target: 6, isf: 2, icr: 10, iob: 1, maxBolus: 20 }
+  for (const bad of [{ target: NaN }, { iob: NaN }, { bg: NaN }, { step: 0 }, { step: NaN }, { maxBolus: -1 }, { maxBolus: NaN }, { carbs: NaN }, { icr: NaN }, { isf: NaN }]) {
+    const r = calcBolus({ ...ok, ...bad } as BolusInput)
+    assert.ok(Number.isFinite(r.dose) && r.dose >= 0, JSON.stringify(bad) + ' → ' + r.dose)
+  }
+  assert.equal(calcBolus({ ...ok, maxBolus: -1 }).dose, 0)
+  assert.equal(calcBolus({ ...ok, step: 0 }).dose, calcBolus({ ...ok }).dose) // az érvénytelen lépésköz helyett 0,5
+})
+
+test('javaslat és zsír-fehérje: érvénytelen ISF, maximum, százalék és mennyiség nem ad értelmetlen adagot', async () => {
+  const { suggestInsulin } = await import('../shared/utils/suggest.ts')
+  const { fpuSuggestion, fpuUnits } = await import('../shared/utils/fpu.ts')
+  assert.equal(suggestInsulin({ eventual: 12, target: 6, isf: 0, maxBolus: 10, step: 1 }), null)
+  assert.equal(suggestInsulin({ eventual: 12, target: 6, isf: 2, maxBolus: NaN, step: 1 }), null)
+  assert.equal(suggestInsulin({ eventual: 12, target: 6, isf: 2, maxBolus: 10, step: 0 }), null)
+  assert.ok((fpuSuggestion(30, 30, 5, -50) ?? { extra: 0 }).extra >= 0)
+  assert.equal(fpuSuggestion(30, 30, 5, 150)?.extra, fpuSuggestion(30, 30, 5, 100)?.extra)
+  assert.equal(fpuUnits(Infinity, 0), fpuUnits(300, 0))
+})

@@ -10,8 +10,8 @@ export const MACRO_MAX_G = 300
 
 /** Zsír-fehérje egység 0,1-re kerekítve: (zsír × 9 + fehérje × 4) ÷ 100. */
 export function fpuUnits(fat: number | null | undefined, protein: number | null | undefined): number {
-  const f = Math.max(0, Number(fat) || 0)
-  const p = Math.max(0, Number(protein) || 0)
+  const f = Math.min(MACRO_MAX_G, Math.max(0, Number(fat) || 0))
+  const p = Math.min(MACRO_MAX_G, Math.max(0, Number(protein) || 0))
   return Math.round(((f * 9 + p * 4) / 100) * 10) / 10
 }
 
@@ -33,6 +33,7 @@ export interface FpuSuggestion {
 /** A javaslat egy étkezésre; null, ha nincs érdemi zsír-fehérje (0,5 egység alatt) vagy a javaslat ki van kapcsolva. */
 export function fpuSuggestion(fat: number | null | undefined, protein: number | null | undefined, icr: number, pct: number): FpuSuggestion | null {
   const units = fpuUnits(fat, protein)
+  pct = Math.min(100, Math.max(0, Number(pct) || 0))
   if (units < 0.5 || !pct || !(icr > 0)) return null
   const carbEq = units * FPU_CARB_G
   const extra = Math.floor(((carbEq / icr) * pct) / 100 * 2) / 2

@@ -11,7 +11,7 @@ import { detectHypos, hypoCount } from '../utils/hypo'
 import { ymdInTz } from '../utils/time'
 import { shiftOn } from '../utils/therapy'
 
-const PERIODS = [7, 14, 30]
+const PERIODS = [7, 14, 30, 90]
 const BIN_MIN = 15 // 96 sáv naponta
 const BINS = 1440 / BIN_MIN
 

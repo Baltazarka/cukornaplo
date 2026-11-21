@@ -101,7 +101,9 @@ const fpu = computed(() => {
 const fpuTogetherExtra = computed(() => (fpuTogether.value && fpu.value && fpu.value.extra >= 0.5 ? fpu.value.extra : 0))
 /** Az összeg (étkezési + egyben adott zsír-fehérje) a beállított maximális dózisig; e fölött a különbség. */
 const togetherSum = computed(() => (result.value ? result.value.dose + fpuTogetherExtra.value : 0))
-const togetherOverMax = computed(() => (fpuTogetherExtra.value && data.value?.maxBolus ? Math.max(0, togetherSum.value - data.value.maxBolus) : 0))
+/** A beírható legnagyobb adag: a maximális dózis a lépésközre (0,5 E) lefelé kerekítve, mint a kalkulátor adagja. */
+const maxDose = computed(() => (data.value?.maxBolus ? Math.floor(data.value.maxBolus / 0.5 + 1e-9) * 0.5 : Infinity))
+const togetherOverMax = computed(() => (fpuTogetherExtra.value && data.value?.maxBolus ? Math.max(0, togetherSum.value - maxDose.value) : 0))
 const logDose = ref('')
 const doseTouched = ref(false)
 // A beírási mezőbe a javasolt adag kerül (egyben adásnál a zsír-fehérje plusszal együtt, legfeljebb a maximális
@@ -110,7 +112,7 @@ function syncDose() {
   const d = result.value?.dose
   if (doseTouched.value || d == null) return
   const extra = fpuTogetherExtra.value
-  const v = extra ? Math.min(d + extra, data.value?.maxBolus ?? Infinity) : d
+  const v = extra ? Math.min(d + extra, maxDose.value) : d
   logDose.value = String(v).replace('.', ',')
 }
 watch(() => [result.value?.dose, fpuTogetherExtra.value, data.value?.maxBolus] as const, syncDose, { immediate: true })

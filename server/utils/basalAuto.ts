@@ -20,6 +20,52 @@ export function removeAutoBasal(ymd: string): number {
     .run(AUTO_BASAL_SOURCE, startOfDayTs(ymd), startOfDayTs(addDaysYmd(ymd, 1))).changes)
 }
 
+/** Ennyi napra vissza pótolható a hiányzó bázis. */
+const BACKFILL_MAX_DAYS = 180
+
+/**
+ * A hiányzó bázisnapok: a legelső naplózott bázis napjától ma-ig (ma csak, ha a beírás ideje már elmúlt) azok a napok, ahol
+ * nincs bázis a naplóban. A kézzel törölt bázis napját kihagyja (tudatos törlés). A mostani (mentett) beállítás időpontját és
+ * adagját használja, akkor is, ha az automatikus beírás ki van kapcsolva. Null, ha nincs beállított időpont és adag.
+ */
+export function missingBasalDays(nowTs = Math.floor(Date.now() / 1000)): { time: string; units: number; days: string[] } | null {
+  const cfg = therapy()?.basalAuto
+  if (!cfg) return null
+  const d = db()
+  const have = new Set((d.prepare("SELECT ts FROM entries WHERE type = 'insulin' AND subtype = 'basal'").all() as { ts: number }[]).map((r) => ymdInTz(Number(r.ts))))
+  const out = { time: cfg.time, units: cfg.units, days: [] as string[] }
+  if (!have.size) return out
+  const deleted = new Set((d.prepare("SELECT ts FROM deleted_entries WHERE type = 'insulin' AND value = ?").all(cfg.units) as { ts: number }[]).map((r) => ymdInTz(Number(r.ts))))
+  const today = ymdInTz(nowTs)
+  const first = [...have].sort()[0]
+  const earliest = addDaysYmd(today, -BACKFILL_MAX_DAYS)
+  for (let day = first > earliest ? first : earliest; day <= today; day = addDaysYmd(day, 1)) {
+    if (have.has(day) || deleted.has(day)) continue
+    if (day === today && wallToTs(day, cfg.time, nowTs) > nowTs) continue
+    out.days.push(day)
+  }
+  return out
+}
+
+/** A hiányzó napokra beírja a bázist (automatikus jelöléssel, szerkeszthető / törölhető). Visszaadja a napok számát. */
+export function backfillBasal(nowTs = Math.floor(Date.now() / 1000)): number {
+  const m = missingBasalDays(nowTs)
+  if (!m || !m.days.length) return 0
+  const d = db()
+  const ins = d.prepare("INSERT OR IGNORE INTO entries (type, ts, value, subtype, source, created_at) VALUES ('insulin', ?, ?, 'basal', ?, ?)")
+  let added = 0
+  d.exec('BEGIN')
+  try {
+    for (const day of m.days) added += Number(ins.run(wallToTs(day, m.time, nowTs), m.units, AUTO_BASAL_SOURCE, nowTs).changes)
+    d.exec('COMMIT')
+  } catch (e) {
+    d.exec('ROLLBACK')
+    throw e
+  }
+  if (added) markDirty()
+  return added
+}
+
 /** Push értesítés csak a beadás idején (pl. szerver-újraindítás utáni pótlásnál órákkal később már nem). */
 const PUSH_MAX_LATE_SEC = 30 * 60
 

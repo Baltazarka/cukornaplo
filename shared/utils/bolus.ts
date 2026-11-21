@@ -42,20 +42,25 @@ export interface BolusResult {
 export const IOB_RAMP = 1.0
 
 export function calcBolus(i: BolusInput): BolusResult {
-  const step = i.step ?? 0.5
-  const carbDose = i.carbs > 0 && i.icr > 0 ? i.carbs / i.icr : 0
-  const correction = i.bg != null && i.isf > 0 ? (i.bg - i.target) / i.isf : 0
-  const iob = Math.max(i.iob, 0)
+  // Érvénytelen bemenet (NaN, végtelen) nem adhat NaN adagot: a hiányzó érték 0 (nincs étel / korrekció / aktív inzulin),
+  // a lépésköz alap 0,5, az érvénytelen maximum 0 (nem javasol), a negatív maximum is 0.
+  const step = Number.isFinite(i.step) && (i.step as number) > 0 ? (i.step as number) : 0.5
+  const carbs = Number.isFinite(i.carbs) ? i.carbs : 0
+  const bg = i.bg != null && Number.isFinite(i.bg) ? i.bg : null
+  const maxBolus = Number.isFinite(i.maxBolus) ? Math.max(0, i.maxBolus) : 0
+  const carbDose = carbs > 0 && i.icr > 0 && Number.isFinite(i.icr) ? carbs / i.icr : 0
+  const correction = bg != null && i.isf > 0 && Number.isFinite(i.isf) && Number.isFinite(i.target) ? (bg - i.target) / i.isf : 0
+  const iob = Number.isFinite(i.iob) ? Math.max(i.iob, 0) : 0
   // A pozitív korrekcióból levonódó rész; a maradék aktív inzulin csak a célérték alatt csökkenti az étkezési adagot.
   const fromCorrection = Math.min(iob, Math.max(correction, 0))
-  const below = i.bg != null ? Math.min(1, Math.max(0, (i.target - i.bg) / IOB_RAMP)) : 0
+  const below = bg != null && Number.isFinite(i.target) ? Math.min(1, Math.max(0, (i.target - bg) / IOB_RAMP)) : 0
   const fromMeal = Math.min((iob - fromCorrection) * below, Math.max(0, carbDose + Math.min(correction, 0)))
   const iobFromMeal = fromMeal > 0
   const iobUsed = fromCorrection + fromMeal
   const total = Math.max(0, carbDose + correction - iobUsed)
   // Lebegőpontos hiba ellen: 6,9999… ne kerekedjen 6,5-re.
   let dose = Math.floor(total / step + 1e-9) * step
-  const capped = dose > i.maxBolus
-  if (capped) dose = Math.floor(i.maxBolus / step + 1e-9) * step
+  const capped = dose > maxBolus
+  if (capped) dose = Math.floor(maxBolus / step + 1e-9) * step
   return { carbDose, correction, iobUsed, iobFromMeal, total, dose, capped }
 }

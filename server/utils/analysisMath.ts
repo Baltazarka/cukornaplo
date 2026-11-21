@@ -119,7 +119,9 @@ export function fitAction(events: CurveEvent[], maxDia: number) {
     }
   }
   // atLimit: határ nélkül hosszabb hatásidő illene jobban, vagyis a vércukor a határon túl is esett.
-  const atLimit = !!free && free.dia > maxDia
+  // Csak ha a határ nélküli illesztés érdemben (legalább 10%-kal kisebb eltéréssel) jobb: zajnál a pontosan a határon lévő
+  // valódi hatásidő is „hosszabbnak” látszana.
+  const atLimit = !!free && free.dia > maxDia && (!best || free.err < best.err * 0.9)
   // A görbe tényleges (elég eseménnyel alátámasztott) hossza: ha rövidebb a hatásidőnél, a hatásidő és az ISF
   // sem eldönthető belőle.
   const last = med.findLastIndex((v) => v != null)

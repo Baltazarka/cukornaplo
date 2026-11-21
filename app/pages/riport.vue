@@ -6,7 +6,7 @@ import type { Therapy } from '#shared/types/therapy'
 
 const route = useRoute()
 const router = useRouter()
-const PERIODS = [7, 14, 30]
+const PERIODS = [7, 14, 30, 90]
 const days = computed(() => (PERIODS.includes(Number(route.query.days)) ? Number(route.query.days) : 14))
 const end = computed(() => (typeof route.query.end === 'string' ? route.query.end : ''))
 const q = computed(() => ({ end: end.value || undefined, days: days.value }))

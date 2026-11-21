@@ -33,3 +33,27 @@ test('nem létező naptári nap nem csúszik át a következő hónapra', () => 
   assert.equal(parseDate('2026-02-31 10:00'), null)
   assert.equal(parseDate('2026. 02. 31. 10:00'), null)
 })
+
+test('szám: tizedesvessző és pont, mindkét elválasztó, vezető tizedespont', async () => {
+  const { parseNumber } = await import('../server/utils/normalize.ts')
+  assert.equal(parseNumber('5,6'), 5.6)
+  assert.equal(parseNumber('5.6'), 5.6)
+  assert.equal(parseNumber('1.234,5'), 1234.5)
+  assert.equal(parseNumber('1,234.5'), 1234.5)
+  assert.equal(parseNumber('.5'), 0.5)
+  assert.equal(parseNumber(',5'), 0.5)
+  assert.equal(parseNumber('180 mg/dL'), 180)
+  assert.equal(parseNumber('5,5.'), 5.5)
+  assert.equal(parseNumber('-3,2'), -3.2)
+  assert.equal(parseNumber('abc'), null)
+})
+
+test('dátum: érvénytelen másodperc, időzóna-eltolás és nem létező nap (zónával is) elutasítva', () => {
+  assert.equal(parseDate('2026-10-07 08:15:75'), null)
+  assert.equal(parseDate('2026. 10. 07. 8:15:99'), null)
+  assert.equal(parseDate('2026-10-07 08:15:00 +9999'), null)
+  assert.equal(parseDate('2026-10-07 08:15:00 +0260'), null)
+  assert.equal(parseDate('2026-02-31T08:15:00Z'), null)
+  assert.notEqual(parseDate('2026-10-07 08:15:00 +0200'), null)
+  assert.notEqual(parseDate('2026-10-07T08:15:00Z'), null)
+})

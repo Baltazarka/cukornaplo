@@ -61,9 +61,9 @@ export function zonedToTs(y: number, mo: number, d: number, h: number, mi: numbe
 }
 
 /** Létező naptári nap és érvényes idő (a 02-31 nem csúszhat át március 3-ra). */
-function validWall(y: number, mo: number, d: number, h: number, mi: number): boolean {
+function validWall(y: number, mo: number, d: number, h: number, mi: number, s = 0): boolean {
   const t = new Date(Date.UTC(y, mo - 1, d))
-  return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d && h < 24 && mi < 60
+  return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d && h < 24 && mi < 60 && s < 60
 }
 
 /** ISO 8601, Apple Health vagy a magyar Parancsok-dátum ("2026. 10. 07. 8:15", "2026. okt. 7. 8:15:30"). */
@@ -77,7 +77,7 @@ export function parseDate(input: string): number | null {
     const mon = hu[2]
     const month = /^\d+$/.test(mon) ? +mon : (MONTHS[stripAccents(mon).toLowerCase().slice(0, 3)] ?? 0)
     // Magyar alakú, de nem létező nap vagy idő: nem engedjük tovább a laza Date.parse-ra.
-    if (!(month >= 1 && month <= 12 && validWall(+hu[1], month, +hu[3], +hu[4], +hu[5]))) return null
+    if (!(month >= 1 && month <= 12 && validWall(+hu[1], month, +hu[3], +hu[4], +hu[5], +(hu[6] ?? 0)))) return null
     ts = zonedToTs(+hu[1], month, +hu[3], +hu[4], +hu[5], +(hu[6] ?? 0))
   }
 
@@ -85,6 +85,10 @@ export function parseDate(input: string): number | null {
   if (ts === null) {
     const ah = s.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) ([+-]\d{2})(\d{2})$/)
     if (ah) {
+      const [ay, am, ad] = ah[1].split('-').map(Number)
+      const [aH, aM, aS] = ah[2].split(':').map(Number)
+      // Létező nap és idő, és valós időzóna-eltolás (legfeljebb ±14:00).
+      if (!validWall(ay, am, ad, aH, aM, aS) || Math.abs(+ah[3]) > 14 || +ah[4] > 59) return null
       const parsed = Date.parse(`${ah[1]}T${ah[2]}${ah[3]}:${ah[4]}`)
       if (!Number.isNaN(parsed)) ts = Math.floor(parsed / 1000)
     }
@@ -94,9 +98,12 @@ export function parseDate(input: string): number | null {
     const hasTz = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(s)
     const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/)
     if (!hasTz && iso) {
-      if (!validWall(+iso[1], +iso[2], +iso[3], +iso[4], +iso[5])) return null
+      if (!validWall(+iso[1], +iso[2], +iso[3], +iso[4], +iso[5], +(iso[6] ?? 0))) return null
       ts = zonedToTs(+iso[1], +iso[2], +iso[3], +iso[4], +iso[5], +(iso[6] ?? 0))
     } else {
+      // A laza Date.parse a nem létező napot is továbbcsúsztatná (02-31 → 03-03): az ISO-szerű kezdetet előbb ellenőrizzük.
+      const lead = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+      if (lead && !validWall(+lead[1], +lead[2], +lead[3], 0, 0)) return null
       const parsed = Date.parse(s)
       if (!Number.isNaN(parsed)) ts = Math.floor(parsed / 1000)
     }
@@ -108,8 +115,14 @@ export function parseDate(input: string): number | null {
 }
 
 export function parseNumber(input: string): number | null {
-  const s = input.replace(/[  ]/g, '').replace(',', '.')
-  const m = s.match(/-?\d+(?:\.\d+)?/)
+  const s = input.replace(/[\u00a0\u202f ]/g, '')
+  const raw = s.match(/-?[\d.,]+/)
+  if (!raw) return null
+  let n = raw[0].replace(/[.,]+$/, '')
+  // Mindkét elválasztó (1.234,5 vagy 1,234.5): az utolsó a tizedes, a másik ezres tagolás.
+  if (n.includes(',') && n.includes('.')) n = n.lastIndexOf(',') > n.lastIndexOf('.') ? n.replace(/\./g, '').replace(',', '.') : n.replace(/,/g, '')
+  else n = n.replace(',', '.')
+  const m = n.match(/-?(?:\d+(?:\.\d+)?|\.\d+)/)
   return m ? parseFloat(m[0]) : null
 }
 

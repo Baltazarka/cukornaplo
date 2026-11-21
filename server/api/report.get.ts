@@ -10,7 +10,7 @@ import { notesBetween } from '../utils/notes'
 import { excludedBetween } from '../utils/excluded'
 import { shiftOn } from '../utils/therapy'
 
-const PERIODS = [7, 14, 30]
+const PERIODS = [7, 14, 30, 90]
 
 export default defineEventHandler((event) => {
   const q = getQuery(event)

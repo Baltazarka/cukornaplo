@@ -875,13 +875,15 @@ export function analyze(from: number, to: number) {
   // Az érzékenység és a hatásidő a mért eseményekből jön (napszaktól függetlenül); a CH-arány az étkezéseket a saját
   // napszakuk beállított érzékenységével számolja, majd a mediánt veszi.
   const overallFit = corrections.length >= MIN_EVENTS ? fitAction(corrections, maxDia) : null
+  // Ha bármelyik napszakban sodródik a bázis, az összesített becslés sem megbízható (a napszak jelzése nem veszhet el).
+  const anyDrifting = [...segments, ...altSegments].some((s) => s.estimate.drifting)
   const overallRising = allIcrMeals.filter((m) => (m.endRise ?? 0) > ICR_RISING).length
   const overall = {
     counts: { cleanCorrections: corrections.length, cleanMeals: allIcr.length },
     estimate: {
-      isf: overallFit ? { value: overallFit.isf, n: overallFit.n, unreliable: overallFit.unreliable } : null,
-      icr: allIcr.length >= MIN_EVENTS ? { value: r1(median(allIcr)!), n: allIcr.length, unreliable: overallRising * 2 >= allIcrMeals.length, rising: overallRising } : null,
-      action: overallFit,
+      isf: overallFit ? { value: overallFit.isf, n: overallFit.n, unreliable: overallFit.unreliable || anyDrifting } : null,
+      icr: allIcr.length >= MIN_EVENTS ? { value: r1(median(allIcr)!), n: allIcr.length, unreliable: overallRising * 2 >= allIcrMeals.length || anyDrifting, rising: overallRising } : null,
+      action: overallFit && { ...overallFit, unreliable: overallFit.unreliable || anyDrifting },
     },
   }
 
