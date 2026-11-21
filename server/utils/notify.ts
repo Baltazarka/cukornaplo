@@ -306,6 +306,9 @@ export async function checkAlerts(nowTs = Math.floor(Date.now() / 1000)): Promis
   const send = async (payload: PushPayload, urgency: 'high' | 'normal') => {
     const r = await sendPush(payload, { urgency, ttl: 15 * 60 }).catch((e: any) => ({ sent: 0, failed: 1, lastError: String(e?.message ?? e) }))
     if (!r.sent && r.lastError) errors.push(r.lastError)
+    // Ha egyik eszközre sem ment ki, az „utolsó küldés” időpontja visszaáll: a következő percben újra próbálja
+    // (különben egy átmeneti hiba után az ismétlési köz, 15 perc telne el a hipó-riasztás előtt).
+    if (!r.sent) saveState({ lastHypo: st.lastHypo, lastCarbs: st.lastCarbs, lastHypoV: st.lastHypoV, lastInsulin: st.lastInsulin })
   }
 
   // Ugyanarra a hipóra az ismétlés csak akkor jön az időköz után, ha romlott (≥ 0,3-del lejjebb, vagy 3,0 alatt);

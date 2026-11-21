@@ -57,7 +57,9 @@ export async function sendPush(payload: PushPayload, opts: { urgency?: 'very-low
   const rows = db().prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions').all() as any[]
   if (!rows.length) return { sent: 0, failed: 0 }
   const v = vapid()
-  const options = { vapidDetails: { subject: subject(), publicKey: v.publicKey, privateKey: v.privateKey }, TTL: opts.ttl ?? 600, urgency: opts.urgency ?? 'high' }
+  const options = { vapidDetails: { subject: subject(), publicKey: v.publicKey, privateKey: v.privateKey }, TTL: opts.ttl ?? 600, urgency: opts.urgency ?? 'high',
+    // Időkorlát nélkül egy megakadt push-szerver az értesítő ciklust (és vele a hipó-riasztást) is megállítaná.
+    timeout: 10_000 }
   let sent = 0
   let failed = 0
   let lastError: string | undefined

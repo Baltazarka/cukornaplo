@@ -9,31 +9,25 @@
 //  Alapból az automatikus választás él: a Terápia oldali visszateszt alapján távolságonként (15 / 30 / 60 perc) és
 //  aszerint, hogy van-e aktív inzulin / szénhidrát, a legkisebb hibájú módszer, így a bonyolultabb modell csak akkor
 //  számít, ha a saját adataidon tényleg pontosabb az egyszerűnél.
+// A tiszta számolás (adagok, szénhidrát, trend → becslés): predictCore.ts (tesztelt: tests/predict.test.ts); ez a fájl az adatokat gyűjti és a módszert választja.
 // Tájékoztató becslés, nem helyettesíti a CGM riasztásait.
 import { db } from './db'
 import { therapy, segmentAt, blendAt } from './therapy'
-import { rapidDoses, iobAt } from './iob'
+import { rapidDoses } from './iob'
 import { targetRange } from './range'
 import { glucosePoints, latestGlucose, type Latest } from './digest'
 import { rateAt } from './trend'
 import { absorbedFraction, absorbSpanMin, absorbCategory } from './absorption'
 import { readComputed } from './computed'
 import { suggestInsulin } from '#shared/utils/suggest'
+import { forecast, MAX_GLUCOSE, type PredictMode } from './predictCore'
 
 const MAX_AGE_SEC = 15 * 60 // ennél régebbi utolsó méréssel nem jósolunk
-const MOMENTUM_MIN = 15
-const TREND_WINDOW_SEC = 20 * 60 // a meredekséghez az utolsó 20 perc szenzormérései
-const SLOPE_MAX = 0.2 // mmol/L/perc: ennél meredekebb trendet nem extrapolálunk
-const BLEND_W0 = 0.1 // a modell súlya az első lépésnél (5 perc), lépésenként 2,5-szeresére nő
-const BLEND_GROWTH = 2.5
-const MAX_GLUCOSE = 30
-export type PredictMode = 'persist' | 'trend' | 'residual' | 'blend'
+export type { PredictMode }
 export const PREDICT_MODES: PredictMode[] = ['persist', 'trend', 'residual', 'blend']
 /** A kiválasztott módszer távolságonként és állapotonként (aktív inzulin / CH van-e). */
 export type PredictChoice = Record<'15' | '30' | '60', { active: PredictMode; calm: PredictMode }>
 export const CHOICE_KEY = 'predict-choice'
-const TREND_CAP_MIN = 15 // a csillapított trend legfeljebb ennyi percig folytatódik …
-const TREND_GAIN = 0.5 // … a meredekség felével (a valós visszatesztben a teljes meredekség 15 percre rosszabb volt a változatlannál)
 /** A keverés (modell) átlagos eltérése a visszatesztből (becsült − mért, mmol/L), távolságonként és állapotonként. */
 export type PredictBias = Record<'15' | '30' | '60', { active: number | null; calm: number | null }>
 export const BIAS_KEY = 'predict-bias'
@@ -90,7 +84,6 @@ function biasAt(h: number, active: boolean): number {
 }
 /** A távolsághoz legközelebbi tesztelt távolság (15 / 30 / 60 perc). */
 const bucket = (h: number): '15' | '30' | '60' => (h <= 22 ? '15' : h <= 45 ? '30' : '60')
-const RECENT_TREAT_SEC = 30 * 60 // ennyivel előbb bevitt ≥ 10 g CH kezelésnek számít (közben nincs hipó-értesítés)
 
 export interface Prediction {
   now: Latest
@@ -165,64 +158,15 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
     .all(nowTs - 12 * 3600, nowTs) as { ts: number; value: number; subtype: string | null }[] // a tanult felszívódás nagy étkezésnél 12 óráig is tarthat
   const doses = rapidDoses(t, nowTs, nowTs + 1, carbRows.map((c) => Number(c.ts)))
 
-  let insulinRate = 0
-  for (const d of doses) insulinRate += d.v * d.model.activity((nowTs - d.ts) / 60) * isfAt(d.ts)
-
   // Szénhidrát: a tiszta étkezésekből tanult felszívódási görbe (vagy az alapértelmezett ívelt).
   const meals = carbRows
     .map((c) => ({ grams: Number(c.value), ts: Number(c.ts), cat: absorbCategory(c.subtype), perG: perGAt(Number(c.ts)) }))
     .filter((c) => (nowTs - c.ts) / 60 < absorbSpanMin(c.cat, c.grams))
-  const absorbed = (c: { cat: ReturnType<typeof absorbCategory>; ts: number; grams: number }, h: number) => absorbedFraction(c.cat, (nowTs - c.ts) / 60 + h, c.grams)
-  let carbRate = 0
-  let cob = 0
-  let treated = false
-  for (const c of meals) {
-    carbRate += (c.grams * (absorbed(c, 5) - absorbed(c, 0)) * c.perG) / 5
-    cob += c.grams * (1 - absorbed(c, 0))
-    if (nowTs - c.ts <= RECENT_TREAT_SEC && c.grams >= 10) treated = true
-  }
-
-  // Lendület: ami a modellből nem magyarázható, az még pár percig folytatódik.
   const pts = glucosePoints(nowTs - 40 * 60, nowTs + 60).filter((p) => !p.manual)
   const obsRate = pts.length ? rateAt(pts, pts.length - 1) : null
-  const residual = obsRate == null ? 0 : Math.max(-0.15, Math.min(0.15, obsRate - (carbRate - insulinRate)))
-  // Trend: legkisebb négyzetek szerinti meredekség az utolsó 20 percre (legalább 3 szenzormérés).
-  const recent = pts.filter((p) => p.ts >= latest.ts - TREND_WINDOW_SEC && p.ts <= latest.ts)
-  let slope: number | null = null
-  if (recent.length >= 3) {
-    const mx = recent.reduce((a, p) => a + p.ts, 0) / recent.length
-    const my = recent.reduce((a, p) => a + p.v, 0) / recent.length
-    const sxx = recent.reduce((a, p) => a + (p.ts - mx) ** 2, 0)
-    if (sxx > 0) slope = Math.max(-SLOPE_MAX, Math.min(SLOPE_MAX, (recent.reduce((a, p) => a + (p.ts - mx) * (p.v - my), 0) / sxx) * 60))
-  }
-
-  // Az utolsó mérés kora: a becslés a mérés időpontjától számol (a mérés és a „most” közötti inzulin- és CH-hatás
-  // sem maradhat ki: 8 E aktív inzulinnál 10 perc késés ~0,5 mmol/L).
-  const lagMin = Math.max(0, (nowTs - latest.ts) / 60)
-  const atMode = (h: number, md: PredictMode) => {
-    const hh = h + lagMin // a mérés óta eltelt perc a célidőpontig
-    if (md === 'persist' || (md === 'trend' && slope == null)) return Math.min(MAX_GLUCOSE, Math.max(1.5, latest.v))
-    if (md === 'trend') return Math.min(MAX_GLUCOSE, Math.max(1.5, latest.v + TREND_GAIN * slope! * Math.min(hh, TREND_CAP_MIN)))
-    let insulinEffect = 0
-    for (const d of doses) {
-      const m = (nowTs - d.ts) / 60
-      insulinEffect += d.v * (d.model.iob(m - lagMin) - d.model.iob(m + h)) * isfAt(d.ts)
-    }
-    let carbEffect = 0
-    for (const c of meals) carbEffect += c.grams * (absorbed(c, h) - absorbed(c, -lagMin)) * c.perG
-    const model = latest.v - insulinEffect + carbEffect
-    let v: number
-    if (md === 'residual' || slope == null) {
-      v = model + (md === 'residual' ? residual * Math.min(hh, MOMENTUM_MIN) : 0)
-    } else {
-      // Rövid távon a trend, hosszabb távon a modell: a modell súlya lépésenként (5 perc) 2,5-szeresére nő.
-      const w = BLEND_W0 * BLEND_GROWTH ** (hh / 5)
-      v = (model * w + (latest.v + slope * hh)) / (w + 1)
-    }
-    return Math.min(MAX_GLUCOSE, Math.max(1.5, v))
-  }
-  const iobNow = iobAt(doses, nowTs)
-  const lastBolusTs = doses.reduce((a, d) => (d.ts <= nowTs && d.ts > a ? d.ts : a), 0)
+  const { atMode, eventual, iob: iobNow, cob, treated, lastBolusTs } = forecast({
+    nowTs, latest, doses, meals, absorbedFrac: absorbedFraction, pts, obsRate, isfAt,
+  })
   const active = iobNow >= ACTIVE_IOB || cob >= ACTIVE_COB
   const blendCorrected = (h: number) => Math.min(MAX_GLUCOSE, Math.max(1.5, atMode(h, 'blend') - biasAt(h, active)))
   const at = (h: number) => {
@@ -231,12 +175,6 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
     const md = c ? (active ? c.active : c.calm) : 'trend'
     return md === 'blend' ? blendCorrected(h) : atMode(h, md)
   }
-  // Hosszú távú érték: a teljes még aktív inzulin és a még fel nem szívódó CH hatásával.
-  let eventual = latest.v
-  // (a mérés időpontjától: ami a mérés óta már hatott, az még nincs benne a mért értékben)
-  for (const d of doses) eventual -= d.v * d.model.iob((latest.ts - d.ts) / 60) * isfAt(d.ts)
-  for (const c of meals) eventual += c.grams * (1 - absorbed(c, -lagMin)) * c.perG
-  eventual = Math.min(MAX_GLUCOSE, Math.max(1.5, eventual))
   const range = targetRange()
   return { latest, low: range.low, high: range.high, target: seg.target, isf: seg.isf, perG, maxBolus: t.maxBolus, eventual, iob: iobNow, cob, treated, active, at, atMode, blendCorrected, lastBolusTs }
 }
