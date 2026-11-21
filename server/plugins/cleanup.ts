@@ -80,6 +80,9 @@ function cleanup(): void {
       if (row && st.date && ymdInTz(Number(row.ts)) === st.date) d.prepare('UPDATE entries SET source = ? WHERE id = ?').run(AUTO_BASAL_SOURCE, st.id)
       saveSettings({ basal_auto: { date: st.date } })
     }
+    // A megszűnt Autopilot-modul maradványai (napló és beállítás): egyszer törlődnek.
+    d.exec('DROP TABLE IF EXISTS autopilot_log')
+    if (setting('autopilot', null) != null || setting('autopilot_state', null) != null) saveSettings({ autopilot: null, autopilot_state: null })
     const removed = Number(dup.changes) + Number(shifted.changes)
     const relabeled = Number(inpen.changes)
     if (removed || unbasal || relabeled) {

@@ -1317,18 +1317,3 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
 .theme-toggle.spinning svg { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Autopilot (külön modul) */
-.autopilot { display: flex; flex-direction: column; gap: 16px; }
-.autopilot h1 { margin: 0; }
-.ap-h { font-size: 15px; margin: 0 0 8px; }
-.ap-advice { font-size: 20px; margin: 4px 0 8px; }
-.ap-reasons { margin: 0 0 12px; padding-left: 18px; color: var(--text-secondary); }
-.ap-facts { margin-bottom: 12px; }
-.ap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; margin: 10px 0; }
-.ap-grid label { display: flex; flex-direction: column; gap: 4px; }
-.autopilot .chip { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); font-size: 13px; }
-.autopilot .chip.ap-suggest { background: color-mix(in srgb, var(--status-warning) 22%, var(--surface-1)); }
-.autopilot .chip.ap-hold { background: color-mix(in srgb, var(--status-serious) 22%, var(--surface-1)); }
-.autopilot .chip.ap-wait { color: var(--text-muted); }
-.ap-form label.check { display: flex; flex-direction: row; align-items: center; gap: 8px; margin-bottom: 6px; }
-.ap-log { margin: 0 0 10px; }

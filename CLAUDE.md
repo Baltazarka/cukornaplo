@@ -30,10 +30,6 @@ Személyes cukorbetegség-napló. Nuxt 4 (SPA, `ssr: false`) + Nitro szerver, SQ
 - **Elemzés:** csak szenzoradatból; a korábbi étel a mérete szerinti felszívódásig zavar; hipóból induló étkezés nem tiszta (a CH-arányhoz; a gyors CH felszívódás-tanulásánál viszont a hipókezelés is számít, és a tanulási ablak a felszívódási idő másfélszerese, nem 4 óra); bázis-sodródás ≥ 0,3 mmol/L/óra (3 óra adat, 3 nap) → a napszak becslése nem megbízható; az ISF adaggal súlyozott mediánból. Algoritmusváltozásnál növeld a `COMPUTE_VERSION`-t (`server/utils/computed.ts`).
 - **Értesítések:** az inzulinjavaslat-push csak a céltartomány felső határa fölött szól (a kalkulátor a célértékhez korrigál; ez szándékos). Minden kiküldött push a `push_log` táblába kerül, a főoldalon visszanézhető.
 
-## Autopilot (külön modul)
-- Önálló rész saját menüponttal (`/autopilot`): `server/utils/autopilotEngine.ts` (tiszta döntés, tesztelhető: `pnpm test`), `server/utils/autopilot.ts` (adatok, napló az `autopilot_log` táblában, push), `server/plugins/autopilot.ts` (percenkénti ciklus), `server/api/autopilot/`, `app/pages/autopilot.vue`. A naplóból csak olvas (szenzor, inzulin, CH, terápia), semmit nem ír oda, és a többi rész (kalkulátor, értesítések, előrejelzés) működését nem módosítja.
-- **Csak javaslat, nem pumpa:** a program nem ad be inzulint. Pumpa-szerű (oref1 SMB-elv): a teljes szükséglet töredéke (alap 50%) egy lépésben, egy óra múlva újraszámol; nem javasol hipó-veszélynél, eső vércukornál, friss adag után, nagy aktív inzulinnál, és ha a javasolt adag mellett is túl közel kerülne a várható mélypont az alacsonyhoz. Alapból ki van kapcsolva; a korábbi javaslatok visszamérése az oldalon látszik.
-
 ## Kódolási tudnivalók
 - `settings()` / `setting()` memóriában gyorsítótárazott közös objektumot ad vissza: **ne módosítsd**, mindig új objektumot építs (`{ ...régi, ...új }`), és `saveSettings()`-szel írj.
 - Időzóna: minden faliidő → unix átváltás a `zonedToTs()`-en megy (DST-helyes); a `time.ts` `parts()` percenként gyorsítótáraz.
