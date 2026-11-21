@@ -71,6 +71,11 @@ function apDb() {
   return d
 }
 
+/** Az Autopilot-napló törlése („Minden elölről”). */
+export function apReset(): void {
+  apDb().exec('DELETE FROM autopilot_log')
+}
+
 /** A mostani döntés a naplóból és a beállításokból; null, ha nincs terápiás beállítás. */
 export function apCompute(nowTs = Math.floor(Date.now() / 1000)): ApDecision | null {
   const t = therapy()

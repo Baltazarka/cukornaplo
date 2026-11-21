@@ -23,6 +23,9 @@ RUN mkdir -p /data
 COPY --from=build /app/.output ./.output
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/server ./server
+# Nem rootként fut. A /data mappa a hoston a 1000-es felhasználóé legyen: chown -R 1000:1000 <data mappa>
+RUN chown node:node /data
+USER node
 VOLUME ["/data"]
 EXPOSE 3000
 HEALTHCHECK --interval=1m --timeout=5s --start-period=15s \
