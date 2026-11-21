@@ -62,7 +62,14 @@ const chart = computed(() => {
   if (d.curveAfter?.length) lines.push({ y: d.curveAfter.map((c: number[]) => c[1]), color: 'var(--status-warning)', label: 'a javasolt adaggal', dash: true })
   return { x: d.curve.map((c: number[]) => c[0]), lines, yTicks }
 })
-const range = computed(() => data.value?.range ?? { low: 3.9, high: 10 })
+const range = computed(() => data.value?.range ?? { low: 3.9, high: 10, veryLow: 3, veryHigh: 13.9 })
+/** A főoldali „Most” kártya zónaszíne (a vércukor a céltartományhoz képest). */
+const zone = computed(() => {
+  const v = dec.value?.bg
+  if (v == null) return ''
+  const r = range.value
+  return v < r.veryLow ? 'z-very-low' : v < r.low ? 'z-low' : v > r.veryHigh ? 'z-very-high' : v > r.high ? 'z-high' : ''
+})
 const when = (ts: number) => new Date(ts * 1000).toLocaleString('hu-HU', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 const outcomeOk = (r: any) => r.min4h != null && r.min4h >= range.value.low
 </script>
@@ -82,19 +89,27 @@ const outcomeOk = (r: any) => r.min4h != null && r.min4h >= range.value.low
       <p v-if="data && !data.therapySet" class="muted">Előbb add meg a <NuxtLink to="/terapia">terápiás beállításokat</NuxtLink>.</p>
     </section>
 
+    <section v-if="dec?.bg != null" class="card now-card" :class="zone">
+      <div class="now-main">
+        <span class="now-label">Most · szenzor</span>
+        <span class="now-value">{{ fmt(dec.bg) }} <small>mmol/L</small></span>
+        <span class="now-trend">{{ arrow }}</span>
+        <span class="now-zone">{{ state.label }}</span>
+      </div>
+      <div class="now-facts">
+        <div><span>Aktív inzulin</span><b class="now-ins">{{ fmt(dec.iob) }} E</b></div>
+        <div><span>Aktív CH</span><b class="now-carbs">{{ fmt(dec.cob, 0) }} g</b></div>
+        <div><span>Várható</span><b>≈ {{ fmt(dec.eventual) }}</b></div>
+        <div><span>Legalacsonyabb</span><b>{{ fmt(dec.minPred) }}</b></div>
+      </div>
+    </section>
+
     <section v-if="dec" class="card">
-      <h2 class="ap-h">Most</h2>
+      <h2 class="ap-h">Javaslat</h2>
       <p v-if="dec.state === 'suggest'" class="ap-advice">Kb. <b>{{ fmt(dec.units) }} E</b> javasolt <small class="muted">(a teljes szükséglet kb. {{ fmt(dec.full) }} E)</small></p>
       <ul class="ap-reasons">
         <li v-for="(r, i) in dec.reasons" :key="i">{{ r }}</li>
       </ul>
-      <dl v-if="dec.bg != null" class="facts ap-facts">
-        <div><dt>Vércukor</dt><dd>{{ fmt(dec.bg) }} {{ arrow }} <small>mmol/L</small></dd></div>
-        <div><dt>Aktív inzulin</dt><dd>{{ fmt(dec.iob) }} <small>E</small></dd></div>
-        <div><dt>Aktív szénhidrát</dt><dd>{{ fmt(dec.cob, 0) }} <small>g</small></dd></div>
-        <div><dt>Várható (hosszú távon)</dt><dd>{{ fmt(dec.eventual) }} <small>mmol/L</small></dd></div>
-        <div><dt>Legalacsonyabb várható</dt><dd>{{ fmt(dec.minPred) }} <small>{{ dec.minPredIn }} perc múlva</small></dd></div>
-      </dl>
       <template v-if="chart">
         <h3 class="ap-h">Várható vércukor a következő 4 órában</h3>
         <ClientOnly>

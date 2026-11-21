@@ -39,7 +39,7 @@ export default defineNuxtConfig({
       title: 'Cukornapló',
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'theme-color', content: '#0d0d0d' },
+        { name: 'theme-color', content: '#15131c' },
         { name: 'apple-mobile-web-app-title', content: 'Cukornapló' },
         { name: 'apple-mobile-web-app-capable', content: 'yes' },
         { name: 'mobile-web-app-capable', content: 'yes' },
@@ -51,9 +51,9 @@ export default defineNuxtConfig({
         { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon-v2.png' },
         { rel: 'manifest', href: '/manifest.webmanifest' },
       ],
-      // A mentett témát még a Vue betöltése előtt beállítjuk (nincs villanás).
+      // Az egyetlen téma (Éjszaka) még a Vue betöltése előtt beáll (nincs villanás).
       script: [{
-        innerHTML: "try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark'||/^pastel-[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t)}catch(e){}",
+        innerHTML: "document.documentElement.setAttribute('data-theme','pastel-night')",
         tagPosition: 'head',
       }, {
         innerHTML: "if('serviceWorker' in navigator)addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){})})",

@@ -69,15 +69,12 @@ function print() {
   window.print()
 }
 
-// Nyomtatáshoz mindig világos téma; távozáskor a mentett (közben esetleg átállított) téma áll vissza.
+// Nyomtatáshoz mindig világos téma; távozáskor visszaáll az app témája (Éjszaka).
 onMounted(() => {
   document.documentElement.setAttribute('data-theme', 'light')
 })
 onBeforeUnmount(() => {
-  let saved: string | null = null
-  try { saved = localStorage.getItem('theme') } catch { /* nincs localStorage */ }
-  if (saved) document.documentElement.setAttribute('data-theme', saved)
-  else document.documentElement.removeAttribute('data-theme')
+  document.documentElement.setAttribute('data-theme', 'pastel-night')
 })
 
 function fmt(v: number | null | undefined, dec = 1, sign = false): string {

@@ -14,6 +14,7 @@ Személyes cukorbetegség-napló. Nuxt 4 (SPA, `ssr: false`) + Nitro szerver, SQ
 - Grafikon: ECharts 6, a napi grafikon `app/components/GlucoseDayChart.vue`.
 - Értesítés a felületen: `useToast()` / `useToastFrom()` (nincs böngészős `alert()`); kérdés: `askConfirm()` (nincs `confirm()`).
 - Mobil elrendezés: `main.css`-ben a ≤700 px szabályok (`display: contents` + `order`).
+- **Egyetlen téma: „Éjszaka”** (`data-theme="pastel-night"`, a head-szkript és a `main.css` állítja); nincs témaválasztó, nincs világos / más sötét téma. Új oldal és elem a főoldal stílusában készüljön (`.card`, `.tile`, `.now-card` + `.now-facts`, `.segmented`). Kivétel: a nyomtatható riport `data-theme="light"` alapszíneket kap, mert papírra / PDF-be megy.
 - A kézi vércukor (`entries.source='manual'`) a statisztikába beleszámít, de a szenzorlefedettségbe, trendbe és a görbébe nem.
 - Kizárt szenzorszakasz (ráfekvés stb., `excluded_ranges`, `entries.excluded = 1`, `server/utils/excluded.ts`): minden vércukrot olvasó lekérdezésbe kell az `AND excluded = 0`; a napi grafikon külön (`excludedGlucose`) szürkén mutatja.
 - Az `data/` mappa (jelszó-hash, API-kulcs, CareLink-kulcs, adatbázis) **soha nem kerülhet git-be**.

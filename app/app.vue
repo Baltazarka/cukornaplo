@@ -12,55 +12,6 @@ async function logout() {
   await navigateTo('/login')
 }
 
-// Téma: rendszer, világos, sötét vagy pasztell sötét (lenyíló lista). A mentett értéket a head-szkript már alkalmazta.
-const theme = ref<ThemeId>('system')
-const themeOpen = ref(false)
-// A grafikonok a téma színeit rajzoláskor olvassák ki: váltáskor újrarajzolnak.
-const themeTick = useState<number>('theme-tick', () => 0)
-function setThemeColor(id: ThemeId) {
-  const page = THEMES.find((t) => t.id === id)?.page
-  const dark = id === 'system' ? matchMedia('(prefers-color-scheme: dark)').matches : id !== 'light'
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', page || (dark ? '#0d0d0d' : '#f9f9f7'))
-}
-onMounted(() => {
-  try {
-    const t = localStorage.getItem('theme')
-    theme.value = isThemeId(t) ? t : 'system'
-  } catch { /* nincs localStorage */ }
-  setThemeColor(theme.value)
-  document.addEventListener('click', closeThemeMenu)
-  schemeQuery = matchMedia('(prefers-color-scheme: dark)')
-  schemeQuery.addEventListener('change', onSchemeChange)
-})
-onBeforeUnmount(() => {
-  document.removeEventListener('click', closeThemeMenu)
-  schemeQuery?.removeEventListener('change', onSchemeChange)
-})
-// „Rendszer szerint” témánál a rendszer világos/sötét váltására is újrarajzolnak a grafikonok.
-let schemeQuery: MediaQueryList | null = null
-function onSchemeChange() {
-  if (theme.value !== 'system') return
-  setThemeColor('system')
-  themeTick.value++
-}
-function closeThemeMenu(e: MouseEvent) {
-  if (themeOpen.value && !(e.target as HTMLElement)?.closest?.('.theme-menu-wrap')) themeOpen.value = false
-}
-function pickTheme(next: ThemeId) {
-  theme.value = next
-  themeOpen.value = false
-  try {
-    if (next === 'system') {
-      document.documentElement.removeAttribute('data-theme')
-      localStorage.removeItem('theme')
-    } else {
-      document.documentElement.setAttribute('data-theme', next)
-      localStorage.setItem('theme', next)
-    }
-  } catch { /* nincs localStorage */ }
-  setThemeColor(next)
-  themeTick.value++
-}
 // Mobil menü (hamburger): oldalváltáskor automatikusan bezárul.
 const menuOpen = ref(false)
 watch(() => route.path, () => { menuOpen.value = false })
@@ -93,9 +44,6 @@ async function reload() {
   setTimeout(() => { refreshing.value = false }, 400)
 }
 function toTop() { window.scrollTo({ top: 0, behavior: 'smooth' }) }
-
-const themeIcon = computed(() => THEMES.find((t) => t.id === theme.value)?.icon ?? '🖥️')
-const themeLabel = computed(() => THEMES.find((t) => t.id === theme.value)?.label ?? 'Rendszer szerint')
 </script>
 
 <template>
@@ -125,20 +73,6 @@ const themeLabel = computed(() => THEMES.find((t) => t.id === theme.value)?.labe
             <path d="M20 4v7h-7" />
           </svg>
         </button>
-        <div class="theme-menu-wrap">
-          <button class="theme-toggle" :title="'Téma: ' + themeLabel" aria-label="Téma választása" :aria-expanded="themeOpen" aria-haspopup="menu" @click="themeOpen = !themeOpen">
-            <span aria-hidden="true">{{ themeIcon }}</span>
-          </button>
-          <div v-if="themeOpen" class="theme-menu" role="menu">
-            <button
-              v-for="t in THEMES" :key="t.id" type="button" role="menuitemradio" :aria-checked="theme === t.id"
-              :class="{ active: theme === t.id }" @click="pickTheme(t.id)"
-            >
-              <span class="theme-sw" aria-hidden="true">{{ t.icon }}</span>
-              {{ t.label }}
-            </button>
-          </div>
-        </div>
         <button v-if="auth.authed || auth.viewer" class="menu-toggle" :aria-expanded="menuOpen" aria-label="Menü" @click="menuOpen = !menuOpen">
           <span aria-hidden="true">{{ menuOpen ? '✕' : '☰' }}</span>
         </button>
