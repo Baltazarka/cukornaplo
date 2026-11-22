@@ -905,6 +905,28 @@ export function analyze(from: number, to: number) {
       startBG: range(corrections.map((c) => c.startBG)), dose: range(corrections.map((c) => c.dose)), drop: range(corrections.map((c) => c.drop)),
       dropPerUnit: r1(sum(corrections.map((c) => c.drop)) / sum(corrections.map((c) => c.dose))),
     } : null,
+    mealRows: [] as { carbs: number; n: number; good: number; dose: number | null; estimated: boolean }[],
+    corrRows: [] as { bg: number; n: number; good: number; dose: number | null; estimated: boolean }[],
+  }
+  // Táblázat: hány g CH-hoz mennyi inzulin (jó = a cukor a célban maradt); ahol nincs jó eset, az átlagos g/E arányból becsült adag.
+  const roundHalf = (x: number) => Math.max(0.5, Math.round(x * 2) / 2)
+  const nearest = (centers: number[], x: number, half: number) => centers.find((c) => Math.abs(x - c) < half)
+  const mealWithCarbs = meals.filter((m) => m.carbs && m.bolus > 0)
+  for (const c of [20, 30, 40, 50, 60]) {
+    const inB = mealWithCarbs.filter((m) => nearest([c], m.carbs!, 5) != null)
+    const good = inB.filter((m) => m.rating === 'ok')
+    const med = good.length ? median(good.map((m) => m.bolus)) : null
+    const est = med == null && works.meals ? roundHalf(c / works.meals.gPerUnit) : null
+    works.mealRows.push({ carbs: c, n: inB.length, good: good.length, dose: med != null ? r1(med) : est, estimated: med == null && est != null })
+  }
+  // Korrekció: jó, ha a legmélyebb pont a céltartományban maradt (nem maradt magas, nem ment alacsonyra).
+  const mid = (low + high) / 2
+  for (const bg of [10, 15, 20]) {
+    const inB = corrections.filter((x) => (bg === 20 ? x.startBG >= 17.5 : Math.abs(x.startBG - bg) < 2.5))
+    const good = inB.filter((x) => x.startBG - x.drop >= low && x.startBG - x.drop <= high)
+    const med = good.length ? median(good.map((x) => x.dose)) : null
+    const est = med == null && works.corrections && works.corrections.dropPerUnit > 0 ? roundHalf((bg - mid) / works.corrections.dropPerUnit) : null
+    works.corrRows.push({ bg, n: inB.length, good: good.length, dose: med != null ? r1(med) : est, estimated: med == null && est != null })
   }
 
   return {

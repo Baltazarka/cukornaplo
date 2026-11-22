@@ -404,6 +404,27 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
             </template>
           </tbody>
         </table></div>
+        <div class="table-wrap"><table class="table report-table">
+          <thead><tr><th>Szénhidrát</th><th class="num">Inzulin, amikor jó volt</th><th class="num">Jó / összes</th></tr></thead>
+          <tbody>
+            <tr v-for="r in an.works.mealRows" :key="r.carbs">
+              <td>~{{ r.carbs }} g</td>
+              <td class="num">{{ r.dose != null ? `${r.estimated ? '~' : ''}${fmt(r.dose, 1)} E` : '–' }}<small v-if="r.estimated"> (becsült)</small></td>
+              <td class="num">{{ r.good }} / {{ r.n }}</td>
+            </tr>
+          </tbody>
+        </table></div>
+        <div class="table-wrap"><table class="table report-table">
+          <thead><tr><th>Vércukor beadáskor</th><th class="num">Korrekció, amikor jó volt</th><th class="num">Jó / összes</th></tr></thead>
+          <tbody>
+            <tr v-for="r in an.works.corrRows" :key="r.bg">
+              <td>{{ r.bg === 20 ? '≥ 17,5' : `~${r.bg}` }} mmol/L</td>
+              <td class="num">{{ r.dose != null ? `${r.estimated ? '~' : ''}${fmt(r.dose, 1)} E` : '–' }}<small v-if="r.estimated"> (becsült)</small></td>
+              <td class="num">{{ r.good }} / {{ r.n }}</td>
+            </tr>
+          </tbody>
+        </table></div>
+        <p class="muted small">„~” és „becsült”: ebben a sávban nem volt jó eset, ezért az adag az átlagos arányból (g CH / E, illetve mmol/L / E) van kiszámolva, nem mért. A sávok ±5 g, illetve ±2,5 mmol/L. Korrekciónál jó: a legmélyebb pont a céltartományban maradt.</p>
         <p class="muted small">Étkezés: csak amikor a vércukor a célban maradt (csúcs a céltartomány alatt, 4 óra múlva ±2 mmol/L-en belül). Korrekció: a tiszta (étel és más bólus nélküli) esetek. Középső érték és a 25–75%-os tartomány; az „Eset” a megfelelt / összes. Tájékoztató; a terápia a kezelőorvossal egyeztetendő.</p>
       </section>
 
