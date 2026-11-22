@@ -905,8 +905,8 @@ export function analyze(from: number, to: number) {
       startBG: range(corrections.map((c) => c.startBG)), dose: range(corrections.map((c) => c.dose)), drop: range(corrections.map((c) => c.drop)),
       dropPerUnit: r1(sum(corrections.map((c) => c.drop)) / sum(corrections.map((c) => c.dose))),
     } : null,
-    mealRows: [] as { carbs: number; n: number; good: number; dose: number | null; estimated: boolean }[],
-    corrRows: [] as { bg: number; n: number; good: number; dose: number | null; estimated: boolean }[],
+    mealRows: [] as { carbs: number; n: number; good: number; spike: number; high: number; low: number; dose: number | null; estimated: boolean }[],
+    corrRows: [] as { bg: number; n: number; good: number; high: number; low: number; dose: number | null; estimated: boolean }[],
   }
   // Táblázat: hány g CH-hoz mennyi inzulin (jó = a cukor a célban maradt); ahol nincs jó eset, az átlagos g/E arányból becsült adag.
   const roundHalf = (x: number) => Math.max(0.5, Math.round(x * 2) / 2)
@@ -917,7 +917,7 @@ export function analyze(from: number, to: number) {
     const good = inB.filter((m) => m.rating === 'ok')
     const med = good.length ? median(good.map((m) => m.bolus)) : null
     const est = med == null && works.meals ? roundHalf(c / works.meals.gPerUnit) : null
-    works.mealRows.push({ carbs: c, n: inB.length, good: good.length, dose: med != null ? r1(med) : est, estimated: med == null && est != null })
+    works.mealRows.push({ carbs: c, n: inB.length, good: good.length, spike: inB.filter((m) => m.rating === 'spike').length, high: inB.filter((m) => m.rating === 'high').length, low: inB.filter((m) => m.rating === 'low').length, dose: med != null ? r1(med) : est, estimated: med == null && est != null })
   }
   // Korrekció: jó, ha a legmélyebb pont a céltartományban maradt (nem maradt magas, nem ment alacsonyra).
   const mid = (low + high) / 2
@@ -926,7 +926,7 @@ export function analyze(from: number, to: number) {
     const good = inB.filter((x) => x.startBG - x.drop >= low && x.startBG - x.drop <= high)
     const med = good.length ? median(good.map((x) => x.dose)) : null
     const est = med == null && works.corrections && works.corrections.dropPerUnit > 0 ? roundHalf((bg - mid) / works.corrections.dropPerUnit) : null
-    works.corrRows.push({ bg, n: inB.length, good: good.length, dose: med != null ? r1(med) : est, estimated: med == null && est != null })
+    works.corrRows.push({ bg, n: inB.length, good: good.length, high: inB.filter((x) => x.startBG - x.drop > high).length, low: inB.filter((x) => x.startBG - x.drop < low).length, dose: med != null ? r1(med) : est, estimated: med == null && est != null })
   }
 
   return {

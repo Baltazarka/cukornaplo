@@ -140,6 +140,9 @@ const rowsOf = (d: any) => [
 ].sort((a, b) => a.minute - b.minute)
 const preBolus = (v: number | null) => (v == null ? '–' : v < 0 ? `${-v} p előtte` : v > 0 ? `${v} p után` : 'evéskor')
 const wr = (r: { lo: number; mid: number; hi: number } | null, unit: string) => (r ? `${fmt(r.mid, 1)} ${unit} (${fmt(r.lo, 1)}–${fmt(r.hi, 1)})` : '–')
+const parts = (n: number, items: [number, string][]) => (n ? `${n} eset: ${items.filter(([k]) => k).map(([k, l]) => `${k} ${l}`).join(', ')}` : 'nem volt ilyen')
+const whyMeal = (r: any) => parts(r.n, [[r.high, 'magas maradt'], [r.spike, 'csúcs magas, később rendben'], [r.low, 'túl alacsony']])
+const whyCorr = (r: any) => parts(r.n, [[r.high, 'magas maradt'], [r.low, 'túl alacsony']])
 const okPct = (r: any) => {
   const n = r.ok + r.spike + r.high + r.low
   return n ? Math.round((100 * r.ok) / n) : null
@@ -409,7 +412,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
           <tbody>
             <tr v-for="r in an.works.mealRows" :key="r.carbs">
               <td>~{{ r.carbs }} g</td>
-              <td class="num">{{ r.dose != null ? `${r.estimated ? '~' : ''}${fmt(r.dose, 1)} E` : '–' }}<small v-if="r.estimated"> (becsült)</small></td>
+              <td class="num">{{ r.dose != null ? `${r.estimated ? '~' : ''}${fmt(r.dose, 1)} E` : '–' }}<small v-if="r.estimated"> (becsült: {{ whyMeal(r) }})</small></td>
               <td class="num">{{ r.good }} / {{ r.n }}</td>
             </tr>
           </tbody>
@@ -419,7 +422,7 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
           <tbody>
             <tr v-for="r in an.works.corrRows" :key="r.bg">
               <td>{{ r.bg === 20 ? '≥ 17,5' : `~${r.bg}` }} mmol/L</td>
-              <td class="num">{{ r.dose != null ? `${r.estimated ? '~' : ''}${fmt(r.dose, 1)} E` : '–' }}<small v-if="r.estimated"> (becsült)</small></td>
+              <td class="num">{{ r.dose != null ? `${r.estimated ? '~' : ''}${fmt(r.dose, 1)} E` : '–' }}<small v-if="r.estimated"> (becsült: {{ whyCorr(r) }})</small></td>
               <td class="num">{{ r.good }} / {{ r.n }}</td>
             </tr>
           </tbody>
