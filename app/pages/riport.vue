@@ -139,6 +139,7 @@ const rowsOf = (d: any) => [
   ...(d.excluded ?? []).map((x: any) => ({ ...x, type: 'excluded' })),
 ].sort((a, b) => a.minute - b.minute)
 const preBolus = (v: number | null) => (v == null ? '–' : v < 0 ? `${-v} p előtte` : v > 0 ? `${v} p után` : 'evéskor')
+const wr = (r: { lo: number; mid: number; hi: number } | null, unit: string) => (r ? `${fmt(r.mid, 1)} ${unit} (${fmt(r.lo, 1)}–${fmt(r.hi, 1)})` : '–')
 const okPct = (r: any) => {
   const n = r.ok + r.spike + r.high + r.low
   return n ? Math.round((100 * r.ok) / n) : null
@@ -385,6 +386,25 @@ const basalState = (b: any) => (b.slope == null || b.hours < 1 ? 'kevés adat' :
           </tbody>
         </table></div>
         <p class="muted small">Tájékoztató becslés (legalább 3 tiszta eseményből); a terápia módosítása a kezelőorvossal egyeztetendő.</p>
+      </section>
+
+      <section v-if="an.works?.meals || an.works?.corrections" class="report-section">
+        <h2>Amikor az adagolás működik</h2>
+        <div class="table-wrap"><table class="table report-table">
+          <thead><tr><th /><th class="num">Szokásos (jellemző tartomány)</th><th class="num">Arány</th><th class="num">Eset</th></tr></thead>
+          <tbody>
+            <template v-if="an.works.meals">
+              <tr><td>Étkezés: szénhidrát</td><td class="num">{{ wr(an.works.meals.carbs, 'g') }}</td><td class="num" rowspan="2">{{ fmt(an.works.meals.gPerUnit, 1) }} g CH / E</td><td class="num" rowspan="2">{{ an.works.meals.n }} / {{ an.works.meals.of }}</td></tr>
+              <tr><td>Étkezés: inzulin</td><td class="num">{{ wr(an.works.meals.bolus, 'E') }}</td></tr>
+            </template>
+            <template v-if="an.works.corrections">
+              <tr><td>Korrekció: vércukor beadáskor</td><td class="num">{{ wr(an.works.corrections.startBG, 'mmol/L') }}</td><td class="num" rowspan="3">{{ fmt(an.works.corrections.dropPerUnit, 1) }} mmol/L / E</td><td class="num" rowspan="3">{{ an.works.corrections.n }} / {{ an.works.corrections.of }}</td></tr>
+              <tr><td>Korrekció: inzulin</td><td class="num">{{ wr(an.works.corrections.dose, 'E') }}</td></tr>
+              <tr><td>Korrekció: esés</td><td class="num">{{ wr(an.works.corrections.drop, 'mmol/L') }}</td></tr>
+            </template>
+          </tbody>
+        </table></div>
+        <p class="muted small">Étkezés: csak amikor a vércukor a célban maradt (csúcs a céltartomány alatt, 4 óra múlva ±2 mmol/L-en belül). Korrekció: a tiszta (étel és más bólus nélküli) esetek. Középső érték és a 25–75%-os tartomány; az „Eset” a megfelelt / összes. Tájékoztató; a terápia a kezelőorvossal egyeztetendő.</p>
       </section>
 
       <section class="report-section report-days">

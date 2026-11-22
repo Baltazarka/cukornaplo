@@ -887,8 +887,29 @@ export function analyze(from: number, to: number) {
     },
   }
 
+  // Amikor az adagolás működik: a jól sikerült étkezések és a tiszta korrekciók jellemző (25–75%) tartománya, egész időszakra.
+  const range = (xs: number[]) => {
+    const s = xs.filter((x) => Number.isFinite(x)).sort((a, b) => a - b)
+    return s.length ? { lo: r1(quantile(s, 0.25)), mid: r1(quantile(s, 0.5)), hi: r1(quantile(s, 0.75)) } : null
+  }
+  const okMeals = meals.filter((m) => m.rating === 'ok' && m.carbs && m.bolus > 0)
+  const sum = (xs: number[]) => xs.reduce((a, x) => a + x, 0)
+  const works = {
+    meals: okMeals.length ? {
+      n: okMeals.length, of: meals.length,
+      carbs: range(okMeals.map((m) => m.carbs!)), bolus: range(okMeals.map((m) => m.bolus)),
+      gPerUnit: r1(sum(okMeals.map((m) => m.carbs!)) / sum(okMeals.map((m) => m.bolus))),
+    } : null,
+    corrections: corrections.length ? {
+      n: corrections.length, of: correctionCount,
+      startBG: range(corrections.map((c) => c.startBG)), dose: range(corrections.map((c) => c.dose)), drop: range(corrections.map((c) => c.drop)),
+      dropPerUnit: r1(sum(corrections.map((c) => c.drop)) / sum(corrections.map((c) => c.dose))),
+    } : null,
+  }
+
   return {
     therapySet: !!t,
+    works,
     overall,
     coverage: glucoseCoverage(sensorGlucose, from, Math.min(to, Math.floor(Date.now() / 1000))),
     counts: { meals: meals.length, corrections: correctionCount, cleanCorrections: corrections.length },
