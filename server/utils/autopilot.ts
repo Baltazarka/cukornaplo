@@ -137,7 +137,7 @@ export async function checkAutopilot(nowTs = Math.floor(Date.now() / 1000)): Pro
     todayCorrectionUnits: todayGivenUnits('correction', nowTs),
     todayBasalMicroUnits: todayGivenUnits('basal_micro', nowTs),
     maxBolus: t?.maxBolus ?? null,
-    prediction: { risk: p.risk, iob: p.iob, insulinNeeded: p.insulinNeeded },
+    prediction: { risk: p.risk, iob: p.iob, insulinNeeded: p.insulinNeeded, insulinFull: p.insulinFull },
     sustainedHigh: cfg.basalMicroEnabled ? computeSustainedHigh(p, nowTs) : false,
     doseStep: setting<{ doseStep?: number }>('notify', null)?.doseStep === 0.5 ? 0.5 : 1,
   })

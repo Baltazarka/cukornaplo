@@ -94,12 +94,27 @@ async function save() {
             </label>
             <p class="tf-hint">
               Bekapcsolva, tartósan magas, az aktív inzulinnal/szénhidráttal nem magyarázható trendnél egy apró,
-              <b>nem visszavonható</b> kiegészítő adagot is javasolhat (a bázis pótlásaként), jóval ritkábban, mint a korrekció.
+              <b>nem visszavonható</b> kiegészítő adagot is javasolhat (a bázis pótlásaként), mint egy valódi pumpa
+              ideiglenes bázis-emelése — csak itt nyugtáznod kell.
             </p>
             <label v-if="form.basalMicroEnabled" class="tf-row tf-sub">
               <span class="tf-label">Napi max mikro-kiegészítés</span>
               <span class="tf-input"><input v-model.number="form.basalMicroDailyMaxUnits" type="number" step="0.5" min="0" max="30"> E</span>
             </label>
+            <label v-if="form.basalMicroEnabled" class="tf-row tf-sub">
+              <span class="tf-label">Egy javaslat a teljes szükséglet ekkora hányada</span>
+              <select v-model.number="form.basalMicroPercent">
+                <option :value="10">10%</option>
+                <option :value="20">20%</option>
+                <option :value="30">30%</option>
+                <option :value="40">40%</option>
+                <option :value="50">50%</option>
+              </select>
+            </label>
+            <p v-if="form.basalMicroEnabled" class="tf-hint tf-sub">
+              Mint egy valódi pumpa SMB-je: nem fix 1 lépés, hanem a teljes (korrekcióval nem fedezett) szükséglet
+              ekkora része, a toll lépésére lefelé kerekítve — minél nagyobb a trend, annál nagyobb a javaslat.
+            </p>
           </div>
         </section>
         </div>

@@ -13,6 +13,8 @@ export interface AutopilotSettings {
   dailyMaxUnits: number
   /** Napi max a mikro-kiegészítésben, E. */
   basalMicroDailyMaxUnits: number
+  /** Egy mikro-javaslat ennyi százaléka a teljes (nem halvott) szükségletnek, mint egy valódi pumpa SMB-je (10-50). */
+  basalMicroPercent: number
   /** Elfogadott korrekció után ennyi percig nem javasol újat (perc). */
   cooldownAcceptMin: number
   /** Elutasított javaslat után ennyi percig nem kérdez újra (perc). */
@@ -29,6 +31,8 @@ export interface AutopilotSettings {
 export const HARD = {
   minCooldownAcceptMin: 15,
   minCooldownDeclineMin: 30,
+  minBasalMicroPercent: 10,
+  maxBasalMicroPercent: 50,
   maxMaxIob: 5,
   minExpireMin: 5,
   maxExpireMin: 30,
@@ -43,6 +47,7 @@ export const DEFAULTS: AutopilotSettings = {
   basalMicroEnabled: false,
   dailyMaxUnits: 4,
   basalMicroDailyMaxUnits: 2,
+  basalMicroPercent: 40,
   cooldownAcceptMin: 30,
   cooldownDeclineMin: 60,
   expireMin: 15,
@@ -54,6 +59,7 @@ const clamp = (v: unknown, lo: number, hi: number, def: number): number => {
   const n = Number(v)
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def
 }
+const floorTo = (x: number, step: number) => Math.floor(x / step + 1e-9) * step
 
 export function validateAutopilot(b: any): AutopilotSettings {
   return {
@@ -61,6 +67,7 @@ export function validateAutopilot(b: any): AutopilotSettings {
     basalMicroEnabled: b?.basalMicroEnabled === true,
     dailyMaxUnits: clamp(b?.dailyMaxUnits, 0.5, 50, DEFAULTS.dailyMaxUnits),
     basalMicroDailyMaxUnits: clamp(b?.basalMicroDailyMaxUnits, 0, 30, DEFAULTS.basalMicroDailyMaxUnits),
+    basalMicroPercent: clamp(b?.basalMicroPercent, HARD.minBasalMicroPercent, HARD.maxBasalMicroPercent, DEFAULTS.basalMicroPercent),
     cooldownAcceptMin: clamp(b?.cooldownAcceptMin, HARD.minCooldownAcceptMin, 180, DEFAULTS.cooldownAcceptMin),
     cooldownDeclineMin: clamp(b?.cooldownDeclineMin, HARD.minCooldownDeclineMin, 240, DEFAULTS.cooldownDeclineMin),
     expireMin: clamp(b?.expireMin, HARD.minExpireMin, HARD.maxExpireMin, DEFAULTS.expireMin),
@@ -80,10 +87,10 @@ export interface DecideInput {
   todayBasalMicroUnits: number
   /** A terápia maxBolus-a (E), vagy null, ha nincs beállítva terápia. */
   maxBolus: number | null
-  prediction: { risk: boolean; iob: number; insulinNeeded: number | null }
+  prediction: { risk: boolean; iob: number; insulinNeeded: number | null; insulinFull: number | null }
   /** `predictSeries()` +60..+180 perces szakasza tartósan (≥80%) cél fölött, és az `eventual` is — lásd checkAutopilot. */
   sustainedHigh: boolean
-  /** A toll lépésköze (E), a mikro-kiegészítés mindig ennyi. */
+  /** A toll lépésköze (E): minden javaslat (korrekció és mikro is) erre van lefelé kerekítve. */
   doseStep: number
 }
 
@@ -108,7 +115,15 @@ export function decideAutopilot(i: DecideInput): Decision | null {
   }
 
   if (i.settings.basalMicroEnabled && i.sustainedHigh && i.todayBasalMicroUnits < i.settings.basalMicroDailyMaxUnits) {
-    return { kind: 'basal_micro', amount: i.doseStep }
+    // Mint egy valódi pumpa SMB-je: a teljes (nem halvott) szükséglet egy hányada, nem fix lépés — újraszámolva
+    // minden ciklusban, ahogy a trend nő vagy csökken.
+    const full = i.prediction.insulinFull
+    if (full != null && full > 0) {
+      const cap = i.maxBolus != null ? i.maxBolus * HARD.maxBolusFraction : Infinity
+      const remaining = i.settings.basalMicroDailyMaxUnits - i.todayBasalMicroUnits
+      const amount = floorTo(Math.min(full * (i.settings.basalMicroPercent / 100), cap, remaining), i.doseStep)
+      if (amount >= i.doseStep) return { kind: 'basal_micro', amount }
+    }
   }
   return null
 }
