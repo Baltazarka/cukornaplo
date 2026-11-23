@@ -15,6 +15,15 @@ const PERIODS = [7, 14, 30, 90]
 const BIN_MIN = 15 // 96 sáv naponta
 const BINS = 1440 / BIN_MIN
 
+// Fix napszakok (óra szerint, a terápiás napszakoktól függetlenül) a tartós mintázatok kiemeléséhez.
+const DAYPARTS = [
+  { label: 'Éjszaka', fromH: 0, toH: 6 },
+  { label: 'Reggel', fromH: 6, toH: 10 },
+  { label: 'Délelőtt', fromH: 10, toH: 13 },
+  { label: 'Délután', fromH: 13, toH: 18 },
+  { label: 'Este', fromH: 18, toH: 24 },
+]
+
 /** Percentilis lineáris interpolációval (rendezett tömbön). */
 function quantile(sorted: number[], q: number): number {
   const pos = (sorted.length - 1) * q
@@ -111,6 +120,12 @@ export default defineEventHandler((event) => {
     ? Math.min(100, (100 * sensorN) / Math.max(1, shiftDayCount * 288))
     : elapsedSec > 0 ? Math.min(100, (100 * sensorN) / (elapsedSec / 300)) : 0
 
+  const dayparts = DAYPARTS.map((d) => {
+    const pool = bins.slice(d.fromH * (60 / BIN_MIN), d.toH * (60 / BIN_MIN)).flat()
+    const s = glucoseStats(pool, low, high)
+    return { label: d.label, n: s.n, avg: s.n ? r1(s.avg!) : null, tir: s.n ? r1(s.pct!.inRange) : null }
+  })
+
   const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0)
   // Csak a naplózott adagok, a beadás időpontja szerint (becsült bázis nélkül).
   const totalBasal = sum(basal)
@@ -127,6 +142,7 @@ export default defineEventHandler((event) => {
     nextEnd: end >= today ? null : (addDaysYmd(end, days) > today ? today : addDaysYmd(end, days)),
     range: { veryLow: RANGE_VERY_LOW, low, high, veryHigh: RANGE_VERY_HIGH },
     agp,
+    dayparts,
     hourly: { meal: perDay(meal), correction: perDay(correction), basal: perDay(basal), carbs: perDay(carbs) },
     stats: glucoseStats(glucose, low, high),
     totals: {

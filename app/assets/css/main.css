@@ -940,6 +940,7 @@ details.more p + p { margin-top: 6px; }
 .basal-blocks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 900px) { .basal-blocks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .basal-block { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); }
+.basal-block.st-down { border-color: var(--status-critical); }
 .basal-block .st-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--axis); }
 .st-ok .st-dot, .basal-bar.st-ok { background: var(--status-good); fill: var(--status-good); }
 .st-up .st-dot, .basal-bar.st-up { background: var(--status-warning); fill: var(--status-warning); }
@@ -1114,6 +1115,8 @@ details.more p + p { margin-top: 6px; }
 .lab-form .btn-row { margin-top: 0; }
 .lab-form p { flex-basis: 100%; margin: 0; }
 .lab-card th small { display: block; font-weight: 400; color: var(--text-muted); }
+.lab-card .good { color: var(--status-good); }
+.lab-card .bad { color: var(--status-critical); }
 
 ul.plain { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 ul.plain li { justify-content: space-between; }

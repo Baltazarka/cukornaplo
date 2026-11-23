@@ -11,10 +11,12 @@ export default defineEventHandler(() => {
   const avgStmt = db().prepare("SELECT AVG(value) avg, COUNT(*) n FROM entries WHERE type = 'glucose' AND ts >= ? AND ts < ? AND excluded = 0")
   return {
     windowDays: WINDOW_DAYS,
-    results: rows.map((r) => {
+    results: rows.map((r, i) => {
       const to = startOfDayTs(addDaysYmd(r.date, 1))
       const g = avgStmt.get(to - WINDOW_DAYS * 86400, to) as { avg: number | null; n: number }
       const n = Number(g.n)
+      // A lista legújabb-elöl rendezett, tehát az eggyel hátrébb lévő sor az időben korábbi eredmény.
+      const older = rows[i + 1]
       return {
         id: Number(r.id),
         date: r.date as string,
@@ -23,6 +25,7 @@ export default defineEventHandler(() => {
         avg: n ? Math.round(Number(g.avg) * 10) / 10 : null,
         // A 90 napból hány százaléknyi szenzoradat van (5 percenként 288 mérés naponta).
         coverage: Math.min(100, Math.round((100 * n) / (WINDOW_DAYS * 288))),
+        diff: older ? Math.round((Number(r.hba1c) - Number(older.hba1c)) * 10) / 10 : null,
       }
     }),
   }

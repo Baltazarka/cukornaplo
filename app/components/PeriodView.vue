@@ -48,6 +48,8 @@ const tirClass = (p: number) => (p >= 70 ? '' : p >= 50 ? 'mid' : 'bad')
     <HypoCard :end="data.end" :days="data.days" />
     <MealAnalysis :end="data.end" :days="data.days" />
     <BasalCheck :end="data.end" :days="data.days" />
+    <DaypartCard :dayparts="data.dayparts" />
+    <PeriodCompare :data="data" />
 
     <div class="grid2">
       <section class="card">

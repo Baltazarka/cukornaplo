@@ -76,7 +76,12 @@ async function remove(r: any) {
         <tbody>
           <tr v-for="r in data.results" :key="r.id">
             <td>{{ dateLabel(r.date) }}</td>
-            <td class="num"><b>{{ fmt(r.hba1c) }}%</b> <span class="muted">{{ ifcc(r.hba1c) }} mmol/mol</span></td>
+            <td class="num">
+              <b>{{ fmt(r.hba1c) }}%</b> <span class="muted">{{ ifcc(r.hba1c) }} mmol/mol</span>
+              <span v-if="r.diff != null" class="small" :class="r.diff < 0 ? 'good' : r.diff > 0 ? 'bad' : 'muted'">
+                ({{ r.diff > 0 ? '+' : '' }}{{ fmt(r.diff) }})
+              </span>
+            </td>
             <td class="num">{{ r.gmi != null ? `${fmt(r.gmi)}%` : '–' }}</td>
             <td class="num">{{ r.gmi != null ? `${r.hba1c - r.gmi > 0 ? '+' : ''}${fmt(r.hba1c - r.gmi)}` : '–' }}</td>
             <td class="num" :class="{ muted: r.coverage < 70 }">{{ r.coverage }}%</td>

@@ -32,7 +32,7 @@ export const INSULINS: InsulinInfo[] = [
   { id: 'lyumjev', name: 'Lyumjev', generic: 'lizpro (ultragyors)', kind: 'bolus', peakMinutes: 55, maxDurationMinutes: 300 },
   { id: 'apidra', name: 'Apidra', generic: 'glulizin', kind: 'bolus', peakMinutes: 75, maxDurationMinutes: 300 },
   {
-    id: 'toujeo', name: 'Toujeo', generic: 'glargin 300 E/ml', kind: 'basal',
+    id: 'toujeo', name: 'Toujeo DoubleStar', generic: 'glargin 300 E/ml', kind: 'basal',
     facts: { peak: 'nincs kifejezett csúcs', duration: '24 óránál tovább, akár 36 óra', note: 'egyensúlyi állapot 3–4 nap után' },
   },
   { id: 'lantus', name: 'Lantus / Abasaglar', generic: 'glargin 100 E/ml', kind: 'basal' },
