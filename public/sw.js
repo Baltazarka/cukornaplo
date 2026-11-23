@@ -44,7 +44,12 @@ self.addEventListener('notificationclick', (e) => {
   e.notification.close()
   const url = (e.notification.data && e.notification.data.url) || '/'
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-    for (const c of list) if ('focus' in c) return c.focus()
+    for (const c of list) {
+      if (!('focus' in c)) continue
+      // Már nyitott ablak is a célra ugorjon (pl. autopilot-javaslat), ne csak fókuszt kapjon.
+      if ('navigate' in c) { try { c.navigate(url) } catch { /* más eredetű url, vagy nem engedélyezett */ } }
+      return c.focus()
+    }
     return self.clients.openWindow(url)
   }))
 })

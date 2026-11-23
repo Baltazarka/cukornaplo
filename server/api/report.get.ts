@@ -9,6 +9,7 @@ import { changeTime } from '../utils/trend'
 import { notesBetween } from '../utils/notes'
 import { excludedBetween } from '../utils/excluded'
 import { shiftOn } from '../utils/therapy'
+import { AUTOPILOT_SOURCE } from '../utils/autopilot'
 
 const PERIODS = [7, 14, 30, 90]
 
@@ -40,7 +41,7 @@ export default defineEventHandler((event) => {
     manual: [number, number][]
     mts: number[]
     sensorN: number
-    events: { ts: number; time: string; minute: number; type: 'insulin' | 'carbs'; kind: string | null; v: number; fatty: boolean; fast: boolean; glucose: number | null }[]
+    events: { ts: number; time: string; minute: number; type: 'insulin' | 'carbs'; kind: string | null; v: number; fatty: boolean; fast: boolean; glucose: number | null; autopilot: boolean }[]
     /** Kizárt szenzorértékek (pl. ráfekvés): [perc, mmol/L], a grafikonon szürkén. */
     excludedGlucose: [number, number][]
     /** Kizárt szakaszok: a naplóban szürke sor, a szakasz előtti / utáni érvényes méréssel. */
@@ -74,6 +75,7 @@ export default defineEventHandler((event) => {
         ts, time: hmInTz(ts), minute, type: r.type as 'insulin' | 'carbs',
         kind: kind ? (kind.kind === 'meal' && kind.noCarbs ? 'meal-nocarb' : kind.kind) : null,
         v, fatty: r.type === 'carbs' && r.subtype === 'fatty', fast: r.type === 'carbs' && r.subtype === 'fast', glucose: null,
+        autopilot: r.type === 'insulin' && r.source === AUTOPILOT_SOURCE,
       })
     }
   }

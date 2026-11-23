@@ -639,7 +639,8 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                         <option value="basal">Bázis</option>
                       </select>
                       <template v-else>{{ kindLabel(e) }}</template>
-                      <span v-if="e.autoBasal" class="note-chip name-chip chip-auto">automatikus</span>
+                      <span v-if="e.autopilot" class="note-chip name-chip chip-auto" title="Az Autopilot javaslatára, nyugtázás után beírva">🤖 autopilot</span>
+                      <span v-else-if="e.autoBasal" class="note-chip name-chip chip-auto">automatikus</span>
                       <span v-else-if="e.manual" class="note-chip name-chip">kézi</span>
                       <div v-if="calcText(e)" class="macro-line small muted" title="A bóluskalkulátor számítása a beíráskor">{{ calcText(e) }}</div>
                     </template>
@@ -674,7 +675,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                       </div>
                     </template>
                   </td>
-                  <td class="num"><span v-if="e.autoBasal" class="note-chip manual-chip" title="A Terápia oldalon beállított időpontban automatikusan beírva">automatikus</span><span v-else-if="e.manual" class="note-chip manual-chip" title="Kézzel felvett bejegyzés">kézi</span>{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : e.type === 'glucose' ? fmt(e.v) + ' mmol/L' : fmt(e.v) + ' E' }}</td>
+                  <td class="num"><span v-if="e.autopilot" class="note-chip manual-chip" title="Az Autopilot javaslatára, nyugtázás után beírva">🤖</span><span v-else-if="e.autoBasal" class="note-chip manual-chip" title="A Terápia oldalon beállított időpontban automatikusan beírva">automatikus</span><span v-else-if="e.manual" class="note-chip manual-chip" title="Kézzel felvett bejegyzés">kézi</span>{{ e.type === 'carbs' ? fmt(e.v, 0) + ' g' : e.type === 'glucose' ? fmt(e.v) + ' mmol/L' : fmt(e.v) + ' E' }}</td>
                   <td class="num c-gl">{{ e.glucose != null ? sgText(e.glucose) : '–' }}</td>
                 </template>
                 <td v-if="!readOnly" class="act">

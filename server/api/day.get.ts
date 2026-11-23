@@ -1,6 +1,7 @@
 // Napi nézet adatai: glükózgörbe, inzulin, szénhidrát, napi statisztikák és 14 napos összesítő.
 import { db, MANUAL_SOURCE } from '../utils/db'
 import { AUTO_BASAL_SOURCE } from '../utils/basalAuto'
+import { AUTOPILOT_SOURCE } from '../utils/autopilot'
 import { glucoseStats, RANGE_LOW, RANGE_HIGH, RANGE_VERY_LOW, RANGE_VERY_HIGH } from '../utils/stats'
 import { targetRange } from '../utils/range'
 import { hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/time'
@@ -134,6 +135,7 @@ export default defineEventHandler((event) => {
       kind: (e as any).kind ?? null, auto: (e as any).auto ?? false, noCarbs: (e as any).noCarbs ?? false,
       manual: e.src === MANUAL_SOURCE,
       autoBasal: e.src === AUTO_BASAL_SOURCE,
+      autopilot: e.src === AUTOPILOT_SOURCE,
       ...(e.type === 'carbs' ? { fat: (e as any).fat ?? null, protein: (e as any).protein ?? null } : {}),
       ...(e.type === 'insulin' ? { calc: (e as any).calc ?? null } : {}),
     })),
