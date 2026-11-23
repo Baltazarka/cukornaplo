@@ -14,8 +14,10 @@ onBeforeUnmount(() => clearInterval(timer))
     <h1 class="tp-title">Autopilot</h1>
     <template v-if="data">
       <AutopilotKillSwitch :settings="data.settings" @changed="refresh" />
-      <AutopilotPendingCard :pending="data.pending" :last-decision="data.lastDecision" :context="data.context" @changed="refresh" />
-      <AutopilotStatus :context="data.context" :settings="data.settings" :pending="data.pending" />
+      <div class="ap-top-grid">
+        <AutopilotPendingCard :pending="data.pending" :last-decision="data.lastDecision" :context="data.context" @changed="refresh" />
+        <AutopilotStatus :context="data.context" :settings="data.settings" :pending="data.pending" />
+      </div>
       <AutopilotHistory />
       <AutopilotSettings :settings="data.settings" @changed="refresh" />
     </template>
@@ -24,4 +26,9 @@ onBeforeUnmount(() => clearInterval(timer))
 
 <style scoped>
 .autopilot-page { max-width: 720px; }
+.ap-top-grid { display: flex; flex-direction: column; gap: 16px; }
+@media (min-width: 901px) {
+  .autopilot-page { max-width: 1600px; }
+  .ap-top-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; gap: 16px; }
+}
 </style>
