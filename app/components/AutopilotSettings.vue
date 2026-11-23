@@ -98,7 +98,7 @@ async function save() {
             </p>
             <label v-if="form.basalMicroEnabled" class="tf-row tf-sub">
               <span class="tf-label">Napi max mikro-kiegészítés</span>
-              <span class="tf-input"><input v-model.number="form.basalMicroDailyMaxUnits" type="number" step="0.5" min="0" max="10"> E</span>
+              <span class="tf-input"><input v-model.number="form.basalMicroDailyMaxUnits" type="number" step="0.5" min="0" max="30"> E</span>
             </label>
           </div>
         </section>

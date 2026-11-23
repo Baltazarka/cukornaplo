@@ -64,7 +64,7 @@ export function validateAutopilot(b: any): AutopilotSettings {
     enabled: b?.enabled === true,
     basalMicroEnabled: b?.basalMicroEnabled === true,
     dailyMaxUnits: clamp(b?.dailyMaxUnits, 0.5, 50, DEFAULTS.dailyMaxUnits),
-    basalMicroDailyMaxUnits: clamp(b?.basalMicroDailyMaxUnits, 0, 10, DEFAULTS.basalMicroDailyMaxUnits),
+    basalMicroDailyMaxUnits: clamp(b?.basalMicroDailyMaxUnits, 0, 30, DEFAULTS.basalMicroDailyMaxUnits),
     cooldownAcceptMin: clamp(b?.cooldownAcceptMin, HARD.minCooldownAcceptMin, 180, DEFAULTS.cooldownAcceptMin),
     cooldownDeclineMin: clamp(b?.cooldownDeclineMin, HARD.minCooldownDeclineMin, 240, DEFAULTS.cooldownDeclineMin),
     basalMicroCooldownMin: clamp(b?.basalMicroCooldownMin, HARD.minBasalMicroCooldownMin, 600, DEFAULTS.basalMicroCooldownMin),
