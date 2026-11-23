@@ -240,9 +240,27 @@ async function undoExcluded(x: any) {
   await refresh()
 }
 
-// Napló: bejegyzések, jegyzetek és kizárt szenzorszakaszok időrendben.
+// Be nem írt (elmaradt) CH felismert, nyugtázásra váró becslése: amíg el nem fogadod, nem számít a statisztikába.
+const carbEstimateRows = computed<any[]>(() =>
+  ((data.value?.carbEstimates ?? []) as { id: number; from: number; to: number; grams: number }[])
+    .map((e) => ({ type: 'carb_estimate', id: e.id, ts: e.from, time: hmMs(e.from), toTime: hmMs(e.to), grams: e.grams, editGrams: String(e.grams) })))
+const estimateBusy = ref<number | null>(null)
+async function respondEstimate(e: any, action: 'accept' | 'decline') {
+  estimateBusy.value = e.id
+  try {
+    await $fetch('/api/carb-estimate/respond', { method: 'POST', body: { id: e.id, action, grams: action === 'accept' ? Number(e.editGrams) : undefined } })
+    entriesChanged()
+  } catch (err: any) {
+    useToast().error(err?.data?.error ?? 'A művelet nem sikerült.')
+  } finally {
+    estimateBusy.value = null
+  }
+  await refresh()
+}
+
+// Napló: bejegyzések, jegyzetek, kizárt szenzorszakaszok és a be nem írt CH becslése időrendben.
 const logRows = computed<any[]>(() =>
-  [...(data.value?.events ?? []), ...(data.value?.notes ?? []).map((n: any) => ({ ...n, type: 'note' })), ...excludedRows.value].sort((a, b) => a.ts - b.ts))
+  [...(data.value?.events ?? []), ...(data.value?.notes ?? []).map((n: any) => ({ ...n, type: 'note' })), ...excludedRows.value, ...carbEstimateRows.value].sort((a, b) => a.ts - b.ts))
 
 // Új jegyzet: időpont (mai napon most, különben 12:00), címkék, szöveg.
 const noteForm = ref<{ time: string; tags: string[]; text: string } | null>(null)
@@ -603,7 +621,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
           <table class="table log-table">
             <thead><tr><th>Idő</th><th>Esemény</th><th class="num">Mennyiség</th><th class="num c-gl">Glükóz</th><th v-if="!readOnly"><span class="sr-only">Törlés</span></th></tr></thead>
             <tbody>
-              <tr v-for="e in logRows" :key="e.type + e.id" :class="{ 'note-row': e.type === 'note', 'excluded-row': e.type === 'excluded' }">
+              <tr v-for="e in logRows" :key="e.type + e.id" :class="{ 'note-row': e.type === 'note', 'excluded-row': e.type === 'excluded', 'estimate-row': e.type === 'carb_estimate' }">
                 <td class="num">{{ e.time }}</td>
                 <template v-if="e.type === 'excluded'">
                   <td>
@@ -627,6 +645,14 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                     <span class="note-text">{{ e.text }}</span>
                   </td>
                   <td class="c-gl" />
+                </template>
+                <template v-else-if="e.type === 'carb_estimate'">
+                  <td>
+                    <span class="dot dot-carbs" />
+                    Talán kimaradt egy CH-bejegyzés ({{ e.time }}–{{ e.toTime }}): a vércukor az aktív inzulinnal nem indokolt emelkedést mutatott.
+                  </td>
+                  <td class="num"><input v-model="e.editGrams" type="text" inputmode="numeric" class="estimate-grams" aria-label="Becsült szénhidrát, gramm"> g</td>
+                  <td class="num c-gl" />
                 </template>
                 <template v-else>
                   <td>
@@ -660,6 +686,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                       </template>
                       <span v-else-if="e.type === 'carbs' && e.sub === 'fatty'" class="note-chip tag-fatty">{{ CARB_TAG_ICON.fatty }} zsíros</span>
                       <span v-else-if="e.type === 'carbs' && e.sub === 'fast'" class="note-chip tag-fast">{{ CARB_TAG_ICON.fast }} gyors</span>
+                      <span v-if="e.type === 'carbs' && e.estimated" class="note-chip name-chip" title="Felismert, elfogadott CH-becslés">becsült</span>
                       <!-- Zsíros CH: zsír / fehérje (megjelenítés, és utólagos beírás / javítás). -->
                       <div v-if="e.type === 'carbs' && e.sub === 'fatty'" class="macro-line small">
                         <template v-if="macroEdit?.id === e.id">
@@ -679,7 +706,12 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
                   <td class="num c-gl">{{ e.glucose != null ? sgText(e.glucose) : '–' }}</td>
                 </template>
                 <td v-if="!readOnly" class="act">
+                  <template v-if="e.type === 'carb_estimate'">
+                    <button type="button" class="row-del" title="Elfogadás a naplóba" :disabled="estimateBusy === e.id" :aria-label="`${e.time} CH-becslés elfogadása`" @click="respondEstimate(e, 'accept')">✓</button>
+                    <button type="button" class="row-del" title="Elutasítás" :disabled="estimateBusy === e.id" :aria-label="`${e.time} CH-becslés elutasítása`" @click="respondEstimate(e, 'decline')">×</button>
+                  </template>
                   <button
+                    v-else
                     type="button" class="row-del" :disabled="deletingId === e.type + e.id"
                     :aria-label="e.type === 'excluded' ? `${e.time} kizárás visszavonása` : `${e.time} ${e.type === 'note' ? 'jegyzet' : eventLabel(e)} törlése`"
                     :title="e.type === 'excluded' ? 'Kizárás visszavonása' : 'Törlés'"

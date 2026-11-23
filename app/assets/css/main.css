@@ -1053,6 +1053,8 @@ details.more p + p { margin-top: 6px; }
 .excl-spark polyline { fill: none; stroke: var(--text-muted); stroke-width: 1.5; stroke-dasharray: 3 2; }
 .excl-detail { font-style: normal; }
 .table tr.note-row td { background: color-mix(in srgb, var(--text-primary) 3%, transparent); }
+.table tr.estimate-row td { background: color-mix(in srgb, var(--status-warning) 8%, transparent); }
+.estimate-grams { width: 48px; text-align: right; }
 .note-form { display: flex; flex-direction: column; gap: 8px; padding: 10px; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
 .note-form-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; }
 .note-time { flex-direction: row; align-items: center; gap: 6px; }

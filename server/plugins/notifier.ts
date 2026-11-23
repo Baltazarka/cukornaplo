@@ -4,6 +4,7 @@ import { checkAlerts, checkDeviceAlerts, checkFpuReminders } from '../utils/noti
 import { learnedAbsorption } from '../utils/absorption'
 import { checkBasalAuto } from '../utils/basalAuto'
 import { checkAutopilot } from '../utils/autopilot'
+import { checkCarbEstimate } from '../utils/carbEstimate'
 
 export default defineNitroPlugin(() => {
   let running = false
@@ -11,7 +12,7 @@ export default defineNitroPlugin(() => {
     if (running) return
     running = true
     // Külön hibakezelés: az egyik ellenőrzés hibája ne akassza meg a többit.
-    for (const check of [checkBasalAuto, checkAutopilot, checkAlerts, checkDeviceAlerts, checkFpuReminders]) {
+    for (const check of [checkBasalAuto, checkAutopilot, checkCarbEstimate, checkAlerts, checkDeviceAlerts, checkFpuReminders]) {
       try {
         await check()
       } catch (e) {

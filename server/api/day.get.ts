@@ -2,6 +2,7 @@
 import { db, MANUAL_SOURCE } from '../utils/db'
 import { AUTO_BASAL_SOURCE } from '../utils/basalAuto'
 import { AUTOPILOT_SOURCE } from '../utils/autopilot'
+import { pendingEstimates, ESTIMATED_SOURCE } from '../utils/carbEstimate'
 import { glucoseStats, RANGE_LOW, RANGE_HIGH, RANGE_VERY_LOW, RANGE_VERY_HIGH } from '../utils/stats'
 import { targetRange } from '../utils/range'
 import { hmInTz, startOfDayTs, todayYmd, addDaysYmd, huWeekday } from '../utils/time'
@@ -127,6 +128,8 @@ export default defineEventHandler((event) => {
     // Váltott műszak: a nap műszakja (kézzel átállítva vagy a beosztás szerint), ha van beosztás.
     shift: shiftSchedule() ? { kind: shiftOn(day), scheduled: scheduledShift(shiftSchedule(), day) } : null,
     excluded: excludedBetween(dayStart - 8 * 3600, dayEnd + 8 * 3600).map((x) => ({ id: x.id, from: x.from * 1000, to: x.to * 1000 })),
+    // Nyugtázásra váró, be nem írt CH-becslés (lásd server/utils/carbEstimate.ts): elfogadásig a statisztikába sem számít.
+    carbEstimates: pendingEstimates(dayStart, dayEnd).map((e) => ({ id: e.id, from: e.windowFrom * 1000, to: e.windowTo * 1000, grams: e.grams })),
     manualGlucose: manualGlucose.map((g) => [g.ts * 1000, g.v]),
     insulin: dayRows.insulin.map((e) => [e.ts * 1000, e.v, e.kind]),
     carbs: dayRows.carbs.map((e) => [e.ts * 1000, e.v, e.sub === 'fatty' || e.sub === 'fast' ? e.sub : null]),
@@ -136,6 +139,7 @@ export default defineEventHandler((event) => {
       manual: e.src === MANUAL_SOURCE,
       autoBasal: e.src === AUTO_BASAL_SOURCE,
       autopilot: e.src === AUTOPILOT_SOURCE,
+      estimated: e.src === ESTIMATED_SOURCE,
       ...(e.type === 'carbs' ? { fat: (e as any).fat ?? null, protein: (e as any).protein ?? null } : {}),
       ...(e.type === 'insulin' ? { calc: (e as any).calc ?? null } : {}),
     })),

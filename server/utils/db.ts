@@ -145,6 +145,20 @@ export function db(): DatabaseSync {
     acted_entry_id INTEGER REFERENCES entries(id)
   )`)
   d.exec('CREATE INDEX IF NOT EXISTS autopilot_suggestions_status ON autopilot_suggestions (status, ts)')
+  // Be nem írt (elmaradt) CH felismerése: a háttérben óránként ellenőrzött szakaszok, ahol a vércukor az aktív
+  // inzulinnal nem magyarázható emelkedést mutatott (server/utils/carbEstimate.ts). Nyugtázásra várva a naplóban;
+  // csak elfogadás után kerül be a entries táblába (addig a statisztikába sem számít).
+  d.exec(`CREATE TABLE IF NOT EXISTS carb_estimates (
+    id INTEGER PRIMARY KEY,
+    ts INTEGER NOT NULL,
+    window_from INTEGER NOT NULL,
+    window_to INTEGER NOT NULL,
+    grams REAL NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined')),
+    decided_at INTEGER,
+    acted_entry_id INTEGER REFERENCES entries(id)
+  )`)
+  d.exec('CREATE INDEX IF NOT EXISTS carb_estimates_status ON carb_estimates (status, ts)')
   _db = d
   return d
 }
