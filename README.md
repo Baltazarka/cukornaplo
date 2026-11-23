@@ -7,15 +7,28 @@ Nem orvostechnikai eszköz. Kezelési döntéshez a Guardian app értékeit és 
 
 > A képernyőképek szintetikus demó-adaton készültek (`scripts/seed-demo.mjs`), nem valódi egészségügyi adaton.
 
-<p>
-  <img src="docs/screenshots/napi-nezet.jpg" width="32%" alt="Napi nézet: Most-kártya, bóluskalkulátor, idő a tartományokban">
-  <img src="docs/screenshots/napi-gorbe.jpg" width="32%" alt="Napi görbe: glükóz, inzulin és szénhidrát közös időtengelyen">
-  <img src="docs/screenshots/naplo.jpg" width="32%" alt="Napló: bejegyzések és a felismert, nyugtázásra váró CH-becslés">
-</p>
-<p>
-  <img src="docs/screenshots/autopilot.jpg" width="32%" alt="Autopilot: push-ra váró adagjavaslat, nyugtázással">
-  <img src="docs/screenshots/riport.jpg" width="32%" alt="Nyomtatható riport: összefoglaló, AGP-profil, napi grafikonok">
-</p>
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/screenshots/most-kartya.png" width="100%"><br><sub><b>Napi nézet</b> – „Most” kártya: trend, aktív inzulin, aktív CH</sub></td>
+<td align="center" width="50%"><img src="docs/screenshots/napi-gorbe.png" width="100%"><br><sub><b>Napi görbe</b> – glükóz, céltartomány, előrejelzés</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/boluskalkulator.png" width="100%"><br><sub><b>Bóluskalkulátor</b> – CH, korrekció, aktív inzulin levonva, napszak-átmenet</sub></td>
+<td align="center"><img src="docs/screenshots/naplo-becsles.png" width="100%"><br><sub><b>Napló</b> – felismert, nyugtázásra váró CH-becslés</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/autopilot.png" width="100%"><br><sub><b>Autopilot</b> – push-ra váró adagjavaslat, nyugtázással</sub></td>
+<td align="center"><img src="docs/screenshots/tir-gmi.png" width="100%"><br><sub><b>Idő a tartományokban</b> – TIR, GMI, variabilitás (14 nap)</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/riport-osszefoglalo.png" width="100%"><br><sub><b>Nyomtatható riport</b> – összefoglaló, laborérték, hipóesemények</sub></td>
+<td align="center"><img src="docs/screenshots/agp.png" width="100%"><br><sub><b>AGP-profil</b> – napok mediánja, 25–75% / 5–95% sáv</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/inzulinhatas.png" width="100%"><br><sub><b>Terápia</b> – napszakos beállítás, inzulinhatás-görbe</sub></td>
+<td align="center"><img src="docs/screenshots/adatok.png" width="100%"><br><sub><b>Adatok</b> – tárolt bejegyzések, CareLink, import, visszaállítás</sub></td>
+</tr>
+</table>
 
 ## Funkciók
 
