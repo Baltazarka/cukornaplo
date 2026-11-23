@@ -7,11 +7,8 @@ három adat (glükóz, inzulin, CH) egy helyen, közös időtengelyen, egyetlen 
 visszanézhető és elemezhető – ezt sem a Guardian app, sem a gyári exportok nem adták meg.
 
 Azért Nuxt 4 (kliensoldali SPA) + Nitro szerver + SQLite (`node:sqlite`): egyetlen Node-folyamat, nincs
-külön adatbázis-szerver, Raspberry Pi-n (Docker) is elfut, mégis modern, reaktív felület. A projekt eredetileg
-egy egyszerűbb PHP alkalmazás volt (lásd a git-történetben); ennek Nuxt-alapú újraírása ez a repó – innen
-maradt két visszafelé-kompatibilis apróság (a régi `$2y$` jelszó-hash elfogadása, és a telefonon korábban
-beállított `/api/ingest.php` cím is működik), de **ma már nincs PHP-kód a projektben** – a teljes alkalmazás
-TypeScript/Vue (Nuxt + Nitro).
+külön adatbázis-szerver, Raspberry Pi-n (Docker) is elfut, mégis modern, reaktív felület. A teljes alkalmazás
+TypeScript/Vue, nincs benne szerveroldali sablonnyelv vagy más futtatókörnyezet.
 
 Nem orvostechnikai eszköz. Kezelési döntéshez a Guardian app értékeit és a diabetológusod útmutatását használd.
 
@@ -43,8 +40,8 @@ Nem orvostechnikai eszköz. Kezelési döntéshez a Guardian app értékeit és 
 ## Funkciók
 
 - **Belépés / jelszó** – egészségügyi adatról van szó, ezért nem elég egy megjegyezhetetlen link: valódi,
-  jelszavas belépés van (`/setup` az első jelszóhoz, `/login`, kilépés), lezárt munkamenet-sütivel (bcrypt;
-  a korábbi PHP-s változat `$2y$` hash-e is működik, lásd fent). Mivel otthonról kívülről is elérhető,
+  jelszavas belépés van (`/setup` az első jelszóhoz, `/login`, kilépés), lezárt munkamenet-sütivel (bcrypt).
+  Mivel otthonról kívülről is elérhető,
   van IP-nkénti próbálkozás-korlát (a kliens IP a `CLIENT_IP_HEADER` fejlécből, különben az
   X-Forwarded-For utolsó, proxy által írt eleméből jön, így nem hamisítható), és az első jelszó
   beállításához távolról egy 8 jegyű, a szerver naplójában megjelenő kód is kell (`docker logs`).
@@ -69,8 +66,7 @@ Nem orvostechnikai eszköz. Kezelési döntéshez a Guardian app értékeit és 
   InPen → Egészség app, küldés módja Health Auto Export / Parancsok, próba élő figyelővel); a régi
   adat (`source='manual'`) ma is a naplóban van, csak az élő adatgyűjtés már nem ezen megy.
 - **Adatfogadó API** – `POST /api/ingest`, ezen jön be (vagy jött be korábban) minden külső forrásból
-  (InPen/Apple Health, régi telefonos beállítás) érkező adat; a régi telefonos beállítások miatt az
-  `/api/ingest.php` cím is működik.
+  (InPen/Apple Health, régi telefonos beállítás) érkező adat.
 - **Apple Health `export.xml` importáló** (CLI, streamelve, nagy export-fájlokhoz is):
   `DATA_DIR=... node scripts/import-health-export.ts <export.xml> [kezdő dátum]`.
 - **Autopilot** (`/autopilot`, alapból kikapcsolva) – azt a döntési logikát próbálja utánozni, amit egy
