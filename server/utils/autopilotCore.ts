@@ -31,7 +31,7 @@ export interface AutopilotSettings {
 export const HARD = {
   minCooldownAcceptMin: 15,
   minCooldownDeclineMin: 30,
-  minBasalMicroCooldownMin: 60,
+  minBasalMicroCooldownMin: 15,
   maxMaxIob: 5,
   minExpireMin: 5,
   maxExpireMin: 30,

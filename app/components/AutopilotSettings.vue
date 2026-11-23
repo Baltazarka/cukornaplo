@@ -103,6 +103,8 @@ async function save() {
             <label v-if="form.basalMicroEnabled" class="tf-row tf-sub">
               <span class="tf-label">Cooldown mikro-kiegészítés után</span>
               <select v-model.number="form.basalMicroCooldownMin">
+                <option :value="15">15 perc</option>
+                <option :value="30">30 perc</option>
                 <option :value="60">60 perc</option>
                 <option :value="120">120 perc</option>
                 <option :value="180">180 perc</option>
@@ -110,8 +112,10 @@ async function save() {
               </select>
             </label>
             <p v-if="form.basalMicroEnabled" class="tf-hint tf-sub">
-              Egy elfogadott mikro-kiegészítés után ennyi ideig nem javasol újat (ettől külön, a fenti "Cooldown
-              elfogadás után" is számít, de ez a hosszabb, mert ez nem visszavonható adag).
+              Egy elfogadott mikro-kiegészítés után ennyi ideig nem javasol újat. Minél rövidebb, annál inkább
+              "pumpaszerűen" gyakran kérdez rá — de ez itt mindig egy beadott, nem visszavonható adag, nem egy
+              bármikor leállítható ideiglenes bázis-ráta, úgyhogy rövidebb beállításnál jobban figyelj a napi max
+              mikro-összegre és az aktív inzulin korlátra.
             </p>
           </div>
         </section>
