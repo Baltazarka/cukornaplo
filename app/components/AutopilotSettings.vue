@@ -100,6 +100,19 @@ async function save() {
               <span class="tf-label">Napi max mikro-kiegészítés</span>
               <span class="tf-input"><input v-model.number="form.basalMicroDailyMaxUnits" type="number" step="0.5" min="0" max="30"> E</span>
             </label>
+            <label v-if="form.basalMicroEnabled" class="tf-row tf-sub">
+              <span class="tf-label">Cooldown mikro-kiegészítés után</span>
+              <select v-model.number="form.basalMicroCooldownMin">
+                <option :value="60">60 perc</option>
+                <option :value="120">120 perc</option>
+                <option :value="180">180 perc</option>
+                <option :value="240">240 perc</option>
+              </select>
+            </label>
+            <p v-if="form.basalMicroEnabled" class="tf-hint tf-sub">
+              Egy elfogadott mikro-kiegészítés után ennyi ideig nem javasol újat (ettől külön, a fenti "Cooldown
+              elfogadás után" is számít, de ez a hosszabb, mert ez nem visszavonható adag).
+            </p>
           </div>
         </section>
         </div>

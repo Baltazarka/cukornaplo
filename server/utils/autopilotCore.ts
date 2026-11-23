@@ -81,6 +81,8 @@ export interface DecideInput {
   secSinceAccepted: number | null
   /** Másodperc az utolsó elutasítás óta, vagy null. */
   secSinceDeclined: number | null
+  /** Másodperc az utolsó elfogadott MIKRO-kiegészítés óta, vagy null — ennek saját, hosszabb cooldownja van (`basalMicroCooldownMin`). */
+  secSinceAcceptedMicro?: number | null
   todayCorrectionUnits: number
   todayBasalMicroUnits: number
   /** A terápia maxBolus-a (E), vagy null, ha nincs beállítva terápia. */
@@ -112,7 +114,10 @@ export function decideAutopilot(i: DecideInput): Decision | null {
     }
   }
 
-  if (i.settings.basalMicroEnabled && i.sustainedHigh && i.todayBasalMicroUnits < i.settings.basalMicroDailyMaxUnits) {
+  if (
+    i.settings.basalMicroEnabled && i.sustainedHigh && i.todayBasalMicroUnits < i.settings.basalMicroDailyMaxUnits &&
+    !(i.secSinceAcceptedMicro != null && i.secSinceAcceptedMicro < i.settings.basalMicroCooldownMin * 60)
+  ) {
     return { kind: 'basal_micro', amount: i.doseStep }
   }
   return null
