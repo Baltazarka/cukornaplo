@@ -17,8 +17,6 @@ export interface AutopilotSettings {
   cooldownAcceptMin: number
   /** Elutasított javaslat után ennyi percig nem kérdez újra (perc). */
   cooldownDeclineMin: number
-  /** Elfogadott mikro-kiegészítés után ennyi percig nem javasol újat (perc, jóval hosszabb, mert nem vonható vissza). */
-  basalMicroCooldownMin: number
   /** Ennyi perc után lejár egy nyugtázatlan javaslat. */
   expireMin: number
   /** E fölötti aktív inzulinnál biztonsági okból nem javasol. */
@@ -31,7 +29,6 @@ export interface AutopilotSettings {
 export const HARD = {
   minCooldownAcceptMin: 15,
   minCooldownDeclineMin: 30,
-  minBasalMicroCooldownMin: 15,
   maxMaxIob: 5,
   minExpireMin: 5,
   maxExpireMin: 30,
@@ -48,7 +45,6 @@ export const DEFAULTS: AutopilotSettings = {
   basalMicroDailyMaxUnits: 2,
   cooldownAcceptMin: 30,
   cooldownDeclineMin: 60,
-  basalMicroCooldownMin: 180,
   expireMin: 15,
   maxIob: 3,
   minUnits: 0.5,
@@ -67,7 +63,6 @@ export function validateAutopilot(b: any): AutopilotSettings {
     basalMicroDailyMaxUnits: clamp(b?.basalMicroDailyMaxUnits, 0, 30, DEFAULTS.basalMicroDailyMaxUnits),
     cooldownAcceptMin: clamp(b?.cooldownAcceptMin, HARD.minCooldownAcceptMin, 180, DEFAULTS.cooldownAcceptMin),
     cooldownDeclineMin: clamp(b?.cooldownDeclineMin, HARD.minCooldownDeclineMin, 240, DEFAULTS.cooldownDeclineMin),
-    basalMicroCooldownMin: clamp(b?.basalMicroCooldownMin, HARD.minBasalMicroCooldownMin, 600, DEFAULTS.basalMicroCooldownMin),
     expireMin: clamp(b?.expireMin, HARD.minExpireMin, HARD.maxExpireMin, DEFAULTS.expireMin),
     maxIob: clamp(b?.maxIob, 0.5, HARD.maxMaxIob, DEFAULTS.maxIob),
     minUnits: clamp(b?.minUnits, 0.5, 5, DEFAULTS.minUnits),
@@ -81,8 +76,6 @@ export interface DecideInput {
   secSinceAccepted: number | null
   /** Másodperc az utolsó elutasítás óta, vagy null. */
   secSinceDeclined: number | null
-  /** Másodperc az utolsó elfogadott MIKRO-kiegészítés óta, vagy null — ennek saját, hosszabb cooldownja van (`basalMicroCooldownMin`). */
-  secSinceAcceptedMicro?: number | null
   todayCorrectionUnits: number
   todayBasalMicroUnits: number
   /** A terápia maxBolus-a (E), vagy null, ha nincs beállítva terápia. */
@@ -114,10 +107,7 @@ export function decideAutopilot(i: DecideInput): Decision | null {
     }
   }
 
-  if (
-    i.settings.basalMicroEnabled && i.sustainedHigh && i.todayBasalMicroUnits < i.settings.basalMicroDailyMaxUnits &&
-    !(i.secSinceAcceptedMicro != null && i.secSinceAcceptedMicro < i.settings.basalMicroCooldownMin * 60)
-  ) {
+  if (i.settings.basalMicroEnabled && i.sustainedHigh && i.todayBasalMicroUnits < i.settings.basalMicroDailyMaxUnits) {
     return { kind: 'basal_micro', amount: i.doseStep }
   }
   return null

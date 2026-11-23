@@ -100,23 +100,6 @@ async function save() {
               <span class="tf-label">Napi max mikro-kiegészítés</span>
               <span class="tf-input"><input v-model.number="form.basalMicroDailyMaxUnits" type="number" step="0.5" min="0" max="30"> E</span>
             </label>
-            <label v-if="form.basalMicroEnabled" class="tf-row tf-sub">
-              <span class="tf-label">Cooldown mikro-kiegészítés után</span>
-              <select v-model.number="form.basalMicroCooldownMin">
-                <option :value="15">15 perc</option>
-                <option :value="30">30 perc</option>
-                <option :value="60">60 perc</option>
-                <option :value="120">120 perc</option>
-                <option :value="180">180 perc</option>
-                <option :value="240">240 perc</option>
-              </select>
-            </label>
-            <p v-if="form.basalMicroEnabled" class="tf-hint tf-sub">
-              Egy elfogadott mikro-kiegészítés után ennyi ideig nem javasol újat. Minél rövidebb, annál inkább
-              "pumpaszerűen" gyakran kérdez rá — de ez itt mindig egy beadott, nem visszavonható adag, nem egy
-              bármikor leállítható ideiglenes bázis-ráta, úgyhogy rövidebb beállításnál jobban figyelj a napi max
-              mikro-összegre és az aktív inzulin korlátra.
-            </p>
           </div>
         </section>
         </div>

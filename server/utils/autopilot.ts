@@ -57,11 +57,9 @@ export function suggestionHistory(days = 7): Suggestion[] {
   return (db().prepare('SELECT * FROM autopilot_suggestions WHERE ts >= ? ORDER BY ts DESC, id DESC').all(since) as any[]).map(rowToSuggestion)
 }
 
-function lastDecidedAt(status: 'accepted' | 'declined', kind?: SuggestionKind): number | null {
-  const r = kind
-    ? db().prepare('SELECT decided_at FROM autopilot_suggestions WHERE status = ? AND kind = ? ORDER BY decided_at DESC LIMIT 1').get(status, kind)
-    : db().prepare('SELECT decided_at FROM autopilot_suggestions WHERE status = ? ORDER BY decided_at DESC LIMIT 1').get(status)
-  return r ? Number((r as { decided_at: number }).decided_at) : null
+function lastDecidedAt(status: 'accepted' | 'declined'): number | null {
+  const r = db().prepare('SELECT decided_at FROM autopilot_suggestions WHERE status = ? ORDER BY decided_at DESC LIMIT 1').get(status) as { decided_at: number } | undefined
+  return r ? Number(r.decided_at) : null
 }
 
 /** Az aznap (helyi nap) `entries`-be elfogadott Autopilot-mennyiség, fajtánként (subtype különbözteti meg). */
@@ -136,7 +134,6 @@ export async function checkAutopilot(nowTs = Math.floor(Date.now() / 1000)): Pro
     hasPending: false,
     secSinceAccepted: (() => { const x = lastDecidedAt('accepted'); return x == null ? null : nowTs - x })(),
     secSinceDeclined: (() => { const x = lastDecidedAt('declined'); return x == null ? null : nowTs - x })(),
-    secSinceAcceptedMicro: (() => { const x = lastDecidedAt('accepted', 'basal_micro'); return x == null ? null : nowTs - x })(),
     todayCorrectionUnits: todayGivenUnits('correction', nowTs),
     todayBasalMicroUnits: todayGivenUnits('basal_micro', nowTs),
     maxBolus: t?.maxBolus ?? null,

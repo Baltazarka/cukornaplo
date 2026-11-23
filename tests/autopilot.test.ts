@@ -10,7 +10,6 @@ const settings: AutopilotSettings = {
   basalMicroDailyMaxUnits: 2,
   cooldownAcceptMin: 30,
   cooldownDeclineMin: 60,
-  basalMicroCooldownMin: 180,
   expireMin: 15,
   maxIob: 3,
   minUnits: 0.5,
@@ -100,17 +99,4 @@ test('korrekció elsőbbséget élvez a mikro-bázissal szemben, ha mindkettő f
   const s = { ...settings, basalMicroEnabled: true }
   const d = decideAutopilot(base({ settings: s, sustainedHigh: true, prediction: { risk: false, iob: 0, insulinNeeded: 2 } }))
   assert.deepEqual(d, { kind: 'correction', amount: 2 })
-})
-
-test('mikro-bázis: saját (hosszabb) cooldown az utolsó elfogadott mikro óta, nem csak az általános', () => {
-  const s = { ...settings, basalMicroEnabled: true }
-  // Az általános elfogadási cooldown (30 perc) már lejárt, de a mikro-specifikus (180 perc) még nem.
-  const d = decideAutopilot(base({ settings: s, sustainedHigh: true, secSinceAcceptedMicro: 60 * 60 }))
-  assert.equal(d, null)
-})
-
-test('mikro-bázis: a saját cooldown lejárta után újra javasolhat', () => {
-  const s = { ...settings, basalMicroEnabled: true }
-  const d = decideAutopilot(base({ settings: s, sustainedHigh: true, secSinceAcceptedMicro: 181 * 60, doseStep: 0.5 }))
-  assert.deepEqual(d, { kind: 'basal_micro', amount: 0.5 })
 })
