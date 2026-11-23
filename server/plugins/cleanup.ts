@@ -80,9 +80,9 @@ function cleanup(): void {
       if (row && st.date && ymdInTz(Number(row.ts)) === st.date) d.prepare('UPDATE entries SET source = ? WHERE id = ?').run(AUTO_BASAL_SOURCE, st.id)
       saveSettings({ basal_auto: { date: st.date } })
     }
-    // A megszűnt Autopilot-modul maradványai (napló és beállítás): egyszer törlődnek.
+    // A korábbi (2026-11-21-én megszűnt) Autopilot-modul elavult táblája, ha még megvan: az új Autopilot
+    // (server/utils/autopilot.ts, autopilot_suggestions tábla) más néven, újraépítve működik, ezt nem érinti.
     d.exec('DROP TABLE IF EXISTS autopilot_log')
-    if (setting('autopilot', null) != null || setting('autopilot_state', null) != null) saveSettings({ autopilot: null, autopilot_state: null })
     const removed = Number(dup.changes) + Number(shifted.changes)
     const relabeled = Number(inpen.changes)
     if (removed || unbasal || relabeled) {

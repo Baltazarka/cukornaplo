@@ -131,6 +131,20 @@ export function db(): DatabaseSync {
     at INTEGER NOT NULL,
     json TEXT NOT NULL
   )`)
+  // Autopilot: a háttérben percenként felmerülő adagjavaslatok, nyugtázásra várva (server/utils/autopilot.ts).
+  d.exec(`CREATE TABLE IF NOT EXISTS autopilot_suggestions (
+    id INTEGER PRIMARY KEY,
+    ts INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('correction', 'basal_micro')),
+    amount REAL NOT NULL,
+    snapshot TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'expired')),
+    expires_at INTEGER NOT NULL,
+    decided_at INTEGER,
+    decided_amount REAL,
+    acted_entry_id INTEGER REFERENCES entries(id)
+  )`)
+  d.exec('CREATE INDEX IF NOT EXISTS autopilot_suggestions_status ON autopilot_suggestions (status, ts)')
   _db = d
   return d
 }

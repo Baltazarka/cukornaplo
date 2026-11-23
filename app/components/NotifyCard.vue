@@ -182,7 +182,7 @@ const noDevice = computed(() => !push.value?.devices?.length)
 
       <fieldset class="notify-block">
         <label class="check"><input v-model="form.insulinPush" type="checkbox"> Inzulinjavaslat (pl. „kb. 3 E inzulin javasolt”)</label>
-        <p class="muted small">Magas vércukornál, ha az aktív inzulin levonása után is a céltartomány fölött maradna. A javaslat a teljes szükséglet fele (egy lépés, egy óra múlva újraszámol), a napszak ISF-jéből és célértékéből számolva, a toll lépésére lefelé kerekítve, a maximális bólusig. Az aktív inzulin levonása miatt a beadás után magától elhallgat.</p>
+        <p class="muted small">Magas vércukornál, ha az aktív inzulin levonása után is a céltartomány fölött maradna. A javaslat a teljes szükséglet fele (egy lépés, egy óra múlva újraszámol), a napszak ISF-jéből és célértékéből számolva, a toll lépésére lefelé kerekítve, a maximális bólusig. Az aktív inzulin levonása miatt a beadás után magától elhallgat. Ez a ritkább, konzervatívabb javaslat (legfeljebb óránként); a gyakoribb, nyugtázást kérő változathoz lásd az <NuxtLink to="/autopilot">Autopilot</NuxtLink> oldalt.</p>
         <label>Legalább ennyi E-nél szóljon
           <input v-model.number="form.insulinMin" type="number" step="0.5" min="0.5" max="10">
         </label>
