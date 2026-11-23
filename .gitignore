@@ -21,3 +21,6 @@ Thumbs.db
 
 # Feltölthető skill-csomagok (a forrásuk a .claude/skills)
 skill-zipek/
+
+# Claude Code saját munkaeszközei (skillek stb.): helyi kényelmi fájlok, nem a projekt része
+.claude/

@@ -1,11 +1,21 @@
 # Cukornapló
 
-Saját webes napló Guardian 4 szenzorhoz: a glükóz a CareLinkből jön, az inzulint (bólus, bázis) és a
-szénhidrátot kézzel könyveled (napló, bóluskalkulátor); minden egy helyen, közös időtengelyen. Nuxt 4 (SPA) + Nitro szerver, SQLite (`node:sqlite`).
+Saját, inzulinnal kezelt cukorbetegséghez írt webes napló: a Medtronic Guardian 4 szenzor értékei a gondozói
+(CareLink) fiókon át automatikusan bekerülnek, az inzulint (étkezési bólus, korrekció, bázis – tollal,
+NovoRapid + Toujeo) és a szénhidrátot a bóluskalkulátoron vagy a naplón át kézzel rögzítem. A cél, hogy a
+három adat (glükóz, inzulin, CH) egy helyen, közös időtengelyen, egyetlen nézetben legyen együtt
+visszanézhető és elemezhető – ezt sem a Guardian app, sem a gyári exportok nem adták meg.
+
+Azért Nuxt 4 (kliensoldali SPA) + Nitro szerver + SQLite (`node:sqlite`): egyetlen Node-folyamat, nincs
+külön adatbázis-szerver, Raspberry Pi-n (Docker) is elfut, mégis modern, reaktív felület. A projekt eredetileg
+egy egyszerűbb PHP alkalmazás volt (lásd a git-történetben); ennek Nuxt-alapú újraírása ez a repó – innen
+maradt két visszafelé-kompatibilis apróság (a régi `$2y$` jelszó-hash elfogadása, és a telefonon korábban
+beállított `/api/ingest.php` cím is működik), de **ma már nincs PHP-kód a projektben** – a teljes alkalmazás
+TypeScript/Vue (Nuxt + Nitro).
 
 Nem orvostechnikai eszköz. Kezelési döntéshez a Guardian app értékeit és a diabetológusod útmutatását használd.
 
-> A képernyőképek szintetikus demó-adaton készültek (`scripts/seed-demo.mjs`), nem valódi egészségügyi adaton.
+> A lenti képernyőképek szintetikus demó-adaton készültek (`scripts/seed-demo.mjs`), nem valódi egészségügyi adaton.
 
 <table>
 <tr>
