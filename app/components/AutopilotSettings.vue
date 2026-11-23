@@ -44,7 +44,7 @@ async function save() {
           <b>nem visszavonható</b> kiegészítő adagot is javasolhat (a bázis pótlásaként), jóval ritkábban, mint a korrekció.
         </p>
         <label>Napi max korrekciós javaslat
-          <input v-model.number="form.dailyMaxUnits" type="number" step="0.5" min="0.5" max="20"> E
+          <input v-model.number="form.dailyMaxUnits" type="number" step="0.5" min="0.5" max="50"> E
         </label>
         <label v-if="form.basalMicroEnabled">Napi max mikro-kiegészítés
           <input v-model.number="form.basalMicroDailyMaxUnits" type="number" step="0.5" min="0" max="10"> E
