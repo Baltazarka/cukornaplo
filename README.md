@@ -5,6 +5,18 @@ szénhidrátot kézzel könyveled (napló, bóluskalkulátor); minden egy helyen
 
 Nem orvostechnikai eszköz. Kezelési döntéshez a Guardian app értékeit és a diabetológusod útmutatását használd.
 
+> A képernyőképek szintetikus demó-adaton készültek (`scripts/seed-demo.mjs`), nem valódi egészségügyi adaton.
+
+<p>
+  <img src="docs/screenshots/napi-nezet.jpg" width="32%" alt="Napi nézet: Most-kártya, bóluskalkulátor, idő a tartományokban">
+  <img src="docs/screenshots/napi-gorbe.jpg" width="32%" alt="Napi görbe: glükóz, inzulin és szénhidrát közös időtengelyen">
+  <img src="docs/screenshots/naplo.jpg" width="32%" alt="Napló: bejegyzések és a felismert, nyugtázásra váró CH-becslés">
+</p>
+<p>
+  <img src="docs/screenshots/autopilot.jpg" width="32%" alt="Autopilot: push-ra váró adagjavaslat, nyugtázással">
+  <img src="docs/screenshots/riport.jpg" width="32%" alt="Nyomtatható riport: összefoglaló, AGP-profil, napi grafikonok">
+</p>
+
 ## Funkciók
 
 - **Belépés / jelszó** – `/setup` (első jelszó), `/login`, kilépés. Munkamenet lezárt
@@ -30,6 +42,13 @@ Nem orvostechnikai eszköz. Kezelési döntéshez a Guardian app értékeit és 
   `CARELINK_INTERVAL` másodpercenként (alapból 300 = 5 perc).
 - **Apple Health `export.xml` importáló** (CLI, streamelve):
   `DATA_DIR=... node scripts/import-health-export.ts <export.xml> [kezdő dátum]`.
+- **Autopilot** (`/autopilot`, alapból kikapcsolva): percenkénti háttérellenőrzés az aktív inzulin / szénhidrát
+  és a trend alapján; mivel tollal (nem pumpával) jár az inzulin, a javasolt korrekció **push-értesítés**, amit
+  nyugtázni kell („Beadtam” / „Kihagyom”) – a motor sosem ír a naplóba magától. Napló, saját beállítások
+  (napi max, várakozási idő, biztonsági korlátok).
+- **Be nem írt CH felismerése**: óránkénti háttérellenőrzés jelzi, ha egy szakaszban a vércukor-emelkedést
+  az aktív inzulin nem indokolja (valószínűleg elmaradt egy CH-bejegyzés). A becslés addig nem számít
+  a statisztikába, amíg a napi naplóban el nem fogadod (a mennyiséget is módosíthatod) vagy el nem utasítod.
 
 ## Fejlesztés
 
@@ -47,11 +66,12 @@ pnpm dev          # http://localhost:3000
 - Kísérletezéshez külön mappa adható meg, pl. egy demó-példány:
 
 ```bash
+mkdir data-dev && node scripts/seed-demo.mjs ./data-dev   # ~10 nap szintetikus adat (NEM valódi)
 DATA_DIR=./data-dev CARELINK_INTERVAL=0 pnpm dev
 ```
 
-A `data-dev` demó-példányhoz beállított jelszó: **`cukor1234`**. Saját jelszóhoz
-használd az Adatok → Visszaállítás → *Minden elölről* gombot, majd állíts be újat.
+Első belépéskor (`/setup`) állíts be jelszót, pl. **`cukor1234`**. A `scripts/seed-demo.mjs` a fenti
+képernyőképekhez is ezt generálja.
 
 ## Docker (Raspberry Pi)
 
