@@ -135,7 +135,7 @@ export default defineEventHandler((event) => {
     carbs: dayRows.carbs.map((e) => [e.ts * 1000, e.v, e.sub === 'fatty' || e.sub === 'fast' ? e.sub : null]),
     events: events.map((e) => ({
       id: e.id, ts: e.ts * 1000, time: hmInTz(e.ts), type: e.type, sub: e.sub ?? null, v: e.v, glucose: nearestGlucose(e.ts),
-      kind: (e as any).kind ?? null, auto: (e as any).auto ?? false, noCarbs: (e as any).noCarbs ?? false,
+      kind: (e as any).kind ?? null, auto: (e as any).auto ?? false,
       manual: e.src === MANUAL_SOURCE,
       autoBasal: e.src === AUTO_BASAL_SOURCE,
       autopilot: e.src === AUTOPILOT_SOURCE,

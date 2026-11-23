@@ -20,6 +20,8 @@ export default defineEventHandler(async (event) => {
   db().exec('DELETE FROM notes')
   db().exec('DELETE FROM lab_results')
   db().exec('DELETE FROM excluded_ranges')
+  db().exec('DELETE FROM autopilot_suggestions')
+  db().exec('DELETE FROM carb_estimates')
   db().exec('DELETE FROM share_tokens')
   db().exec('DELETE FROM passkeys')
   db().exec('DELETE FROM push_subscriptions')

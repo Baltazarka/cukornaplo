@@ -418,7 +418,7 @@ async function deleteNote(n: any) {
 }
 
 const KIND_LABEL: Record<string, string> = { meal: 'Étkezési bólus', correction: 'Korrekció', basal: 'Bázis' }
-const kindLabel = (e: any) => (e.kind === 'meal' && e.noCarbs ? 'Étkezési bólus, CH nélkül' : KIND_LABEL[e.kind] ?? 'Inzulin')
+const kindLabel = (e: any) => KIND_LABEL[e.kind] ?? 'Inzulin'
 const eventLabel = (e: any) => (e.type === 'carbs' ? 'Szénhidrát' : e.type === 'glucose' ? 'Vércukor (kézi mérés)' : kindLabel(e))
 const eventDot = (e: any) =>
   e.type !== 'insulin' ? e.type : e.kind === 'basal' ? 'basal' : e.kind === 'correction' ? 'correction' : 'insulin'

@@ -73,7 +73,7 @@ export default defineEventHandler((event) => {
       const kind = r.type === 'insulin' ? insulinKind(ts, r.subtype, carbTs, Number(r.value)) : null
       day.events.push({
         ts, time: hmInTz(ts), minute, type: r.type as 'insulin' | 'carbs',
-        kind: kind ? (kind.kind === 'meal' && kind.noCarbs ? 'meal-nocarb' : kind.kind) : null,
+        kind: kind ? kind.kind : null,
         v, fatty: r.type === 'carbs' && r.subtype === 'fatty', fast: r.type === 'carbs' && r.subtype === 'fast', glucose: null,
         autopilot: r.type === 'insulin' && r.source === AUTOPILOT_SOURCE,
       })

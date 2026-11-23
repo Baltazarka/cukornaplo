@@ -76,7 +76,7 @@ const MIN_CARB_EFFECT = 1.0
 
 interface G { ts: number; v: number }
 interface Carb extends G { fatty: boolean; fast: boolean; fat: number | null; protein: number | null }
-interface Bolus { ts: number; v: number; kind: 'meal' | 'correction'; noCarbs: boolean }
+interface Bolus { ts: number; v: number; kind: 'meal' | 'correction' }
 
 const r1 = (v: number) => Math.round(v * 10) / 10
 const r2 = (v: number) => Math.round(v * 100) / 100
@@ -254,7 +254,7 @@ export function analyze(from: number, to: number) {
   const boluses: Bolus[] = []
   for (const i of insulinRows) {
     const k = insulinKind(i.ts, i.subtype, carbTs, i.v)
-    if (k.kind !== 'basal') boluses.push({ ts: i.ts, v: i.v, kind: k.kind, noCarbs: k.noCarbs })
+    if (k.kind !== 'basal') boluses.push({ ts: i.ts, v: i.v, kind: k.kind })
   }
   const sample = sampler(sensorGlucose)
   // A beadás napszakának hatásideje bólusonként egyszer számolódik: az időzóna-számítás drága, és a ciklusok
@@ -334,7 +334,6 @@ export function analyze(from: number, to: number) {
     // Előbólus: legfeljebb 60 perccel az étkezés előtt, vagy legfeljebb 30 perccel az utolsó CH után.
     const g = groups.find((x) => x.carbs != null && b.ts >= x.ts - PREBOLUS_SEC && b.ts <= x.last + MEAL_WINDOW_SEC)
     if (g) g.boluses.push(b)
-    else if (b.noCarbs) groups.push({ ts: b.ts, last: b.ts, carbs: null, fastG: 0, fatty: false, fast: false, boluses: [b], fat: null, protein: null })
   }
   /**
    * Egy korábbi étkezés CH-ja még felszívódik-e `ts`-kor: a felszívódási idő a beállított ütemből és az étkezés

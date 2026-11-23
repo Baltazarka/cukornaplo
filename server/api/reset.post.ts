@@ -17,6 +17,8 @@ export default defineEventHandler(async (event) => {
   db().exec('DELETE FROM notes')
   db().exec('DELETE FROM lab_results')
   db().exec('DELETE FROM excluded_ranges')
+  db().exec('DELETE FROM autopilot_suggestions')
+  db().exec('DELETE FROM carb_estimates')
   saveSettings({ last_ingest: null })
   invalidateComputed()
   return { ok: true, deleted: Number(before) }

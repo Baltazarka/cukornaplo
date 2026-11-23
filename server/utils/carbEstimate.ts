@@ -23,9 +23,12 @@ const WINDOW_LEN_MIN = 90
 /** Az ablak vége ennyivel a jelen előtt legyen, hogy az emésztés eleje már lefolyjon. */
 const SETTLE_MIN = 60
 
+// Az elutasított (declined) sor is számít: egy elutasítás végleges arra az ablakra, nem csak a következő
+// 15 perces ellenőrzésig – különben egy órákig tartó, étel nélküli emelkedés (betegség, stressz) 15 percenként
+// újra felkínálná ugyanazt a becslést minden elutasítás után.
 function overlapsExisting(windowFrom: number, windowTo: number): boolean {
   return !!db()
-    .prepare("SELECT 1 FROM carb_estimates WHERE status != 'declined' AND window_from < ? AND window_to > ? LIMIT 1")
+    .prepare('SELECT 1 FROM carb_estimates WHERE window_from < ? AND window_to > ? LIMIT 1')
     .get(windowTo, windowFrom)
 }
 

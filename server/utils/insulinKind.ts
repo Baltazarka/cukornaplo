@@ -16,10 +16,10 @@ export const PREBOLUS_SEC = 60 * 60
 /**
  * Egy adag típusa. `carbTs`: a környező szénhidrát-bejegyzések időpontjai (unix mp); `value`: az adag (E), a típus
  * már nem használt (régen a típus nélküli bázis felismeréséhez kellett).
- * `auto`: becslés (nem kézi beállítás); `noCarbs`: régi jelölés (étkezési bólus CH nélkül), már nem fordul elő.
+ * `auto`: becslés (nem kézi beállítás).
  */
-export function insulinKind(ts: number, subtype: string | null, carbTs: number[], _value?: number): { kind: InsulinKind; auto: boolean; noCarbs: boolean } {
-  if (subtype === 'basal' || subtype === 'meal' || subtype === 'correction') return { kind: subtype, auto: false, noCarbs: false }
-  if (carbTs.some((c) => c - ts >= -MEAL_WINDOW_SEC && c - ts <= PREBOLUS_SEC)) return { kind: 'meal', auto: true, noCarbs: false }
-  return { kind: 'correction', auto: true, noCarbs: false }
+export function insulinKind(ts: number, subtype: string | null, carbTs: number[], _value?: number): { kind: InsulinKind; auto: boolean } {
+  if (subtype === 'basal' || subtype === 'meal' || subtype === 'correction') return { kind: subtype, auto: false }
+  if (carbTs.some((c) => c - ts >= -MEAL_WINDOW_SEC && c - ts <= PREBOLUS_SEC)) return { kind: 'meal', auto: true }
+  return { kind: 'correction', auto: true }
 }

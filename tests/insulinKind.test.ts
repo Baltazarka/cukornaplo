@@ -21,9 +21,9 @@ test('az ablak pontos határai: előtte 30 percig, utána (előbólus) 60 percig
 })
 
 test('a kézi jelölés (étkezési / korrekció / bázis) mindig felülírja a becslést', () => {
-  assert.deepEqual(insulinKind(T, 'correction', [T]), { kind: 'correction', auto: false, noCarbs: false })
-  assert.deepEqual(insulinKind(T, 'meal', []), { kind: 'meal', auto: false, noCarbs: false })
-  assert.deepEqual(insulinKind(T, 'basal', [T]), { kind: 'basal', auto: false, noCarbs: false })
+  assert.deepEqual(insulinKind(T, 'correction', [T]), { kind: 'correction', auto: false })
+  assert.deepEqual(insulinKind(T, 'meal', []), { kind: 'meal', auto: false })
+  assert.deepEqual(insulinKind(T, 'basal', [T]), { kind: 'basal', auto: false })
 })
 
 test('bázis csak a bázisnak jelölt adag: a mennyiség és a CH nem számít; az általános „bolus” jelölés becsült', () => {
