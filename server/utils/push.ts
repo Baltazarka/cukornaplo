@@ -65,13 +65,26 @@ export async function sendPush(payload: PushPayload, opts: { urgency?: 'very-low
   let failed = 0
   let lastError: string | undefined
   await Promise.all(rows.map(async (r) => {
-    try {
-      await webpush.sendNotification({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }, JSON.stringify(payload), options)
-      sent++
-    } catch (e: any) {
-      failed++
-      if (e?.statusCode === 404 || e?.statusCode === 410) removeSubscription(r.endpoint)
-      else lastError = `${e?.statusCode ?? ''} ${e?.body ?? e?.message ?? e}`.trim()
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await webpush.sendNotification({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }, JSON.stringify(payload), options)
+        sent++
+        return
+      } catch (e: any) {
+        if (e?.statusCode === 404 || e?.statusCode === 410) {
+          removeSubscription(r.endpoint)
+          failed++
+          return
+        }
+        // Átmeneti hiba (hálózat, szolgáltató): egy gyors újrapróbálkozás, mielőtt a push elveszne.
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 1500))
+          continue
+        }
+        lastError = `${e?.statusCode ?? ''} ${e?.body ?? e?.message ?? e}`.trim()
+        failed++
+        return
+      }
     }
   }))
   logPush(payload, sent, failed)

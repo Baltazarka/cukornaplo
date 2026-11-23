@@ -31,9 +31,9 @@ useToastFrom(err, 'error')
 /** Ennél nagyobb nyugtázott mennyiségnél második megerősítés kell (gyorsan beírt, szokatlanul nagy adag ellen). */
 const CONFIRM_ABOVE = 3
 
-async function respond(action: 'accept' | 'decline', amount?: number) {
+async function respond(action: 'accept' | 'decline', amount?: number, force = false) {
   if (busy.value) return
-  if (action === 'accept') {
+  if (action === 'accept' && !force) {
     const amt = amount ?? props.pending.amount
     if (amt > CONFIRM_ABOVE) {
       const ok = await askConfirm(`Biztosan beadtál ${fmt(amt)} E-t? Ez a szokásosnál nagyobb adag.`, { confirmLabel: 'Igen, beadtam' })
@@ -43,13 +43,20 @@ async function respond(action: 'accept' | 'decline', amount?: number) {
   busy.value = true
   err.value = ''
   try {
-    const r = await $fetch<any>('/api/autopilot/respond', { method: 'POST', body: { id: props.pending.id, action, amount } })
-    if (!r.ok) throw new Error(r.error)
+    const r = await $fetch<any>('/api/autopilot/respond', { method: 'POST', body: { id: props.pending.id, action, amount, force } })
+    if (!r.ok) throw Object.assign(new Error(r.error), { data: r })
     customOpen.value = false
     customAmount.value = null
     emit('changed')
   } catch (e: any) {
-    err.value = e?.data?.error ?? e?.message ?? 'Nem sikerült.'
+    const data = e?.data ?? e?.response?._data
+    if (action === 'accept' && !force && data?.conflict) {
+      busy.value = false
+      const ok = await askConfirm(data.error ?? 'Időközben másik inzulin bejegyzés is született — biztosan ezt is beadtad?', { confirmLabel: 'Igen, ezt is beadtam' })
+      if (ok) return respond(action, amount, true)
+      return
+    }
+    err.value = data?.error ?? e?.message ?? 'Nem sikerült.'
   } finally {
     busy.value = false
   }

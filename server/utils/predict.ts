@@ -111,6 +111,8 @@ export interface Prediction {
   insulinNeeded: number | null
   /** A teljes szükséglet, E (a javaslat ennek egy lépése, egy óra múlva újraszámol). */
   insulinFull: number | null
+  /** Az utolsó két szenzormérés között fiziológiailag valószínűtlenül nagy a változás (szenzorhiba gyanúja). */
+  glucoseJumpSuspect: boolean
 }
 
 interface Model {
@@ -135,13 +137,16 @@ interface Model {
   blendCorrected: (h: number) => number
   /** A legutóbbi (nem bázis) bólus időpontja, 0 ha nincs. */
   lastBolusTs: number
+  /** Az utolsó két szenzormérés között fiziológiailag valószínűtlenül nagy a változás (szenzorhiba gyanúja). */
+  glucoseJumpSuspect: boolean
 }
 
 /** A becslés összetevői (adagok, szénhidrát, lendület) egyszer kiszámítva; `at(h)` bármely távolságra ad értéket. */
 function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null {
   const t = therapy()
   if (!t) return null
-  const latest = latestGlucose(nowTs)
+  // sensorOnly: az Autopilot a folyamatos szenzoradatra épít, nem egy kézi (ujjbegyes/InPen) mérésre (CLAUDE.md).
+  const latest = latestGlucose(nowTs, { sensorOnly: true })
   if (!latest || nowTs - latest.ts > MAX_AGE_SEC) return null
 
   const seg = segmentAt(t, latest.ts)
@@ -179,7 +184,12 @@ function build(nowTs: number, mode: PredictMode | 'auto' = 'auto'): Model | null
     return md === 'blend' ? blendCorrected(h) : atMode(h, md)
   }
   const range = targetRange()
-  return { latest, low: range.low, high: range.high, target: seg.target, isf: seg.isf, perG, maxBolus: t.maxBolus, eventual, iob: iobNow, cob, treated, active, at, atMode, blendCorrected, lastBolusTs }
+  // Irreális ugrás két egymást követő szenzormérés között (szenzorhiba, kompressziós inga utáni rebound): az oref1
+  // "maxDelta" biztonsági kapujának mintájára, ha a változás a két érték nagyobbikának 30%-ánál is nagyobb, az adatot
+  // nem tekintjük megbízhatónak — a predikció (grafikon) ettől még megjelenik, csak az Autopilot nem javasol rá.
+  const prevPt = [...pts].reverse().find((p) => p.ts <= latest.ts - 3 * 60)
+  const glucoseJumpSuspect = !!(prevPt && latest.ts - prevPt.ts <= 11 * 60 && Math.abs(latest.v - prevPt.v) > 0.3 * Math.max(latest.v, prevPt.v))
+  return { latest, low: range.low, high: range.high, target: seg.target, isf: seg.isf, perG, maxBolus: t.maxBolus, eventual, iob: iobNow, cob, treated, active, at, atMode, blendCorrected, lastBolusTs, glucoseJumpSuspect }
 }
 
 const round = (x: number, k: number) => Math.round(x * k) / k
@@ -253,6 +263,7 @@ export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 100
     carbsNeeded,
     insulinNeeded,
     insulinFull,
+    glucoseJumpSuspect: m.glucoseJumpSuspect,
   }
 }
 

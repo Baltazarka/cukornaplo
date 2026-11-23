@@ -38,8 +38,11 @@ export const HARD = {
   maxExpireMin: 30,
   /** Ennyi egymást követő lejárt javaslat után a motor magát kikapcsolja. */
   autoDisableAfterExpired: 3,
-  /** Egyetlen javaslat sosem lehet nagyobb, mint a beállított maxBolus ekkora hányada. */
+  /** Egyetlen korrekciós javaslat sosem lehet nagyobb, mint a beállított maxBolus ekkora hányada. */
   maxBolusFraction: 0.5,
+  /** Egyetlen mikro-javaslat ennél is szigorúbb (kisebb) hányada a maxBolus-nak — ez egy véglegesen beadott,
+   *  kis lépés akar lenni, nem egy nagy, ritka korrekció. */
+  microMaxBolusFraction: 0.25,
 }
 
 export const DEFAULTS: AutopilotSettings = {
@@ -79,15 +82,20 @@ export function validateAutopilot(b: any): AutopilotSettings {
 export interface DecideInput {
   settings: AutopilotSettings
   hasPending: boolean
-  /** Másodperc az utolsó elfogadás óta, vagy null, ha még sosem fogadott el. */
-  secSinceAccepted: number | null
-  /** Másodperc az utolsó elutasítás óta, vagy null. */
-  secSinceDeclined: number | null
+  /** Másodperc az utolsó elfogadott KORREKCIÓ óta, vagy null — csak a korrekciós ágat fékezi (a mikrónak
+   *  szándékosan nincs saját cooldownja, lásd lent). */
+  secSinceAcceptedCorrection: number | null
+  /** Másodperc az utolsó elutasított KORREKCIÓ óta, vagy null. */
+  secSinceDeclinedCorrection: number | null
   todayCorrectionUnits: number
   todayBasalMicroUnits: number
   /** A terápia maxBolus-a (E), vagy null, ha nincs beállítva terápia. */
   maxBolus: number | null
-  prediction: { risk: boolean; iob: number; insulinNeeded: number | null; insulinFull: number | null }
+  prediction: {
+    risk: boolean; iob: number; insulinNeeded: number | null; insulinFull: number | null
+    /** Irreális ugrás két egymást követő szenzormérés között (szenzorhiba gyanúja) — erre sosem javasol. */
+    glucoseJumpSuspect: boolean
+  }
   /** `predictSeries()` +60..+180 perces szakasza tartósan (≥80%) cél fölött, és az `eventual` is — lásd checkAutopilot. */
   sustainedHigh: boolean
   /** A toll lépésköze (E): minden javaslat (korrekció és mikro is) erre van lefelé kerekítve. */
@@ -98,30 +106,39 @@ export interface Decision { kind: SuggestionKind; amount: number }
 
 export function decideAutopilot(i: DecideInput): Decision | null {
   if (!i.settings.enabled || i.hasPending) return null
-  if (i.secSinceAccepted != null && i.secSinceAccepted < i.settings.cooldownAcceptMin * 60) return null
-  if (i.secSinceDeclined != null && i.secSinceDeclined < i.settings.cooldownDeclineMin * 60) return null
   // Hipó-kockázatnál SOSEM javasol — nem konfigurálható.
   if (i.prediction.risk) return null
+  // Megbízhatatlan (irreálisan ugró) adatra SOSEM javasol — nem konfigurálható.
+  if (i.prediction.glucoseJumpSuspect) return null
   // Magas aktív inzulinnál sosem javasol — nem konfigurálható (a settings.maxIob-nak is van felső plafonja, lásd validateAutopilot).
   if (i.prediction.iob >= i.settings.maxIob) return null
+  // Minél közelebb van az aktív inzulin a plafonhoz, annál kevesebb "hely" marad egy újabb adagnak — sima
+  // lefékezés egy hirtelen igen/nem kapu helyett (a plafon fölött a fenti sor már úgyis kizár mindent).
+  const iobHeadroom = i.settings.maxIob - i.prediction.iob
 
-  if (i.todayCorrectionUnits < i.settings.dailyMaxUnits) {
+  const correctionCooldown =
+    (i.secSinceAcceptedCorrection != null && i.secSinceAcceptedCorrection < i.settings.cooldownAcceptMin * 60) ||
+    (i.secSinceDeclinedCorrection != null && i.secSinceDeclinedCorrection < i.settings.cooldownDeclineMin * 60)
+  if (!correctionCooldown && i.todayCorrectionUnits < i.settings.dailyMaxUnits) {
     const full = i.prediction.insulinNeeded
     if (full != null && full >= i.settings.minUnits) {
       const cap = i.maxBolus != null ? i.maxBolus * HARD.maxBolusFraction : Infinity
-      const amount = Math.round(Math.min(full, cap) * 10) / 10
+      const remaining = i.settings.dailyMaxUnits - i.todayCorrectionUnits
+      const amount = Math.round(Math.min(full, cap, remaining, iobHeadroom) * 10) / 10
       if (amount >= i.settings.minUnits) return { kind: 'correction', amount }
     }
   }
 
+  // A mikro-kiegészítésnek szándékosan nincs saját cooldownja (mint egy pumpa SMB-je): minden ciklusban
+  // újraszámol, a fék a napi keret, az aktív inzulin és a fenti hipó-/megbízhatósági kapuk.
   if (i.settings.basalMicroEnabled && i.sustainedHigh && i.todayBasalMicroUnits < i.settings.basalMicroDailyMaxUnits) {
     // Mint egy valódi pumpa SMB-je: a teljes (nem halvott) szükséglet egy hányada, nem fix lépés — újraszámolva
     // minden ciklusban, ahogy a trend nő vagy csökken.
     const full = i.prediction.insulinFull
     if (full != null && full > 0) {
-      const cap = i.maxBolus != null ? i.maxBolus * HARD.maxBolusFraction : Infinity
+      const cap = i.maxBolus != null ? i.maxBolus * HARD.microMaxBolusFraction : Infinity
       const remaining = i.settings.basalMicroDailyMaxUnits - i.todayBasalMicroUnits
-      const amount = floorTo(Math.min(full * (i.settings.basalMicroPercent / 100), cap, remaining), i.doseStep)
+      const amount = floorTo(Math.min(full * (i.settings.basalMicroPercent / 100), cap, remaining, iobHeadroom), i.doseStep)
       if (amount >= i.doseStep) return { kind: 'basal_micro', amount }
     }
   }

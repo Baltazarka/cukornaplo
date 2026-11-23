@@ -32,11 +32,16 @@ export function glucosePoints(from: number, to: number): (GPoint & { manual: boo
 
 export interface Latest { ts: number; v: number; time: string; ageMin: number; arrow: string; rate: number | null }
 
-/** Az utolsó mérés (legfeljebb 3 órás), trenddel. */
-export function latestGlucose(nowTs = Math.floor(Date.now() / 1000)): Latest | null {
+/**
+ * Az utolsó mérés (legfeljebb 3 órás), trenddel.
+ * `sensorOnly`: az Autopilot/predikció nem alapozhat kézi mérésre (CLAUDE.md: a kézi vércukor a trendbe/görbébe nem
+ * számít) - ilyenkor az ablak legutóbbi szenzoros pontját adja "last"-nak, és csak akkor esik vissza kézi mérésre,
+ * ha az ablakban egyáltalán nincs szenzoradat (akkor jobb egy kézi érték, mint semmi).
+ */
+export function latestGlucose(nowTs = Math.floor(Date.now() / 1000), opts?: { sensorOnly?: boolean }): Latest | null {
   const pts = glucosePoints(nowTs - 3 * 3600, nowTs + 60)
   if (!pts.length) return null
-  const last = pts[pts.length - 1]
+  const last = opts?.sensorOnly ? [...pts].reverse().find((p) => !p.manual) ?? pts[pts.length - 1] : pts[pts.length - 1]
   // A trend csak a szenzoradatból számolódik (a kézi mérés nem egyenletes mintavétel); ha a legutóbbi érték kézi, nincs nyíl.
   const trend = last.manual ? null : lastTrend(pts.filter((p) => !p.manual))
   return { ts: last.ts, v: last.v, time: hmInTz(last.ts), ageMin: Math.round((nowTs - last.ts) / 60), arrow: trendArrow(trend), rate: trend?.rate ?? null }

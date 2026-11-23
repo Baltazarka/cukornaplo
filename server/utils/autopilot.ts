@@ -57,8 +57,8 @@ export function suggestionHistory(days = 7): Suggestion[] {
   return (db().prepare('SELECT * FROM autopilot_suggestions WHERE ts >= ? ORDER BY ts DESC, id DESC').all(since) as any[]).map(rowToSuggestion)
 }
 
-function lastDecidedAt(status: 'accepted' | 'declined'): number | null {
-  const r = db().prepare('SELECT decided_at FROM autopilot_suggestions WHERE status = ? ORDER BY decided_at DESC LIMIT 1').get(status) as { decided_at: number } | undefined
+function lastDecidedAt(status: 'accepted' | 'declined', kind: SuggestionKind): number | null {
+  const r = db().prepare('SELECT decided_at FROM autopilot_suggestions WHERE status = ? AND kind = ? ORDER BY decided_at DESC LIMIT 1').get(status, kind) as { decided_at: number } | undefined
   return r ? Number(r.decided_at) : null
 }
 
@@ -99,9 +99,12 @@ function computeSustainedHigh(p: Prediction, nowTs: number): boolean {
   return win.filter(([, v]) => v > range.high).length / win.length >= 0.8
 }
 
-/** Egymást követő, nyugtázatlanul lejárt javaslatok sorozata → a motor magát kikapcsolja (nem kapcsol vissza magától). */
+/** Egymást követő, nyugtázatlanul lejárt javaslatok sorozata → a motor magát kikapcsolja (nem kapcsol vissza magától).
+ *  Csak a legutóbbi bekapcsolás óta született javaslatokat számolja: különben egy korábbi (már egyszer kikapcsolást
+ *  kiváltó) lejárat is belekeveredne az újra bekapcsolás utáni számlálásba. */
 async function maybeAutoDisable(cfg: AutopilotSettings): Promise<boolean> {
-  const recent = db().prepare('SELECT status FROM autopilot_suggestions ORDER BY ts DESC LIMIT ?').all(HARD.autoDisableAfterExpired) as { status: string }[]
+  const enabledAt = setting<number>('autopilotEnabledAt', 0) ?? 0
+  const recent = db().prepare('SELECT status FROM autopilot_suggestions WHERE ts >= ? ORDER BY ts DESC LIMIT ?').all(enabledAt, HARD.autoDisableAfterExpired) as { status: string }[]
   if (recent.length < HARD.autoDisableAfterExpired || !recent.every((r) => r.status === 'expired')) return false
   saveSettings({ autopilot: { ...cfg, enabled: false } })
   if (listSubscriptions().length) {
@@ -132,12 +135,12 @@ export async function checkAutopilot(nowTs = Math.floor(Date.now() / 1000)): Pro
   const decision = decideAutopilot({
     settings: cfg,
     hasPending: false,
-    secSinceAccepted: (() => { const x = lastDecidedAt('accepted'); return x == null ? null : nowTs - x })(),
-    secSinceDeclined: (() => { const x = lastDecidedAt('declined'); return x == null ? null : nowTs - x })(),
+    secSinceAcceptedCorrection: (() => { const x = lastDecidedAt('accepted', 'correction'); return x == null ? null : nowTs - x })(),
+    secSinceDeclinedCorrection: (() => { const x = lastDecidedAt('declined', 'correction'); return x == null ? null : nowTs - x })(),
     todayCorrectionUnits: todayGivenUnits('correction', nowTs),
     todayBasalMicroUnits: todayGivenUnits('basal_micro', nowTs),
     maxBolus: t?.maxBolus ?? null,
-    prediction: { risk: p.risk, iob: p.iob, insulinNeeded: p.insulinNeeded, insulinFull: p.insulinFull },
+    prediction: { risk: p.risk, iob: p.iob, insulinNeeded: p.insulinNeeded, insulinFull: p.insulinFull, glucoseJumpSuspect: p.glucoseJumpSuspect },
     sustainedHigh: cfg.basalMicroEnabled ? computeSustainedHigh(p, nowTs) : false,
     doseStep: setting<{ doseStep?: number }>('notify', null)?.doseStep === 0.5 ? 0.5 : 1,
   })
@@ -154,7 +157,10 @@ export async function checkAutopilot(nowTs = Math.floor(Date.now() / 1000)): Pro
       .run(nowTs, decision.kind, decision.amount, snapshot, expiresAt)
     d.exec('COMMIT')
     if (listSubscriptions().length) {
-      await sendPush(autopilotPayload(decision, p, cfg.expireMin), { urgency: 'normal', ttl: cfg.expireMin * 60 }).catch(() => null)
+      // 'high': egy alacsony prioritású push mobil energiatakarékos módban percekig késhet, ami a rövid
+      // (5-30 perces) lejárati idővel összeadva feleslegesen elúszott javaslatokhoz (és azon át indokolatlan
+      // auto-leálláshoz) vezethet.
+      await sendPush(autopilotPayload(decision, p, cfg.expireMin), { urgency: 'high', ttl: cfg.expireMin * 60 }).catch(() => null)
     }
   } catch (e) {
     d.exec('ROLLBACK')
@@ -162,10 +168,18 @@ export async function checkAutopilot(nowTs = Math.floor(Date.now() / 1000)): Pro
   }
 }
 
-export function acceptSuggestion(id: number, amount?: number): { ok: true; entryId: number } | { ok: false; error: string } {
+export function acceptSuggestion(id: number, amount?: number, opts: { force?: boolean } = {}): { ok: true; entryId: number } | { ok: false; error: string; conflict?: boolean } {
   const d = db()
   const row = d.prepare("SELECT * FROM autopilot_suggestions WHERE id = ? AND status = 'pending'").get(id) as any
   if (!row) return { ok: false, error: 'A javaslat már nem aktuális.' }
+  // Ha a javaslat létrejötte óta más (nem Autopilot-forrású) inzulin bejegyzés is született, lehet, hogy időközben
+  // saját magad is korrigáltál a kalkulátorral — ilyenkor rákérdezünk, nehogy dupla adag kerüljön be csendben.
+  if (!opts.force) {
+    const conflict = d
+      .prepare("SELECT 1 FROM entries WHERE type = 'insulin' AND (source IS NULL OR source != ?) AND created_at >= ? LIMIT 1")
+      .get(AUTOPILOT_SOURCE, Number(row.ts))
+    if (conflict) return { ok: false, error: 'Időközben másik inzulin bejegyzés is született — biztosan ezt a javaslatot is beadtad?', conflict: true }
+  }
   const amt = amount != null && Number.isFinite(amount) && amount > 0 ? Math.round(amount * 10) / 10 : Number(row.amount)
   const now = Math.floor(Date.now() / 1000)
   const subtype = row.kind === 'correction' ? 'correction' : null

@@ -145,6 +145,8 @@ export function db(): DatabaseSync {
     acted_entry_id INTEGER REFERENCES entries(id)
   )`)
   d.exec('CREATE INDEX IF NOT EXISTS autopilot_suggestions_status ON autopilot_suggestions (status, ts)')
+  // Végső védőháló (az alkalmazás-logika mellett) a "legfeljebb 1 függő javaslat" szabályra.
+  d.exec("CREATE UNIQUE INDEX IF NOT EXISTS autopilot_suggestions_one_pending ON autopilot_suggestions (status) WHERE status = 'pending'")
   // Be nem írt (elmaradt) CH felismerése: a háttérben óránként ellenőrzött szakaszok, ahol a vércukor az aktív
   // inzulinnal nem magyarázható emelkedést mutatott (server/utils/carbEstimate.ts). Nyugtázásra várva a naplóban;
   // csak elfogadás után kerül be a entries táblába (addig a statisztikába sem számít).
