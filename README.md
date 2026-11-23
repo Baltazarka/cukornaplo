@@ -75,7 +75,13 @@ képernyőképekhez is ezt generálja.
 
 ## Docker (Raspberry Pi)
 
-Image build és feltöltés a repó gyökeréből (csak 64 bites Pi OS / DietPi: a `node:24-alpine`
+Kész image: **[`baltazarka/cukornaplo-nuxt`](https://hub.docker.com/r/baltazarka/cukornaplo-nuxt)** (public, `linux/arm64`).
+
+```bash
+docker pull baltazarka/cukornaplo-nuxt:latest
+```
+
+Saját buildhez (a repó gyökeréből; csak 64 bites Pi OS / DietPi: a `node:24-alpine`
 image-nek nincs 32 bites ARM változata):
 
 ```bash
