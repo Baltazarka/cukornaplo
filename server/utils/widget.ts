@@ -9,6 +9,7 @@ import { rapidDoses, iobAt } from './iob'
 import { cobAt } from './absorption'
 import { predictGlucose } from './predict'
 import { notifySettings } from './notify'
+import { pendingSuggestion } from './autopilot'
 
 /** A javaslat csak friss szenzoradatból (ennél régebbi értéknél nincs). */
 const SUGGEST_MAX_AGE_SEC = 20 * 60
@@ -51,6 +52,10 @@ export function widgetData(hours: number) {
     }
   }
 
+  // Függő Autopilot-javaslat (az órás kliens ezt nyugtázza a /api/autopilot/respond-dal); lejárt nem látszik.
+  const pend = pendingSuggestion()
+  const autopilot = pend && pend.expiresAt > now ? { id: pend.id, kind: pend.kind, amount: pend.amount, expiresAt: pend.expiresAt } : null
+
   return {
     now,
     glucose: last ? { v: last.v, ts: last.ts, ageMin: Math.max(0, Math.round((now - last.ts) / 60)) } : null,
@@ -58,18 +63,24 @@ export function widgetData(hours: number) {
     iob,
     cob,
     suggest,
+    autopilot,
     range: { low, high },
     series: sensor.map((p) => [Math.round((now - p.ts) / 60), p.v] as [number, number]),
   }
 }
 
-/** A widget-végpontok saját kulcsa (X-Token, mint az adatfogadónál): hiba esetén 401 és a válasz, különben null. */
-export function widgetAuthError(event: H3Event): { ok: false; error: string } | null {
+/** Az X-Token egyezik-e az API-kulccsal (állandó idejű összehasonlítás); nem ír választ. */
+export function tokenOk(event: H3Event): boolean {
   const token = String(getHeader(event, 'x-token') ?? '').trim()
   const expected = String(setting('api_token', '') ?? '')
   const a = Buffer.from(token)
   const b = Buffer.from(expected)
-  if (expected === '' || a.length !== b.length || !timingSafeEqual(a, b)) {
+  return expected !== '' && a.length === b.length && timingSafeEqual(a, b)
+}
+
+/** A widget-végpontok saját kulcsa (X-Token, mint az adatfogadónál): hiba esetén 401 és a válasz, különben null. */
+export function widgetAuthError(event: H3Event): { ok: false; error: string } | null {
+  if (!tokenOk(event)) {
     setResponseStatus(event, 401)
     return { ok: false, error: 'Hibás vagy hiányzó kulcs (X-Token).' }
   }
