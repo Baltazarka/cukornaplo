@@ -211,7 +211,11 @@ export function predictMany(nowTs: number, horizons: number[], modes: PredictMod
   return { latest: m.latest, active: m.active, v }
 }
 
-export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 1000)): Prediction | null {
+/**
+ * `opts.suggestAbove`: az inzulinjavaslat már a cél + ennyi mmol/L fölött is él (de legfeljebb a céltartomány felső határáig
+ * tolja le a küszöböt); nélküle a céltartomány felső határa fölött. A javaslat adagja mindkét esetben a célig számol.
+ */
+export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 1000), opts: { suggestAbove?: number } = {}): Prediction | null {
   const m = build(nowTs)
   if (!m) return null
   const predicted = m.at(horizon)
@@ -238,9 +242,10 @@ export function predictGlucose(horizon = 30, nowTs = Math.floor(Date.now() / 100
   // ennek fele, a toll lépésére (alap 1 E) lefelé kerekítve, a maximális bólusig (shared/utils/suggest.ts).
   const falling = m.latest.rate == null || m.latest.rate <= -0.03
   const recentBolus = m.lastBolusTs > 0 && nowTs - m.lastBolusTs < SUGGEST_AFTER_BOLUS_MIN * 60
+  const suggestFrom = opts.suggestAbove != null ? Math.min(m.high, m.target + opts.suggestAbove) : m.high
   let insulinNeeded: number | null = null
   let insulinFull: number | null = null
-  if (!risk && !falling && !recentBolus && m.iob < SUGGEST_MAX_IOB && m.latest.v > m.high && m.eventual > m.high) {
+  if (!risk && !falling && !recentBolus && m.iob < SUGGEST_MAX_IOB && m.latest.v > suggestFrom && m.eventual > suggestFrom) {
     const t = therapy()
     const isf = (t && blendAt(t, nowTs)?.isf) || m.isf
     const step = setting<{ doseStep?: number }>('notify', null)?.doseStep === 0.5 ? 0.5 : 1

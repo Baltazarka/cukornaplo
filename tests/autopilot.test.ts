@@ -1,7 +1,7 @@
 // Az Autopilot tiszta döntési magja (nincs DB/óra-függés): server/utils/autopilot.ts decideAutopilot().
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { decideAutopilot, type DecideInput, type AutopilotSettings } from '../server/utils/autopilotCore.ts'
+import { decideAutopilot, validateAutopilot, DEFAULTS, type DecideInput, type AutopilotSettings } from '../server/utils/autopilotCore.ts'
 
 const settings: AutopilotSettings = {
   enabled: true,
@@ -150,4 +150,11 @@ test('korrekció elsőbbséget élvez a mikro-bázissal szemben, ha mindkettő f
   const s = { ...settings, basalMicroEnabled: true }
   const d = decideAutopilot(base({ settings: s, sustainedHigh: true, prediction: { risk: false, iob: 0, insulinNeeded: 2, insulinFull: 2, glucoseJumpSuspect: false } }))
   assert.deepEqual(d, { kind: 'correction', amount: 2 })
+})
+
+test('startAboveTarget: alap 1, a tartományon kívüli érték a határra szorul', () => {
+  assert.equal(DEFAULTS.startAboveTarget, 1)
+  assert.equal(validateAutopilot({ startAboveTarget: 0 }).startAboveTarget, 0.5)
+  assert.equal(validateAutopilot({ startAboveTarget: 99 }).startAboveTarget, 5)
+  assert.equal(validateAutopilot({}).startAboveTarget, 1)
 })

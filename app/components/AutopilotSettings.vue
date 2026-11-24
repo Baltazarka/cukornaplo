@@ -45,6 +45,11 @@ async function save() {
             </label>
             <p class="tf-hint">Ennyi egység korrekciót fogadhatsz el <b>összesen, naponta</b> — nem az egyszeri adag felső határa (azt a terápia maximális dózisának fele korlátozza, kódba égetve).</p>
             <label class="tf-row">
+              <span class="tf-label">Ekkora cél fölött már javasol</span>
+              <span class="tf-input"><input v-model.number="form.startAboveTarget" type="number" step="0.5" min="0.5" max="5"> mmol/L</span>
+            </label>
+            <p class="tf-hint">Korrekciót már a célérték + ennyi fölött is javasol (nem csak a céltartomány felső határa fölött), hogy a célhoz segítsen. Az adag a célig számol; a céltartomány felső határánál feljebb nem tolja a küszöböt.</p>
+            <label class="tf-row">
               <span class="tf-label">Legkisebb mennyiség, amiről szól</span>
               <span class="tf-input"><input v-model.number="form.minUnits" type="number" step="0.5" min="0.5" max="5"> E</span>
             </label>

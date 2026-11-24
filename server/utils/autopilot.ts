@@ -128,7 +128,7 @@ export async function checkAutopilot(nowTs = Math.floor(Date.now() / 1000)): Pro
   if (!cfg.enabled) return
   if (d.prepare("SELECT 1 FROM autopilot_suggestions WHERE status = 'pending' LIMIT 1").get()) return
 
-  const p = predictGlucose(30, nowTs)
+  const p = predictGlucose(30, nowTs, { suggestAbove: cfg.startAboveTarget })
   if (!p) return
 
   const t = therapy()

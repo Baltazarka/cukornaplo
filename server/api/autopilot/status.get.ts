@@ -5,7 +5,7 @@ export default defineEventHandler(() => {
   const settings = autopilotSettings()
   const pending = pendingSuggestion()
   const last = suggestionHistory(14).find((s) => s.status !== 'pending') ?? null
-  const p = predictGlucose(30)
+  const p = predictGlucose(30, undefined, { suggestAbove: settings.startAboveTarget })
   return {
     settings,
     pending,

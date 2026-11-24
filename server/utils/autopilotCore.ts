@@ -21,6 +21,8 @@ export interface AutopilotSettings {
   cooldownDeclineMin: number
   /** Ennyi perc után lejár egy nyugtázatlan javaslat. */
   expireMin: number
+  /** Korrekciót már a célérték + ennyi mmol/L fölött is javasol (legfeljebb a céltartomány felső határáig tolva); az adag a célig számol. */
+  startAboveTarget: number
   /** E fölötti aktív inzulinnál biztonsági okból nem javasol. */
   maxIob: number
   /** Ennél kisebb javaslatról nem szól. */
@@ -55,6 +57,7 @@ export const DEFAULTS: AutopilotSettings = {
   cooldownDeclineMin: 60,
   expireMin: 15,
   maxIob: 3,
+  startAboveTarget: 1,
   minUnits: 0.5,
 }
 
@@ -74,6 +77,7 @@ export function validateAutopilot(b: any): AutopilotSettings {
     cooldownAcceptMin: clamp(b?.cooldownAcceptMin, HARD.minCooldownAcceptMin, 180, DEFAULTS.cooldownAcceptMin),
     cooldownDeclineMin: clamp(b?.cooldownDeclineMin, HARD.minCooldownDeclineMin, 240, DEFAULTS.cooldownDeclineMin),
     expireMin: clamp(b?.expireMin, HARD.minExpireMin, HARD.maxExpireMin, DEFAULTS.expireMin),
+    startAboveTarget: clamp(b?.startAboveTarget, 0.5, 5, DEFAULTS.startAboveTarget),
     maxIob: clamp(b?.maxIob, 0.5, HARD.maxMaxIob, DEFAULTS.maxIob),
     minUnits: clamp(b?.minUnits, 0.5, 5, DEFAULTS.minUnits),
   }
