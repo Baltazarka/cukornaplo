@@ -38,8 +38,6 @@ export const HARD = {
   maxMaxIob: 5,
   minExpireMin: 5,
   maxExpireMin: 30,
-  /** Ennyi egymást követő lejárt javaslat után a motor magát kikapcsolja. */
-  autoDisableAfterExpired: 3,
   /** Egyetlen korrekciós javaslat sosem lehet nagyobb, mint a beállított maxBolus ekkora hányada. */
   maxBolusFraction: 0.5,
   /** Egyetlen mikro-javaslat ennél is szigorúbb (kisebb) hányada a maxBolus-nak — ez egy véglegesen beadott,

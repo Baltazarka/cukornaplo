@@ -126,8 +126,8 @@ async function save() {
 
         <p class="muted small ap-hard-note">
           Biztonsági okból néhány korlát nem állítható: hipó-veszélynél sosem javasol, egyetlen javaslat sosem lehet
-          nagyobb a beállított maximális bólus felénél, és 3 egymást követő, nyugtázatlanul lejárt javaslat után az
-          Autopilot magát kikapcsolja.
+          nagyobb a beállított maximális bólus felénél. Ha nem nyugtázol egy javaslatot, az lejár, de az Autopilot
+          bekapcsolva marad.
         </p>
         <div class="btn-row">
           <button type="submit" :disabled="busy">Mentés</button>

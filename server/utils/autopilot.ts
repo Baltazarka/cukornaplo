@@ -99,32 +99,12 @@ function computeSustainedHigh(p: Prediction, nowTs: number): boolean {
   return win.filter(([, v]) => v > range.high).length / win.length >= 0.8
 }
 
-/** Egymást követő, nyugtázatlanul lejárt javaslatok sorozata → a motor magát kikapcsolja (nem kapcsol vissza magától).
- *  Csak a legutóbbi bekapcsolás óta született javaslatokat számolja: különben egy korábbi (már egyszer kikapcsolást
- *  kiváltó) lejárat is belekeveredne az újra bekapcsolás utáni számlálásba. */
-async function maybeAutoDisable(cfg: AutopilotSettings): Promise<boolean> {
-  const enabledAt = setting<number>('autopilotEnabledAt', 0) ?? 0
-  const recent = db().prepare('SELECT status FROM autopilot_suggestions WHERE ts >= ? ORDER BY ts DESC LIMIT ?').all(enabledAt, HARD.autoDisableAfterExpired) as { status: string }[]
-  if (recent.length < HARD.autoDisableAfterExpired || !recent.every((r) => r.status === 'expired')) return false
-  saveSettings({ autopilot: { ...cfg, enabled: false } })
-  if (listSubscriptions().length) {
-    await sendPush({
-      title: '🛩️ Az Autopilot leállt',
-      body: `${HARD.autoDisableAfterExpired} egymást követő javaslatra nem érkezett válasz, ezért kikapcsolt. Ha szeretnéd, kapcsold vissza az Autopilot oldalon.`,
-      url: '/autopilot',
-      tag: 'autopilot',
-    }, { urgency: 'normal', ttl: 3600 }).catch(() => null)
-  }
-  return true
-}
-
 export async function checkAutopilot(nowTs = Math.floor(Date.now() / 1000)): Promise<void> {
   const d = db()
   // Lejárat-kezelés mindig fut, engedélyezéstől függetlenül (a sor megmarad, csak a státusza vált — ez maga a napló).
   d.prepare("UPDATE autopilot_suggestions SET status = 'expired' WHERE status = 'pending' AND expires_at <= ?").run(nowTs)
 
   const cfg = autopilotSettings()
-  if (cfg.enabled && (await maybeAutoDisable(cfg))) return
   if (!cfg.enabled) return
   if (d.prepare("SELECT 1 FROM autopilot_suggestions WHERE status = 'pending' LIMIT 1").get()) return
 
