@@ -785,6 +785,7 @@ const subValue = (e: any) => (['meal', 'correction', 'basal'].includes(e.sub) ? 
     <aside v-if="!readOnly" class="home-right">
       <SensorCard v-if="device" :device="device" />
       <NotifyLogCard />
+      <ChallengeCard />
     </aside>
 
     <p class="muted small disclaimer">Saját nyilvántartás, nem orvostechnikai eszköz. Kezelési döntéshez a Guardian app értékeit és a diabetológusod útmutatását használd.</p>

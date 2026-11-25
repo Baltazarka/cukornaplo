@@ -66,7 +66,7 @@ const DRIFT_LIMIT = 0.3
 const MIN_DRIFT_HOURS = 3
 const MIN_DRIFT_DAYS = 3
 /** Ezek a jegyzetek erősen befolyásolják az érzékenységet: az ablakban nem tiszta az esemény. */
-const DISTURBING_TAGS = ['sport', 'betegseg', 'alkohol']
+export const DISTURBING_TAGS =['sport', 'betegseg', 'alkohol']
 /** A felszívódási görbe rácsa: percenként 15-ös lépés 0-tól 360-ig. */
 export const ABSORB_STEP = 15
 export const ABSORB_POINTS = 360 / ABSORB_STEP + 1

@@ -263,7 +263,8 @@
   :root[data-theme="pastel-night"] .home-main > .day-chart-card,
   :root[data-theme="pastel-night"] .home-side > .bolus-calc { order: 3; }
   :root[data-theme="pastel-night"] .home-right > .sensor-card,
-  :root[data-theme="pastel-night"] .home-right > .notify-log { order: 4; }
+  :root[data-theme="pastel-night"] .home-right > .notify-log,
+  :root[data-theme="pastel-night"] .home-right > .challenge { order: 4; }
 }
 
 * { box-sizing: border-box; }
@@ -1266,7 +1267,7 @@ html.guide-lock, html.guide-lock body { overflow: hidden; }
   .home-main > .cl-alert { order: 0; }
   .home-main > .filters { order: 1; }
   .home-side > .bolus-calc { order: 2; }
-  .home-right > .sensor-card, .home-right > .notify-log { order: 2; }
+  .home-right > .sensor-card, .home-right > .notify-log, .home-right > .challenge { order: 2; }
   .home-main > .day-chart-card { order: 3; }
   .home-side > .therapy-card { order: 9; }
 
