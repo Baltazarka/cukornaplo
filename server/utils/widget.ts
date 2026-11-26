@@ -38,6 +38,12 @@ export function widgetData(hours: number) {
     .all(now - 12 * 3600) as any[]).map((r) => ({ ts: Number(r.ts), v: Number(r.value), sub: r.subtype ?? null }))
   const iob = t ? Math.round(iobAt(rapidDoses(t, now, now + 1, carbRows.map((c) => c.ts)), now) * 10) / 10 : null
   const cob = Math.round(cobAt(carbRows, now))
+  // Az órás kijelző ívének teteje: a még aktív (5 órán belüli) legnagyobb beadott adag, onnan fogy az ív.
+  const topSince = now - 5 * 3600
+  const cobTop = carbRows.reduce((m, c) => (c.ts >= topSince ? Math.max(m, c.v) : m), 0) || null
+  const iobTop = Number((db()
+    .prepare("SELECT MAX(value) v FROM entries WHERE type = 'insulin' AND (subtype IS NULL OR subtype != 'basal') AND ts >= ?")
+    .get(topSince) as any)?.v) || null
 
   // Javaslat: a push-értesítések szabályai (előrejelzési táv, legkisebb inzulinadag) szerint.
   let suggest: { insulin: number | null; carbs: number | null } = { insulin: null, carbs: null }
@@ -62,6 +68,8 @@ export function widgetData(hours: number) {
     trend: tr ? { dir: tr.dir, level: tr.level } : null,
     iob,
     cob,
+    iobTop,
+    cobTop,
     suggest,
     autopilot,
     range: { low, high },
